@@ -5,9 +5,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { 
-  Send, Bot, User, Loader2, Sparkles, Database, ShieldCheck, Mail, 
+  Send, Bot, User, Loader2, Sparkles, ShieldCheck, Mail, 
   Briefcase, FileText, ArrowUpRight, CheckCircle2, ChevronRight,
-  Copy, Check, Terminal, Zap, Inbox, BarChart3
+  Copy, Check, Terminal, Zap, Inbox
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -24,8 +24,8 @@ export default function OperationsCockpitPage() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Operations Copilot is active and connected to your enterprise endpoints:\n\n- **Microsoft SharePoint**: Microsoft Graph `/sites` root drive.\n- **Dynamics 365 CRM**: Dataverse Web API v9.2 (`org98ee0c24.crm8.dynamics.com`).\n- **Outlook & Calendar**: Mailbox `dj@enlightlab.com`.\n- **PostgreSQL Database**: Supabase instance (`aws-0-ap-northeast-1`) authenticated via `ai_readonly_user` (41 records across `public` and `BCP` schemas).\n\nEnter a query below to retrieve data across these services.',
-      sourceBadges: ['SharePoint', 'Dynamics 365', 'Outlook', 'Supabase'],
+      content: 'Operations Copilot is active and connected to your enterprise endpoints:\n\n- **Microsoft SharePoint**: Microsoft Graph `/sites` root drive.\n- **Dynamics 365 CRM**: Dataverse Web API v9.2 (`org98ee0c24.crm8.dynamics.com`).\n- **Outlook & Calendar**: Mailbox `dj@enlightlab.com`.\n\nEnter a query below to retrieve data across these services.',
+      sourceBadges: ['SharePoint', 'Dynamics 365', 'Outlook'],
       timestamp: 'Just now'
     }
   ]);
@@ -106,7 +106,6 @@ export default function OperationsCockpitPage() {
       if (/sharepoint|contract|msa|pdf|sop/i.test(aiResponse)) badges.push('SharePoint');
       if (/dynamics|crm|deal|opportunity|pipeline/i.test(aiResponse)) badges.push('Dynamics 365');
       if (/outlook|email|calendar|meeting/i.test(aiResponse)) badges.push('Outlook');
-      if (/database|postgres|order|revenue|sql|supabase/i.test(aiResponse)) badges.push('Supabase');
 
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(), 
@@ -160,11 +159,11 @@ export default function OperationsCockpitPage() {
               </div>
             </div>
 
-            {/* Telemetry Sources Grid - Real Endpoints & Schemas */}
+            {/* Telemetry Sources Grid - Real Endpoints */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Sources</span>
-                <span className="text-[11px] font-mono text-slate-400">4 / 4 Active</span>
+                <span className="text-[11px] font-mono text-slate-400">3 / 3 Active</span>
               </div>
 
               {/* 1. SharePoint */}
@@ -211,21 +210,6 @@ export default function OperationsCockpitPage() {
                   <span className="text-slate-700 font-semibold">dj@enlightlab.com</span>
                 </div>
               </div>
-
-              {/* 4. Supabase DB */}
-              <div className="p-3 bg-white/80 border border-slate-200/60 rounded-xl shadow-xs hover:border-indigo-300 transition-colors">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center space-x-2">
-                    <Database className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs font-semibold text-slate-800">Supabase PostgreSQL</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded">ai_readonly</span>
-                </div>
-                <div className="text-[11px] text-slate-500 flex justify-between font-mono">
-                  <span>Database Rows</span>
-                  <span className="text-slate-900 font-semibold">41 Records (Live Schemas)</span>
-                </div>
-              </div>
             </div>
 
             {/* Quick Prompts Drawer */}
@@ -244,13 +228,6 @@ export default function OperationsCockpitPage() {
                   className="text-left text-xs p-2.5 rounded-lg bg-slate-50 hover:bg-sky-50/80 hover:text-sky-900 text-slate-600 transition-all border border-slate-200/50 flex items-center justify-between group"
                 >
                   <span className="flex items-center"><Inbox className="w-3.5 h-3.5 text-sky-600 mr-1.5" /> Fetch Outlook Inbox</span>
-                  <ChevronRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-                <button 
-                  onClick={() => handleQuickAction("Query tables and row counts in BCP and operations_copilot database schemas")}
-                  className="text-left text-xs p-2.5 rounded-lg bg-slate-50 hover:bg-emerald-50/80 hover:text-emerald-900 text-slate-600 transition-all border border-slate-200/50 flex items-center justify-between group"
-                >
-                  <span className="flex items-center"><BarChart3 className="w-3.5 h-3.5 text-emerald-600 mr-1.5" /> Query Supabase Schemas</span>
                   <ChevronRight className="w-3 h-3 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
@@ -436,7 +413,7 @@ export default function OperationsCockpitPage() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about SharePoint files, Dynamics CRM, Outlook emails, or Supabase DB... (⌘K)"
+                placeholder="Ask about SharePoint files, Dynamics CRM deals, or Outlook emails... (⌘K)"
                 className="w-full bg-slate-50/90 border border-slate-200/90 rounded-2xl pl-5 pr-14 py-4 text-[14.5px] text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-inner"
                 disabled={isLoading}
               />
