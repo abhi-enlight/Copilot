@@ -2,9 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { 
   Send, Bot, User, Loader2, Sparkles, Database, ShieldCheck, Mail, 
-  Briefcase, FileText, ArrowUpRight, Activity, CheckCircle2, ChevronRight,
+  Briefcase, FileText, ArrowUpRight, CheckCircle2, ChevronRight,
   Copy, Check, Terminal, Zap, Inbox, BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -148,20 +150,13 @@ export default function OperationsCockpitPage() {
           
           <div className="space-y-6">
             
-            {/* Logo & Status Badge */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/10">
-                  <Terminal className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold tracking-tight text-slate-900">Operations Cockpit</h2>
-                  <p className="text-[11px] text-slate-500 font-mono">v2.6 • Unified Graph</p>
-                </div>
+            {/* Logo & Header */}
+            <div className="flex items-center space-x-3 pb-4 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-md shadow-slate-900/10">
+                <Terminal className="w-5 h-5" />
               </div>
-              <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[11px] font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live</span>
+              <div>
+                <h2 className="text-sm font-semibold tracking-tight text-slate-900">Operations Cockpit</h2>
               </div>
             </div>
 
@@ -263,11 +258,7 @@ export default function OperationsCockpitPage() {
 
           </div>
 
-          {/* Engine Footer */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <span className="flex items-center"><Activity className="w-3 h-3 mr-1 text-emerald-500" /> n8n Cloud</span>
-            <span className="font-mono">Gemini 3.7 Flash</span>
-          </div>
+
 
         </aside>
 
@@ -330,20 +321,63 @@ export default function OperationsCockpitPage() {
                         )}
 
                         {/* Markdown Rendered Content */}
-                        <div className="prose prose-slate prose-sm max-w-none dark:prose-invert">
+                        <div className="prose prose-slate prose-sm max-w-none text-slate-800">
                           <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw]}
                             components={{
-                              p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                              ul: ({ children }) => <ul className="list-disc pl-4 space-y-1 my-2">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1 my-2">{children}</ol>,
+                              p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed text-[13.5px]">{children}</p>,
+                              ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 my-2 text-[13.5px]">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal pl-5 space-y-1 my-2 text-[13.5px]">{children}</ol>,
                               li: ({ children }) => <li className="leading-relaxed">{children}</li>,
                               strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+                              h1: ({ children }) => <h1 className="text-lg font-bold text-slate-900 mt-4 mb-2 pb-1 border-b border-slate-200">{children}</h1>,
+                              h2: ({ children }) => <h2 className="text-base font-bold text-slate-900 mt-3.5 mb-1.5">{children}</h2>,
+                              h3: ({ children }) => <h3 className="text-sm font-bold text-slate-900 mt-3 mb-1.5">{children}</h3>,
+                              h4: ({ children }) => <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mt-2.5 mb-1">{children}</h4>,
+                              hr: () => <hr className="my-3.5 border-slate-200" />,
+                              blockquote: ({ children }) => (
+                                <blockquote className="border-l-3 border-indigo-500 pl-3 py-1.5 my-2.5 bg-indigo-50/50 rounded-r-lg text-slate-700 text-xs italic">
+                                  {children}
+                                </blockquote>
+                              ),
+                              table: ({ children }) => (
+                                <div className="overflow-x-auto my-3.5 rounded-xl border border-slate-200/90 shadow-2xs bg-white">
+                                  <table className="min-w-full divide-y divide-slate-200/80 text-left border-collapse">
+                                    {children}
+                                  </table>
+                                </div>
+                              ),
+                              thead: ({ children }) => (
+                                <thead className="bg-slate-100/90 text-slate-800 text-[11px] font-bold uppercase tracking-wider">
+                                  {children}
+                                </thead>
+                              ),
+                              tbody: ({ children }) => (
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                  {children}
+                                </tbody>
+                              ),
+                              tr: ({ children }) => (
+                                <tr className="hover:bg-slate-50/80 transition-colors">
+                                  {children}
+                                </tr>
+                              ),
+                              th: ({ children }) => (
+                                <th className="px-3.5 py-2.5 font-semibold text-slate-800 align-middle">
+                                  {children}
+                                </th>
+                              ),
+                              td: ({ children }) => (
+                                <td className="px-3.5 py-2.5 text-slate-700 text-[12.5px] leading-relaxed align-top">
+                                  {children}
+                                </td>
+                              ),
                               code: ({ children }) => (
-                                <code className="px-1.5 py-0.5 rounded bg-slate-200/60 text-indigo-700 font-mono text-[12.5px]">
+                                <code className="px-1.5 py-0.5 rounded bg-slate-200/70 text-indigo-700 font-mono text-[12px]">
                                   {children}
                                 </code>
                               ),
-                              h3: ({ children }) => <h3 className="text-sm font-bold text-slate-900 mt-3 mb-1.5">{children}</h3>,
                             }}
                           >
                             {msg.content}
