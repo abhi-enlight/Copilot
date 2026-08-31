@@ -22,7 +22,7 @@ export default function OperationsCockpitPage() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Operations Copilot is active and connected to your enterprise endpoints:\n\n- **Microsoft SharePoint**: Microsoft Graph `/sites` root drive.\n- **Dynamics 365 CRM**: Dataverse Web API v9.2 (`org98ee0c24.crm8.dynamics.com`).\n- **Outlook & Calendar**: Mailbox `dj@enlightlab.com`.\n- **PostgreSQL Database**: Supabase instance (`aws-0-ap-northeast-1`) authenticated via `ai_readonly_user` (39 records across `BCP` and `operations_copilot` schemas).\n\nEnter a query below to retrieve data across these services.',
+      content: 'Operations Copilot is active and connected to your enterprise endpoints:\n\n- **Microsoft SharePoint**: Microsoft Graph `/sites` root drive.\n- **Dynamics 365 CRM**: Dataverse Web API v9.2 (`org98ee0c24.crm8.dynamics.com`).\n- **Outlook & Calendar**: Mailbox `dj@enlightlab.com`.\n- **PostgreSQL Database**: Supabase instance (`aws-0-ap-northeast-1`) authenticated via `ai_readonly_user` (41 records across `public` and `BCP` schemas).\n\nEnter a query below to retrieve data across these services.',
       sourceBadges: ['SharePoint', 'Dynamics 365', 'Outlook', 'Supabase'],
       timestamp: 'Just now'
     }
@@ -228,7 +228,7 @@ export default function OperationsCockpitPage() {
                 </div>
                 <div className="text-[11px] text-slate-500 flex justify-between font-mono">
                   <span>Database Rows</span>
-                  <span className="text-slate-900 font-semibold">39 Records (5 Tables)</span>
+                  <span className="text-slate-900 font-semibold">41 Records (Live Schemas)</span>
                 </div>
               </div>
             </div>
