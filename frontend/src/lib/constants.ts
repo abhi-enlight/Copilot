@@ -15,27 +15,27 @@ export const DEFAULT_WORKSPACE: Tenant = {
 
 export const AVAILABLE_WORKSPACES: Tenant[] = [
   {
-    id: 'org_enlight_01',
-    name: 'EnlightLab Workspace',
-    slug: 'enlightlab',
-    role: 'Admin',
-    userEmail: 'dj@enlightlab.com',
-    userName: 'Abhi',
-    sharepointDrive: '/sites/root/drive',
-    dynamicsOrg: 'org98ee0c24.crm8',
-    m365Connected: true,
-    crmConnected: true
-  },
-  {
-    id: 'org_personal_02',
+    id: 'org_personal_01',
     name: 'Personal Workspace',
     slug: 'personal',
     role: 'Owner',
-    userEmail: 'user@outlook.com',
-    userName: 'User',
-    sharepointDrive: '/me/drive/root',
+    userEmail: undefined,
+    userName: undefined,
+    sharepointDrive: undefined,
     dynamicsOrg: undefined,
-    m365Connected: true,
+    m365Connected: false,
+    crmConnected: false
+  },
+  {
+    id: 'org_enterprise_02',
+    name: 'Enterprise Organization',
+    slug: 'enterprise',
+    role: 'Admin',
+    userEmail: undefined,
+    userName: undefined,
+    sharepointDrive: '/sites/root/drive',
+    dynamicsOrg: undefined,
+    m365Connected: false,
     crmConnected: false
   }
 ];

@@ -49,7 +49,7 @@ export function useTenantContext() {
               userEmail: emailParam || prev.userEmail,
               name: nameParam || (emailParam ? `${emailParam.split('@')[0]}'s Workspace` : prev.name),
               sharepointDrive: driveParam || (isPersonal ? 'OneDrive (/me/drive)' : (prev.sharepointDrive || '/sites/root/drive')),
-              dynamicsOrg: hasCrm ? (orgParam || prev.dynamicsOrg || 'org98ee0c24.crm8') : undefined,
+              dynamicsOrg: hasCrm ? (orgParam || prev.dynamicsOrg) : undefined,
               m365Connected: true,
               crmConnected: hasCrm
             };

@@ -8,14 +8,14 @@ import { NextResponse } from 'next/server';
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const tenantSlug = searchParams.get('tenant') || 'enlightlab';
+  const tenantSlug = searchParams.get('tenant') || 'default';
 
   const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
   const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || `https://${tenantSlug}.yourapp.com/auth/callback`;
-  const CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || 'https://org98ee0c24.crm8.dynamics.com';
-  const CRM_ORG = CRM_ORG_URL.replace(/^https?:\/\//, '').replace(/\.dynamics\.com.*$/, '');
+  const CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || '';
+  const CRM_ORG = CRM_ORG_URL ? CRM_ORG_URL.replace(/^https?:\/\//, '').replace(/\.dynamics\.com.*$/, '') : 'Not Configured';
   const SHAREPOINT_DRIVE = process.env.SHAREPOINT_DRIVE_ROOT || '/sites/root/drive';
-  const MAILBOX = searchParams.get('email') || process.env.OUTLOOK_MAILBOX || 'dj@enlightlab.com';
+  const MAILBOX = searchParams.get('email') || process.env.OUTLOOK_MAILBOX || 'Not Connected';
 
   // Generate official Microsoft Entra ID Admin Consent Link
   const adminConsentUrl = `https://login.microsoftonline.com/common/adminconsent?client_id=${encodeURIComponent(

@@ -91,13 +91,12 @@ export async function GET(request: Request) {
           console.warn('Could not fetch MS Graph user profile:', profileErr);
         }
 
-        // Automatic CRM Detection:
-        // 1. Check if personal account -> No CRM
+        // Automatic CRM Detection strictly for the signing-in user:
         const isPersonalAccount = userEmail ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(userEmail) : false;
 
-        if (!isPersonalAccount) {
+        if (!isPersonalAccount && tokenData.access_token) {
           try {
-            // Check user licenses via MS Graph
+            // Check user licenses via MS Graph for Dynamics 365 / Dataverse
             const licenseRes = await fetch('https://graph.microsoft.com/v1.0/me/licenseDetails', {
               headers: { Authorization: `Bearer ${tokenData.access_token}` },
             });
@@ -117,14 +116,15 @@ export async function GET(request: Request) {
                 );
               });
 
-              if (hasCrmLicense || DEFAULT_CRM_ORG) {
+              if (hasCrmLicense) {
                 hasCrm = true;
-                crmOrg = DEFAULT_CRM_ORG || 'org98ee0c24.crm8';
+                crmOrg = 'Dataverse CRM Active';
+              } else {
+                hasCrm = false;
+                crmOrg = '';
               }
-            } else if (DEFAULT_CRM_ORG && !isPersonalAccount) {
-              // Organizational domain with configured CRM endpoint
-              hasCrm = true;
-              crmOrg = DEFAULT_CRM_ORG;
+            } else {
+              hasCrm = false;
             }
           } catch (crmCheckErr) {
             console.warn('CRM detection check failed:', crmCheckErr);
