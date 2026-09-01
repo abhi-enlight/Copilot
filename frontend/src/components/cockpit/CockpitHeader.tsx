@@ -4,6 +4,7 @@ import React from 'react';
 import { Sparkle, Building2, ChevronDown, Check, KeyRound, LogOut, ArrowUpRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tenant } from '@/types';
+import { AVAILABLE_WORKSPACES } from '@/lib/constants';
 
 type CockpitHeaderProps = {
   isAuthenticated: boolean;
@@ -13,6 +14,7 @@ type CockpitHeaderProps = {
   setIsTenantDropdownOpen: (open: boolean) => void;
   setShowIntegrationsModal: (show: boolean) => void;
   setShowConsentModal: (show: boolean) => void;
+  onSelectTenant?: (tenant: Tenant) => void;
   onLogin: () => void;
   onLogout: () => void;
 };
@@ -25,6 +27,7 @@ export function CockpitHeader({
   setIsTenantDropdownOpen,
   setShowIntegrationsModal,
   setShowConsentModal,
+  onSelectTenant,
   onLogin,
   onLogout
 }: CockpitHeaderProps) {
@@ -71,18 +74,38 @@ export function CockpitHeader({
                   className="absolute left-1/2 -translate-x-1/2 mt-2 w-72 p-2 rounded-2xl bg-white/95 border border-slate-200 backdrop-blur-2xl shadow-xl shadow-slate-900/10 z-50 space-y-1"
                 >
                   <div className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
-                    Active Workspace
+                    Workspaces & Tenants
                   </div>
 
-                  <div className="w-full flex items-center justify-between p-2.5 rounded-xl bg-indigo-50/80 text-indigo-950 border border-indigo-200/70 text-xs">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <div>
-                        <div className="font-semibold text-slate-900">{activeTenant.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">Endpoints Connected</div>
-                      </div>
-                    </div>
-                    <Check className="w-3.5 h-3.5 text-indigo-600" />
+                  <div className="space-y-1">
+                    {AVAILABLE_WORKSPACES.map((ws) => {
+                      const isSelected = activeTenant.id === ws.id || activeTenant.slug === ws.slug;
+                      return (
+                        <button
+                          key={ws.id}
+                          onClick={() => {
+                            if (onSelectTenant) onSelectTenant(ws);
+                            setIsTenantDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all ${
+                            isSelected
+                              ? 'bg-indigo-50/80 text-indigo-950 border border-indigo-200/70 text-xs font-semibold'
+                              : 'hover:bg-slate-50 text-slate-700 text-xs border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2 truncate">
+                            <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-500' : 'bg-slate-300'} shrink-0`} />
+                            <div className="truncate">
+                              <div className="text-slate-900 truncate">{ws.name}</div>
+                              <div className="text-[10px] text-slate-500 font-mono truncate">
+                                {ws.userEmail || ws.slug}
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0 ml-2" />}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div className="pt-1.5 border-t border-slate-100 space-y-1">

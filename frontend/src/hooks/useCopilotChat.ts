@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { Message, Tenant } from '@/types';
 import { apiClient } from '@/lib/api-client';
 import { cleanEmoji, extractSourceBadges, copyToClipboard } from '@/lib/utils';
-import { INITIAL_WELCOME_MESSAGE } from '@/lib/constants';
+import { getWelcomeMessage } from '@/lib/constants';
 
 export function useCopilotChat(activeTenant: Tenant) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: INITIAL_WELCOME_MESSAGE,
+      content: getWelcomeMessage(activeTenant),
       sourceBadges: ['SharePoint', 'Dynamics 365', 'Outlook'],
       timestamp: 'Just now'
     }
@@ -98,12 +98,27 @@ export function useCopilotChat(activeTenant: Tenant) {
     }
   };
 
+  // Sync welcome message when active tenant changes if chat is clean
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].id === 'welcome') {
+        return [
+          {
+            ...prev[0],
+            content: getWelcomeMessage(activeTenant)
+          }
+        ];
+      }
+      return prev;
+    });
+  }, [activeTenant]);
+
   const resetMessages = (customWelcome?: string) => {
     setMessages([
       {
         id: 'welcome',
         role: 'assistant',
-        content: customWelcome || INITIAL_WELCOME_MESSAGE,
+        content: customWelcome || getWelcomeMessage(activeTenant),
         sourceBadges: ['SharePoint', 'Dynamics 365', 'Outlook'],
         timestamp: 'Just now'
       }

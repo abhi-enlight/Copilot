@@ -12,13 +12,17 @@ export async function GET(request: Request) {
 
   const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
   const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || `https://${tenantSlug}.yourapp.com/auth/callback`;
+  const CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || 'https://org98ee0c24.crm8.dynamics.com';
+  const CRM_ORG = CRM_ORG_URL.replace(/^https?:\/\//, '').replace(/\.dynamics\.com.*$/, '');
+  const SHAREPOINT_DRIVE = process.env.SHAREPOINT_DRIVE_ROOT || '/sites/root/drive';
+  const MAILBOX = searchParams.get('email') || process.env.OUTLOOK_MAILBOX || 'dj@enlightlab.com';
 
   // Generate official Microsoft Entra ID Admin Consent Link
   const adminConsentUrl = `https://login.microsoftonline.com/common/adminconsent?client_id=${encodeURIComponent(
     AZURE_CLIENT_ID
   )}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${encodeURIComponent(tenantSlug)}`;
 
-  // Example health payload
+  // Dynamic health payload
   const healthData = {
     tenant: tenantSlug,
     status: 'healthy',
@@ -26,18 +30,18 @@ export async function GET(request: Request) {
     services: {
       sharepoint: {
         status: 'connected',
-        endpoint: '/sites/root/drive',
+        endpoint: SHAREPOINT_DRIVE,
         scopeConsent: true
       },
       dynamics_crm: {
         status: 'connected',
-        org: 'org98ee0c24',
+        org: CRM_ORG,
         scopeConsent: true,
         userRole: 'Sales Enterprise Customizer'
       },
       outlook: {
         status: 'connected',
-        mailbox: 'dj@enlightlab.com',
+        mailbox: MAILBOX,
         scopeConsent: true
       },
       database_rls: {
@@ -49,7 +53,7 @@ export async function GET(request: Request) {
     requiredScopes: [
       'https://graph.microsoft.com/Sites.Read.All',
       'https://graph.microsoft.com/Mail.Read',
-      'https://org98ee0c24.crm8.dynamics.com/user_impersonation'
+      `${CRM_ORG_URL}/user_impersonation`
     ]
   };
 

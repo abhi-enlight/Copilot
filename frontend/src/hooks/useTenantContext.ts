@@ -13,16 +13,44 @@ export function useTenantContext() {
 
   const tenantDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Restore authenticated session from storage or callback param if present
+  // Restore authenticated session and dynamic tenant info from storage or callback params
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const isConnected = urlParams.get('connected');
+      const emailParam = urlParams.get('email');
+      const nameParam = urlParams.get('name') || urlParams.get('tenant');
+      const driveParam = urlParams.get('drive');
+      const orgParam = urlParams.get('org');
       const hasStoredAuth = sessionStorage.getItem('copilot_auth') === 'true';
+
+      const storedTenantStr = sessionStorage.getItem('copilot_tenant');
+      if (storedTenantStr) {
+        try {
+          const parsed = JSON.parse(storedTenantStr);
+          setActiveTenant(parsed);
+        } catch {
+          // ignore parsing error
+        }
+      }
 
       if (isConnected || hasStoredAuth) {
         setIsAuthenticated(true);
         sessionStorage.setItem('copilot_auth', 'true');
+
+        if (emailParam || nameParam || driveParam || orgParam) {
+          setActiveTenant((prev) => {
+            const updated: Tenant = {
+              ...prev,
+              userEmail: emailParam || prev.userEmail,
+              name: nameParam || (emailParam ? `${emailParam.split('@')[0]}'s Workspace` : prev.name),
+              sharepointDrive: driveParam || prev.sharepointDrive || '/sites/root/drive',
+              dynamicsOrg: orgParam || prev.dynamicsOrg || 'org98ee0c24.crm8'
+            };
+            sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
+            return updated;
+          });
+        }
       }
     }
   }, []);
@@ -42,7 +70,9 @@ export function useTenantContext() {
     try {
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('copilot_auth');
+        sessionStorage.removeItem('copilot_tenant');
         localStorage.removeItem('copilot_auth');
+        localStorage.removeItem('copilot_tenant');
       }
       await apiClient.logout();
     } catch (e) {
@@ -59,9 +89,17 @@ export function useTenantContext() {
     setIsAuthenticated(true);
   };
 
+  const handleSelectTenant = (tenant: Tenant) => {
+    setActiveTenant(tenant);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('copilot_tenant', JSON.stringify(tenant));
+    }
+  };
+
   return {
     activeTenant,
     setActiveTenant,
+    handleSelectTenant,
     isAuthenticated,
     setIsAuthenticated,
     isTenantDropdownOpen,

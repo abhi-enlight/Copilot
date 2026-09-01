@@ -45,6 +45,9 @@ export async function GET(request: Request) {
   const REDIRECT_URI = `${baseUrl}/api/integrations/microsoft/callback`;
 
   try {
+    let userEmail = '';
+    let userName = '';
+
     if (AZURE_CLIENT_SECRET) {
       // Exchange authorization code for refresh token and access token
       const tokenResponse = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
@@ -66,12 +69,32 @@ export async function GET(request: Request) {
       }
 
       const tokenData = await tokenResponse.json();
-      // TokenData contains: access_token, refresh_token, id_token, expires_in
       console.log(`Successfully acquired tokens for tenant: ${tenantId}`);
+
+      // Query Microsoft Graph /v1.0/me to get the authenticated user's actual profile & email
+      if (tokenData.access_token) {
+        try {
+          const profileResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          if (profileResponse.ok) {
+            const profile = await profileResponse.json();
+            userEmail = profile.mail || profile.userPrincipalName || '';
+            userName = profile.displayName || '';
+          }
+        } catch (profileErr) {
+          console.warn('Could not fetch MS Graph user profile:', profileErr);
+        }
+      }
     }
 
-    // Redirect user back with success banner
-    return NextResponse.redirect(`${baseUrl}${returnTo}?connected=microsoft_365`);
+    // Redirect user back with dynamic session and workspace information
+    const redirectUrl = new URL(returnTo, baseUrl);
+    redirectUrl.searchParams.set('connected', 'microsoft_365');
+    if (userEmail) redirectUrl.searchParams.set('email', userEmail);
+    if (userName) redirectUrl.searchParams.set('name', `${userName}'s Workspace`);
+
+    return NextResponse.redirect(redirectUrl.toString());
   } catch (err) {
     console.error('OAuth Callback Exception:', err);
     return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=internal_server_error`);

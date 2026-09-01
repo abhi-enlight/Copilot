@@ -5,19 +5,59 @@ export const DEFAULT_WORKSPACE: Tenant = {
   name: 'EnlightLab Workspace',
   slug: 'enlightlab',
   role: 'Admin',
+  userEmail: 'dj@enlightlab.com',
+  userName: 'Abhi',
+  sharepointDrive: '/sites/root/drive',
+  dynamicsOrg: 'org98ee0c24.crm8',
   m365Connected: true,
   crmConnected: true
 };
 
-export const INITIAL_WELCOME_MESSAGE = `### Operations Copilot Active
+export const AVAILABLE_WORKSPACES: Tenant[] = [
+  {
+    id: 'org_enlight_01',
+    name: 'EnlightLab Workspace',
+    slug: 'enlightlab',
+    role: 'Admin',
+    userEmail: 'dj@enlightlab.com',
+    userName: 'Abhi',
+    sharepointDrive: '/sites/root/drive',
+    dynamicsOrg: 'org98ee0c24.crm8',
+    m365Connected: true,
+    crmConnected: true
+  },
+  {
+    id: 'org_personal_02',
+    name: 'Personal Workspace',
+    slug: 'personal',
+    role: 'Owner',
+    userEmail: 'user@outlook.com',
+    userName: 'User',
+    sharepointDrive: '/me/drive/root',
+    dynamicsOrg: 'org-personal.crm',
+    m365Connected: true,
+    crmConnected: false
+  }
+];
 
-Connected to enterprise endpoints under **EnlightLab Workspace**:
+export const getWelcomeMessage = (tenant: Tenant): string => {
+  const email = tenant.userEmail || 'Connected Account';
+  const org = tenant.dynamicsOrg || 'Dataverse CRM v9.2';
+  const drive = tenant.sharepointDrive || '/sites/root/drive';
+  const name = tenant.name || 'Your Workspace';
 
-* **Microsoft SharePoint**: Root drive active (\`/sites/root/drive\`)
-* **Dynamics 365 CRM**: Dataverse v9.2 (\`org98ee0c24.crm8.dynamics.com\`)
-* **Outlook & Calendar**: Connected to \`dj@enlightlab.com\`
+  return `### Operations Copilot Active
+
+Connected to enterprise endpoints under **${name}**:
+
+* **Microsoft SharePoint**: Root drive active (\`${drive}\`)
+* **Dynamics 365 CRM**: Dataverse API (\`${org}\`)
+* **Outlook & Calendar**: Connected to \`${email}\`
 
 *Type an executive query below to retrieve data across these services.*`;
+};
+
+export const INITIAL_WELCOME_MESSAGE = getWelcomeMessage(DEFAULT_WORKSPACE);
 
 export const QUICK_ACTIONS = [
   {

@@ -6,14 +6,17 @@ import {
   Inbox, Sparkles, ChevronRight, ShieldCheck, KeyRound, LogOut 
 } from 'lucide-react';
 import { QUICK_ACTIONS } from '@/lib/constants';
+import { Tenant } from '@/types';
 
 type TelemetrySidebarProps = {
+  activeTenant: Tenant;
   onQuickAction: (prompt: string) => void;
   onOpenConsentModal: () => void;
   onLogout: () => void;
 };
 
 export function TelemetrySidebar({
+  activeTenant,
   onQuickAction,
   onOpenConsentModal,
   onLogout
@@ -45,11 +48,13 @@ export function TelemetrySidebar({
                 </div>
                 <span className="text-xs font-semibold text-slate-900">SharePoint & OneDrive</span>
               </div>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+              <span className={`w-2 h-2 rounded-full ${activeTenant.m365Connected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Drive Root</span>
-              <span className="text-slate-700 font-medium">/sites/root/drive</span>
+              <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.sharepointDrive || '/sites/root/drive'}>
+                {activeTenant.sharepointDrive || '/sites/root/drive'}
+              </span>
             </div>
           </div>
 
@@ -62,11 +67,13 @@ export function TelemetrySidebar({
                 </div>
                 <span className="text-xs font-semibold text-slate-900">Dynamics 365 CRM</span>
               </div>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+              <span className={`w-2 h-2 rounded-full ${activeTenant.crmConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Dataverse API</span>
-              <span className="text-slate-700 font-medium">org98ee0c24.crm8</span>
+              <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.dynamicsOrg || 'org98ee0c24.crm8'}>
+                {activeTenant.dynamicsOrg || 'org98ee0c24.crm8'}
+              </span>
             </div>
           </div>
 
@@ -79,11 +86,13 @@ export function TelemetrySidebar({
                 </div>
                 <span className="text-xs font-semibold text-slate-900">Outlook & Calendar</span>
               </div>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+              <span className={`w-2 h-2 rounded-full ${activeTenant.m365Connected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Authorized</span>
-              <span className="text-slate-700 font-medium">dj@enlightlab.com</span>
+              <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.userEmail || 'dj@enlightlab.com'}>
+                {activeTenant.userEmail || 'dj@enlightlab.com'}
+              </span>
             </div>
           </div>
         </div>

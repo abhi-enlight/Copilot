@@ -25,6 +25,7 @@ export default function OperationsCockpitPage() {
     showIntegrationsModal,
     setShowIntegrationsModal,
     tenantDropdownRef,
+    handleSelectTenant,
     handleLogout,
     handleLogin
   } = useTenantContext();
@@ -79,6 +80,7 @@ export default function OperationsCockpitPage() {
         setIsTenantDropdownOpen={setIsTenantDropdownOpen}
         setShowIntegrationsModal={setShowIntegrationsModal}
         setShowConsentModal={setShowConsentModal}
+        onSelectTenant={handleSelectTenant}
         onLogin={onLogin}
         onLogout={handleLogout}
       />
@@ -91,6 +93,7 @@ export default function OperationsCockpitPage() {
           <>
             {/* Left HUD: Telemetry & Endpoint Orchestration */}
             <TelemetrySidebar
+              activeTenant={activeTenant}
               onQuickAction={handleQuickAction}
               onOpenConsentModal={() => setShowConsentModal(true)}
               onLogout={handleLogout}

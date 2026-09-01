@@ -5,6 +5,10 @@ export type Tenant = {
   name: string;
   slug: string;
   role: TenantRole;
+  userEmail?: string;
+  userName?: string;
+  sharepointDrive?: string;
+  dynamicsOrg?: string;
   m365Connected: boolean;
   crmConnected: boolean;
 };
