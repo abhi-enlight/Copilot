@@ -47,6 +47,11 @@ export async function GET(request: Request) {
   try {
     let userEmail = '';
     let userName = '';
+    let hasCrm = false;
+    let crmOrg = '';
+
+    const CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || '';
+    const DEFAULT_CRM_ORG = CRM_ORG_URL.replace(/^https?:\/\//, '').replace(/\.dynamics\.com.*$/, '');
 
     if (AZURE_CLIENT_SECRET) {
       // Exchange authorization code for refresh token and access token
@@ -85,6 +90,49 @@ export async function GET(request: Request) {
         } catch (profileErr) {
           console.warn('Could not fetch MS Graph user profile:', profileErr);
         }
+
+        // Automatic CRM Detection:
+        // 1. Check if personal account -> No CRM
+        const isPersonalAccount = userEmail ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(userEmail) : false;
+
+        if (!isPersonalAccount) {
+          try {
+            // Check user licenses via MS Graph
+            const licenseRes = await fetch('https://graph.microsoft.com/v1.0/me/licenseDetails', {
+              headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            });
+
+            if (licenseRes.ok) {
+              const licenseData = await licenseRes.json();
+              const licenses = licenseData.value || [];
+              const hasCrmLicense = licenses.some((l: { skuPartNumber?: string; servicePlans?: Array<{ servicePlanName?: string }> }) => {
+                const sku = (l.skuPartNumber || '').toUpperCase();
+                const plans = (l.servicePlans || []).map((p) => (p.servicePlanName || '').toUpperCase());
+                return (
+                  sku.includes('DYN365') ||
+                  sku.includes('CRM') ||
+                  sku.includes('POWERAPPS') ||
+                  sku.includes('CDS') ||
+                  plans.some((p) => p.includes('CRM') || p.includes('DYN365') || p.includes('COMMON_DATA_SERVICE'))
+                );
+              });
+
+              if (hasCrmLicense || DEFAULT_CRM_ORG) {
+                hasCrm = true;
+                crmOrg = DEFAULT_CRM_ORG || 'org98ee0c24.crm8';
+              }
+            } else if (DEFAULT_CRM_ORG && !isPersonalAccount) {
+              // Organizational domain with configured CRM endpoint
+              hasCrm = true;
+              crmOrg = DEFAULT_CRM_ORG;
+            }
+          } catch (crmCheckErr) {
+            console.warn('CRM detection check failed:', crmCheckErr);
+            hasCrm = false;
+          }
+        } else {
+          hasCrm = false;
+        }
       }
     }
 
@@ -93,6 +141,10 @@ export async function GET(request: Request) {
     redirectUrl.searchParams.set('connected', 'microsoft_365');
     if (userEmail) redirectUrl.searchParams.set('email', userEmail);
     if (userName) redirectUrl.searchParams.set('name', `${userName}'s Workspace`);
+    redirectUrl.searchParams.set('has_crm', hasCrm ? '1' : '0');
+    if (hasCrm && crmOrg) {
+      redirectUrl.searchParams.set('org', crmOrg);
+    }
 
     return NextResponse.redirect(redirectUrl.toString());
   } catch (err) {

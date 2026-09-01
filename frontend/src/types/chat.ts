@@ -13,6 +13,11 @@ export type ChatPayload = {
   sessionId: string;
   tenantId: string;
   tenantSlug: string;
+  userEmail?: string;
+  crmConnected?: boolean;
+  dynamicsOrg?: string;
+  m365Connected?: boolean;
+  sharepointDrive?: string;
 };
 
 export type N8nChatResponse = {

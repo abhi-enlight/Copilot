@@ -63,7 +63,12 @@ export function useCopilotChat(activeTenant: Tenant) {
         chatInput: query,
         sessionId: `session-${activeTenant.slug}-1`,
         tenantId: activeTenant.id,
-        tenantSlug: activeTenant.slug
+        tenantSlug: activeTenant.slug,
+        userEmail: activeTenant.userEmail,
+        crmConnected: Boolean(activeTenant.crmConnected),
+        dynamicsOrg: activeTenant.dynamicsOrg,
+        m365Connected: Boolean(activeTenant.m365Connected),
+        sharepointDrive: activeTenant.sharepointDrive
       });
 
       const cleanedContent = cleanEmoji(rawResponse);
