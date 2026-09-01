@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   authUrl.searchParams.set('response_mode', 'query');
   authUrl.searchParams.set('scope', scopes);
   authUrl.searchParams.set('state', statePayload);
-  authUrl.searchParams.set('prompt', 'consent');
+  authUrl.searchParams.set('prompt', 'select_account');
 
   return NextResponse.redirect(authUrl.toString());
 }
