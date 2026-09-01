@@ -52,9 +52,13 @@ export function TelemetrySidebar({
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Drive Root</span>
-              <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.sharepointDrive || '/sites/root/drive'}>
-                {activeTenant.sharepointDrive || '/sites/root/drive'}
-              </span>
+              {activeTenant.m365Connected ? (
+                <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.sharepointDrive || 'OneDrive (/me/drive)'}>
+                  {activeTenant.sharepointDrive || 'OneDrive (/me/drive)'}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">Not Connected</span>
+              )}
             </div>
           </div>
 
@@ -62,18 +66,24 @@ export function TelemetrySidebar({
           <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5 transition-all hover:border-slate-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
+                <div className={`w-7 h-7 rounded-lg ${activeTenant.crmConnected ? 'bg-sky-50 border-sky-100 text-sky-600' : 'bg-slate-50 border-slate-200 text-slate-400'} border flex items-center justify-center`}>
                   <Briefcase className="w-3.5 h-3.5" />
                 </div>
-                <span className="text-xs font-semibold text-slate-900">Dynamics 365 CRM</span>
+                <span className={`text-xs font-semibold ${activeTenant.crmConnected ? 'text-slate-900' : 'text-slate-500'}`}>
+                  Dynamics 365 CRM
+                </span>
               </div>
-              <span className={`w-2 h-2 rounded-full ${activeTenant.crmConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+              <span className={`w-2 h-2 rounded-full ${activeTenant.crmConnected && activeTenant.dynamicsOrg ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Dataverse API</span>
-              <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.dynamicsOrg || 'org98ee0c24.crm8'}>
-                {activeTenant.dynamicsOrg || 'org98ee0c24.crm8'}
-              </span>
+              {activeTenant.crmConnected && activeTenant.dynamicsOrg ? (
+                <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.dynamicsOrg}>
+                  {activeTenant.dynamicsOrg}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">Not Connected</span>
+              )}
             </div>
           </div>
 
@@ -86,13 +96,17 @@ export function TelemetrySidebar({
                 </div>
                 <span className="text-xs font-semibold text-slate-900">Outlook & Calendar</span>
               </div>
-              <span className={`w-2 h-2 rounded-full ${activeTenant.m365Connected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+              <span className={`w-2 h-2 rounded-full ${activeTenant.m365Connected && activeTenant.userEmail ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Authorized</span>
-              <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.userEmail || 'dj@enlightlab.com'}>
-                {activeTenant.userEmail || 'dj@enlightlab.com'}
-              </span>
+              {activeTenant.m365Connected && activeTenant.userEmail ? (
+                <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.userEmail}>
+                  {activeTenant.userEmail}
+                </span>
+              ) : (
+                <span className="text-slate-400 italic">Not Connected</span>
+              )}
             </div>
           </div>
         </div>

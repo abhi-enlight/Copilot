@@ -1,16 +1,16 @@
 import { Tenant } from '@/types';
 
 export const DEFAULT_WORKSPACE: Tenant = {
-  id: 'org_enlight_01',
-  name: 'EnlightLab Workspace',
-  slug: 'enlightlab',
-  role: 'Admin',
-  userEmail: 'dj@enlightlab.com',
-  userName: 'Abhi',
-  sharepointDrive: '/sites/root/drive',
-  dynamicsOrg: 'org98ee0c24.crm8',
-  m365Connected: true,
-  crmConnected: true
+  id: 'org_personal_01',
+  name: 'Personal Workspace',
+  slug: 'personal',
+  role: 'Owner',
+  userEmail: undefined,
+  userName: undefined,
+  sharepointDrive: undefined,
+  dynamicsOrg: undefined,
+  m365Connected: false,
+  crmConnected: false
 };
 
 export const AVAILABLE_WORKSPACES: Tenant[] = [
@@ -34,27 +34,27 @@ export const AVAILABLE_WORKSPACES: Tenant[] = [
     userEmail: 'user@outlook.com',
     userName: 'User',
     sharepointDrive: '/me/drive/root',
-    dynamicsOrg: 'org-personal.crm',
+    dynamicsOrg: undefined,
     m365Connected: true,
     crmConnected: false
   }
 ];
 
 export const getWelcomeMessage = (tenant: Tenant): string => {
-  const email = tenant.userEmail || 'Connected Account';
-  const org = tenant.dynamicsOrg || 'Dataverse CRM v9.2';
-  const drive = tenant.sharepointDrive || '/sites/root/drive';
+  const email = tenant.userEmail;
+  const org = tenant.crmConnected && tenant.dynamicsOrg ? `\`${tenant.dynamicsOrg}\`` : '*Not Connected*';
+  const drive = tenant.sharepointDrive || (tenant.m365Connected ? '`/me/drive/root`' : '*Not Connected*');
   const name = tenant.name || 'Your Workspace';
 
   return `### Operations Copilot Active
 
-Connected to enterprise endpoints under **${name}**:
+Connected endpoints under **${name}**:
 
-* **Microsoft SharePoint**: Root drive active (\`${drive}\`)
-* **Dynamics 365 CRM**: Dataverse API (\`${org}\`)
-* **Outlook & Calendar**: Connected to \`${email}\`
+* **Microsoft SharePoint & OneDrive**: ${drive.startsWith('`') || drive.startsWith('*') ? drive : `\`${drive}\``}
+* **Dynamics 365 CRM**: ${org}
+* **Outlook & Calendar**: ${email ? `Connected to \`${email}\`` : '*Not Connected*'}
 
-*Type an executive query below to retrieve data across these services.*`;
+*Type an executive query below to retrieve data across your connected services.*`;
 };
 
 export const INITIAL_WELCOME_MESSAGE = getWelcomeMessage(DEFAULT_WORKSPACE);

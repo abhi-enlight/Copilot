@@ -40,12 +40,17 @@ export function useTenantContext() {
 
         if (emailParam || nameParam || driveParam || orgParam) {
           setActiveTenant((prev) => {
+            const hasExplicitCrm = Boolean(orgParam);
+            const isPersonal = emailParam ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(emailParam) : false;
+
             const updated: Tenant = {
               ...prev,
               userEmail: emailParam || prev.userEmail,
               name: nameParam || (emailParam ? `${emailParam.split('@')[0]}'s Workspace` : prev.name),
-              sharepointDrive: driveParam || prev.sharepointDrive || '/sites/root/drive',
-              dynamicsOrg: orgParam || prev.dynamicsOrg || 'org98ee0c24.crm8'
+              sharepointDrive: driveParam || (isPersonal ? 'OneDrive (/me/drive)' : (prev.sharepointDrive || '/sites/root/drive')),
+              dynamicsOrg: orgParam || (hasExplicitCrm ? prev.dynamicsOrg : undefined),
+              m365Connected: true,
+              crmConnected: hasExplicitCrm
             };
             sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
             return updated;
