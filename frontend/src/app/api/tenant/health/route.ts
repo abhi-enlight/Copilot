@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const tenantSlug = searchParams.get('tenant') || 'enlightlab';
 
-  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || 'b57c7fae-47d2-4b5c-88b4-8ce306efd4fa';
+  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
   const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || `https://${tenantSlug}.yourapp.com/auth/callback`;
 
   // Generate official Microsoft Entra ID Admin Consent Link

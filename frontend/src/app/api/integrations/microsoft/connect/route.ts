@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const tenantId = searchParams.get('tenant') || 'enlightlab';
   const returnTo = searchParams.get('returnTo') || '/';
 
-  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || 'b57c7fae-47d2-4b5c-88b4-8ce306efd4fa';
+  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
   const host = request.headers.get('host') || 'localhost:3000';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const REDIRECT_URI = `${protocol}://${host}/api/integrations/microsoft/callback`;

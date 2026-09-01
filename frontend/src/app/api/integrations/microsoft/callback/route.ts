@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=missing_authorization_code`);
   }
 
-  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || 'b57c7fae-47d2-4b5c-88b4-8ce306efd4fa';
+  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
   const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET || '';
   const REDIRECT_URI = `${baseUrl}/api/integrations/microsoft/callback`;
 
