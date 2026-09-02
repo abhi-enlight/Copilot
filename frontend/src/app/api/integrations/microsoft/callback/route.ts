@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const errorDescription = searchParams.get('error_description');
   const rawState = searchParams.get('state');
 
-  let tenantId = 'enlightlab';
+  let tenantId = 'personal';
   let returnTo = '/';
 
   if (rawState) {
@@ -49,6 +49,7 @@ export async function GET(request: Request) {
     let userName = '';
     let hasCrm = false;
     let crmOrg = '';
+    let tokenData: any = null;
 
     const CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || '';
     const DEFAULT_CRM_ORG = CRM_ORG_URL.replace(/^https?:\/\//, '').replace(/\.dynamics\.com.*$/, '');
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
         return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=token_exchange_failed`);
       }
 
-      const tokenData = await tokenResponse.json();
+      tokenData = await tokenResponse.json();
       console.log(`Successfully acquired tokens for tenant: ${tenantId}`);
 
       // Query Microsoft Graph /v1.0/me to get the authenticated user's actual profile & email
@@ -146,7 +147,62 @@ export async function GET(request: Request) {
       redirectUrl.searchParams.set('org', crmOrg);
     }
 
-    return NextResponse.redirect(redirectUrl.toString());
+    const response = NextResponse.redirect(redirectUrl.toString());
+
+    // Securely set session cookies with the authenticated user's live tokens
+    if (tokenData?.access_token) {
+      const isProd = process.env.NODE_ENV === 'production';
+      const maxAge = 60 * 60 * 24 * 30; // 30 days
+
+      response.cookies.set('ms_access_token', tokenData.access_token, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: tokenData.expires_in || 3600
+      });
+
+      if (tokenData.refresh_token) {
+        response.cookies.set('ms_refresh_token', tokenData.refresh_token, {
+          httpOnly: true,
+          secure: isProd,
+          sameSite: 'lax',
+          path: '/',
+          maxAge
+        });
+      }
+
+      const expiresAt = Date.now() + ((tokenData.expires_in || 3600) * 1000);
+      response.cookies.set('ms_token_expires_at', expiresAt.toString(), {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge
+      });
+
+      if (userEmail) {
+        response.cookies.set('ms_user_email', userEmail, {
+          httpOnly: false,
+          secure: isProd,
+          sameSite: 'lax',
+          path: '/',
+          maxAge
+        });
+      }
+
+      if (userName) {
+        response.cookies.set('ms_user_name', userName, {
+          httpOnly: false,
+          secure: isProd,
+          sameSite: 'lax',
+          path: '/',
+          maxAge
+        });
+      }
+    }
+
+    return response;
   } catch (err) {
     console.error('OAuth Callback Exception:', err);
     return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=internal_server_error`);

@@ -35,22 +35,32 @@ export function useTenantContext() {
         }
       }
 
-      if (isConnected || hasStoredAuth) {
+      const cookieEmail = typeof document !== 'undefined' 
+        ? (document.cookie.match(/(?:^|;\s*)ms_user_email=([^;]+)/)?.[1] ? decodeURIComponent(document.cookie.match(/(?:^|;\s*)ms_user_email=([^;]+)/)![1]) : null)
+        : null;
+      const cookieName = typeof document !== 'undefined'
+        ? (document.cookie.match(/(?:^|;\s*)ms_user_name=([^;]+)/)?.[1] ? decodeURIComponent(document.cookie.match(/(?:^|;\s*)ms_user_name=([^;]+)/)![1]) : null)
+        : null;
+
+      const effectiveEmail = emailParam || cookieEmail;
+      const effectiveName = nameParam || cookieName;
+
+      if (isConnected || hasStoredAuth || effectiveEmail) {
         setIsAuthenticated(true);
         sessionStorage.setItem('copilot_auth', 'true');
 
-        if (emailParam || nameParam || driveParam || orgParam || hasCrmParam !== null) {
+        if (effectiveEmail || effectiveName || driveParam || orgParam || hasCrmParam !== null) {
           setActiveTenant((prev) => {
-            const isPersonal = emailParam ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(emailParam) : false;
+            const isPersonal = effectiveEmail ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(effectiveEmail) : false;
             const hasCrm = hasCrmParam !== null ? hasCrmParam === '1' : Boolean(orgParam && !isPersonal);
 
             const updated: Tenant = {
               ...prev,
-              userEmail: emailParam || prev.userEmail,
-              name: nameParam || (emailParam ? `${emailParam.split('@')[0]}'s Workspace` : prev.name),
+              userEmail: effectiveEmail || prev.userEmail,
+              name: effectiveName ? (effectiveName.includes('Workspace') ? effectiveName : `${effectiveName}'s Workspace`) : (effectiveEmail ? `${effectiveEmail.split('@')[0]}'s Workspace` : prev.name),
               sharepointDrive: driveParam || (isPersonal ? 'OneDrive (/me/drive)' : (prev.sharepointDrive || '/sites/root/drive')),
               dynamicsOrg: hasCrm ? (orgParam || prev.dynamicsOrg) : undefined,
-              m365Connected: true,
+              m365Connected: Boolean(effectiveEmail || isConnected),
               crmConnected: hasCrm
             };
             sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));

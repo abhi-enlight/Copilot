@@ -1,17 +1,14 @@
-import { ChatPayload, N8nChatResponse, TenantHealthResponse } from '@/types';
-
-const N8N_DEFAULT_WEBHOOK = 'https://indigo-pelican-266513.hostingersite.com/webhook/b1c82c64-895a-4c9a-bad9-1b415aefa8dd/chat';
+import { ChatPayload, TenantHealthResponse } from '@/types';
 
 export const apiClient = {
   /**
-   * Dispatches chat prompt to n8n AI agent webhook with tenant context.
+   * Dispatches chat prompt to internal live Copilot chat API with user session credentials.
    */
   async sendChatMessage(payload: ChatPayload): Promise<string> {
-    const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL || N8N_DEFAULT_WEBHOOK;
-
-    const response = await fetch(webhookUrl, {
+    const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 
@@ -19,7 +16,7 @@ export const apiClient = {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
     }
 
-    const data: N8nChatResponse = await response.json();
+    const data = await response.json();
     return data.output || data.response || data.message || data.text || JSON.stringify(data);
   },
 

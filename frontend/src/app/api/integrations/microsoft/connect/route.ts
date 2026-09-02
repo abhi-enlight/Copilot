@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const tenantId = searchParams.get('tenant') || 'enlightlab';
+  const tenantId = searchParams.get('tenant') || 'personal';
   const returnTo = searchParams.get('returnTo') || '/';
 
   const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';

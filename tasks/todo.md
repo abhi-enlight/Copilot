@@ -4,7 +4,7 @@
 - [x] Phase 1: Architectural Design & Implementation Plan (Microsoft Graph + Dynamics 365 Dataverse + Budibase AI)
 - [x] Phase 2: Dynamics 365 CRM REST API Connection Specification & Auth Flow (App User, Permissions, OData Endpoints)
 - [x] Phase 3: SharePoint Document & List Endpoints Setup (Sites, Drive Items, Search)
-- [x] Phase 4: Outlook Email Endpoints Setup (`dj@enlightlab.com`, Messages, Search, Filtering)
+- [x] Phase 4: Outlook Email Endpoints Setup (Authenticated User Mailbox, Messages, Search, Filtering)
 - [x] Phase 5: Budibase AI Agent & Gemini Model Configuration (Multi-tool Orchestration & Prompting)
 - [x] Phase 6: Author comprehensive guide `BUDIBASE_AI_AGENT_INTEGRATION.md`
 - [ ] Phase 7: Live UI Verification & Dynamic CRM Sandbox Sync in Budibase Screen

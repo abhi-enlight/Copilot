@@ -22,7 +22,12 @@ export async function POST(request: Request) {
     'auth_token',
     'session_token',
     'tenant_session',
-    'x-tenant-slug'
+    'x-tenant-slug',
+    'ms_access_token',
+    'ms_refresh_token',
+    'ms_token_expires_at',
+    'ms_user_email',
+    'ms_user_name'
   ];
 
   cookiesToClear.forEach((cookieName) => {
@@ -52,7 +57,12 @@ export async function GET(request: Request) {
     'auth_token',
     'session_token',
     'tenant_session',
-    'x-tenant-slug'
+    'x-tenant-slug',
+    'ms_access_token',
+    'ms_refresh_token',
+    'ms_token_expires_at',
+    'ms_user_email',
+    'ms_user_name'
   ];
 
   cookiesToClear.forEach((cookieName) => {
