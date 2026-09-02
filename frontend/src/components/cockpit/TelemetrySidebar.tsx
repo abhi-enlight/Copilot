@@ -21,6 +21,11 @@ export function TelemetrySidebar({
   onOpenConsentModal,
   onLogout
 }: TelemetrySidebarProps) {
+  const isOutlookActive = Boolean(activeTenant.m365Connected && activeTenant.userEmail);
+  const isSharepointActive = Boolean(activeTenant.m365Connected);
+  const isCrmActive = Boolean(activeTenant.crmConnected && activeTenant.dynamicsOrg);
+  const hasAnyActiveConnection = isOutlookActive || isSharepointActive || isCrmActive;
+
   return (
     <aside className="w-full md:w-80 lg:w-88 flex flex-col chassis-inner-light rounded-[calc(2.25rem-0.625rem)] p-5 justify-between border border-slate-200/70 mr-0 md:mr-2.5 mb-2.5 md:mb-0">
       <div className="space-y-6">
@@ -32,9 +37,16 @@ export function TelemetrySidebar({
               Live Endpoints
             </span>
           </div>
-          <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Connected
-          </span>
+          {hasAnyActiveConnection ? (
+            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Connected</span>
+            </span>
+          ) : (
+            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+              Disconnected
+            </span>
+          )}
         </div>
 
         {/* Endpoints Cards */}
@@ -43,16 +55,18 @@ export function TelemetrySidebar({
           <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5 transition-all hover:border-slate-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                <div className={`w-7 h-7 rounded-lg ${isSharepointActive ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-slate-50 border-slate-200 text-slate-400'} border flex items-center justify-center`}>
                   <FileText className="w-3.5 h-3.5" />
                 </div>
-                <span className="text-xs font-semibold text-slate-900">SharePoint & OneDrive</span>
+                <span className={`text-xs font-semibold ${isSharepointActive ? 'text-slate-900' : 'text-slate-500'}`}>
+                  SharePoint & OneDrive
+                </span>
               </div>
-              <span className={`w-2 h-2 rounded-full ${activeTenant.m365Connected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+              <span className={`w-2 h-2 rounded-full ${isSharepointActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Drive Root</span>
-              {activeTenant.m365Connected ? (
+              {isSharepointActive ? (
                 <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.sharepointDrive || 'OneDrive (/me/drive)'}>
                   {activeTenant.sharepointDrive || 'OneDrive (/me/drive)'}
                 </span>
@@ -66,18 +80,18 @@ export function TelemetrySidebar({
           <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5 transition-all hover:border-slate-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className={`w-7 h-7 rounded-lg ${activeTenant.crmConnected ? 'bg-sky-50 border-sky-100 text-sky-600' : 'bg-slate-50 border-slate-200 text-slate-400'} border flex items-center justify-center`}>
+                <div className={`w-7 h-7 rounded-lg ${isCrmActive ? 'bg-sky-50 border-sky-100 text-sky-600' : 'bg-slate-50 border-slate-200 text-slate-400'} border flex items-center justify-center`}>
                   <Briefcase className="w-3.5 h-3.5" />
                 </div>
-                <span className={`text-xs font-semibold ${activeTenant.crmConnected ? 'text-slate-900' : 'text-slate-500'}`}>
+                <span className={`text-xs font-semibold ${isCrmActive ? 'text-slate-900' : 'text-slate-500'}`}>
                   Dynamics 365 CRM
                 </span>
               </div>
-              <span className={`w-2 h-2 rounded-full ${activeTenant.crmConnected && activeTenant.dynamicsOrg ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+              <span className={`w-2 h-2 rounded-full ${isCrmActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Dataverse API</span>
-              {activeTenant.crmConnected && activeTenant.dynamicsOrg ? (
+              {isCrmActive ? (
                 <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.dynamicsOrg}>
                   {activeTenant.dynamicsOrg}
                 </span>
@@ -91,16 +105,18 @@ export function TelemetrySidebar({
           <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1.5 transition-all hover:border-slate-300">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-7 h-7 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
+                <div className={`w-7 h-7 rounded-lg ${isOutlookActive ? 'bg-purple-50 border-purple-100 text-purple-600' : 'bg-slate-50 border-slate-200 text-slate-400'} border flex items-center justify-center`}>
                   <Mail className="w-3.5 h-3.5" />
                 </div>
-                <span className="text-xs font-semibold text-slate-900">Outlook & Calendar</span>
+                <span className={`text-xs font-semibold ${isOutlookActive ? 'text-slate-900' : 'text-slate-500'}`}>
+                  Outlook & Calendar
+                </span>
               </div>
-              <span className={`w-2 h-2 rounded-full ${activeTenant.m365Connected && activeTenant.userEmail ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
+              <span className={`w-2 h-2 rounded-full ${isOutlookActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} />
             </div>
             <div className="text-[10.5px] text-slate-500 flex justify-between font-mono pl-9.5">
               <span>Authorized</span>
-              {activeTenant.m365Connected && activeTenant.userEmail ? (
+              {isOutlookActive ? (
                 <span className="text-slate-700 font-medium truncate max-w-[140px]" title={activeTenant.userEmail}>
                   {activeTenant.userEmail}
                 </span>

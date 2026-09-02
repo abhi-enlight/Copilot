@@ -41,18 +41,28 @@ export const AVAILABLE_WORKSPACES: Tenant[] = [
 ];
 
 export const getWelcomeMessage = (tenant: Tenant): string => {
-  const email = tenant.userEmail;
-  const org = tenant.crmConnected && tenant.dynamicsOrg ? `\`${tenant.dynamicsOrg}\`` : '*Not Connected*';
-  const drive = tenant.sharepointDrive || (tenant.m365Connected ? '`/me/drive/root`' : '*Not Connected*');
-  const name = tenant.name || 'Your Workspace';
+  const isOutlookConnected = Boolean(tenant.m365Connected && tenant.userEmail);
+  const isSharepointConnected = Boolean(tenant.m365Connected);
+  const isCrmConnected = Boolean(tenant.crmConnected && tenant.dynamicsOrg);
+
+  const emailText = isOutlookConnected ? `Connected to \`${tenant.userEmail}\`` : '*Not Connected*';
+  const orgText = isCrmConnected ? `\`${tenant.dynamicsOrg}\`` : '*Not Connected*';
+  const driveText = isSharepointConnected 
+    ? (tenant.sharepointDrive ? `\`${tenant.sharepointDrive}\`` : '`OneDrive (/me/drive)`')
+    : '*Not Connected*';
+
+  let displayName = tenant.name || 'Personal Workspace';
+  if (!displayName.trim() || displayName.startsWith("'s Workspace") || displayName === "'s Workspace") {
+    displayName = tenant.userEmail ? `${tenant.userEmail.split('@')[0]}'s Workspace` : 'Personal Workspace';
+  }
 
   return `### Operations Copilot Active
 
-Connected endpoints under **${name}**:
+Connected endpoints under **${displayName}**:
 
-* **Microsoft SharePoint & OneDrive**: ${drive.startsWith('`') || drive.startsWith('*') ? drive : `\`${drive}\``}
-* **Dynamics 365 CRM**: ${org}
-* **Outlook & Calendar**: ${email ? `Connected to \`${email}\`` : '*Not Connected*'}
+* **Microsoft SharePoint & OneDrive**: ${driveText}
+* **Dynamics 365 CRM**: ${orgText}
+* **Outlook & Calendar**: ${emailText}
 
 *Type an executive query below to retrieve data across your connected services.*`;
 };

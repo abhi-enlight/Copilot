@@ -13,62 +13,58 @@ export function useTenantContext() {
 
   const tenantDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Restore authenticated session and dynamic tenant info from storage or callback params
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const isConnected = urlParams.get('connected');
-      const emailParam = urlParams.get('email');
-      const nameParam = urlParams.get('name') || urlParams.get('tenant');
-      const driveParam = urlParams.get('drive');
-      const orgParam = urlParams.get('org');
-      const hasCrmParam = urlParams.get('has_crm');
-      const hasStoredAuth = sessionStorage.getItem('copilot_auth') === 'true';
-
-      const storedTenantStr = sessionStorage.getItem('copilot_tenant');
-      if (storedTenantStr) {
-        try {
-          const parsed = JSON.parse(storedTenantStr);
-          setActiveTenant(parsed);
-        } catch {
-          // ignore parsing error
-        }
-      }
-
-      const cookieEmail = typeof document !== 'undefined' 
-        ? (document.cookie.match(/(?:^|;\s*)ms_user_email=([^;]+)/)?.[1] ? decodeURIComponent(document.cookie.match(/(?:^|;\s*)ms_user_email=([^;]+)/)![1]) : null)
-        : null;
-      const cookieName = typeof document !== 'undefined'
-        ? (document.cookie.match(/(?:^|;\s*)ms_user_name=([^;]+)/)?.[1] ? decodeURIComponent(document.cookie.match(/(?:^|;\s*)ms_user_name=([^;]+)/)![1]) : null)
-        : null;
-
-      const effectiveEmail = emailParam || cookieEmail;
-      const effectiveName = nameParam || cookieName;
-
-      if (isConnected || hasStoredAuth || effectiveEmail) {
-        setIsAuthenticated(true);
-        sessionStorage.setItem('copilot_auth', 'true');
-
-        if (effectiveEmail || effectiveName || driveParam || orgParam || hasCrmParam !== null) {
+  const syncServerStatus = async () => {
+    try {
+      const res = await fetch('/api/tenant/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.m365Connected && data.userEmail) {
+          setIsAuthenticated(true);
           setActiveTenant((prev) => {
-            const isPersonal = effectiveEmail ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(effectiveEmail) : false;
-            const hasCrm = hasCrmParam !== null ? hasCrmParam === '1' : Boolean(orgParam && !isPersonal);
+            const isPersonal = /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(data.userEmail);
+            const name = data.userName 
+              ? `${data.userName}'s Workspace` 
+              : `${data.userEmail.split('@')[0]}'s Workspace`;
 
             const updated: Tenant = {
               ...prev,
-              userEmail: effectiveEmail || prev.userEmail,
-              name: effectiveName ? (effectiveName.includes('Workspace') ? effectiveName : `${effectiveName}'s Workspace`) : (effectiveEmail ? `${effectiveEmail.split('@')[0]}'s Workspace` : prev.name),
-              sharepointDrive: driveParam || (isPersonal ? 'OneDrive (/me/drive)' : (prev.sharepointDrive || '/sites/root/drive')),
-              dynamicsOrg: hasCrm ? (orgParam || prev.dynamicsOrg) : undefined,
-              m365Connected: Boolean(effectiveEmail || isConnected),
-              crmConnected: hasCrm
+              userEmail: data.userEmail,
+              userName: data.userName || undefined,
+              name,
+              sharepointDrive: data.sharepointDrive || (isPersonal ? 'OneDrive (/me/drive)' : '/sites/root/drive'),
+              m365Connected: true,
+              crmConnected: Boolean(data.crmConnected)
             };
-            sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
+            }
+            return updated;
+          });
+        } else {
+          // Disconnected on server: ensure client strictly shows disconnected
+          setActiveTenant((prev) => {
+            const updated: Tenant = {
+              ...prev,
+              userEmail: undefined,
+              userName: undefined,
+              m365Connected: false,
+              crmConnected: false
+            };
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
+            }
             return updated;
           });
         }
       }
+    } catch (err) {
+      console.warn('Failed to sync server status:', err);
     }
+  };
+
+  // Restore authenticated session and sync with live server state
+  useEffect(() => {
+    syncServerStatus();
   }, []);
 
   // Close dropdown on outside click
@@ -95,6 +91,7 @@ export function useTenantContext() {
       console.error('Logout error:', e);
     }
     setIsAuthenticated(false);
+    setActiveTenant(DEFAULT_WORKSPACE);
     setIsTenantDropdownOpen(false);
   };
 
