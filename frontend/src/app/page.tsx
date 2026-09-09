@@ -82,6 +82,13 @@ export default function PrismApp() {
       } catch {}
     }
     if (initialView && initialView !== "home") {
+      // If returning to a deferred view, gently redirect to home
+      if (initialView === "inbox" || initialView === "documents") {
+        initialView = "home";
+        try {
+          localStorage.setItem("prism_active_view", "home");
+        } catch {}
+      }
       setCurrentView(initialView);
       window.history.replaceState(null, "", `#${initialView}`);
     }

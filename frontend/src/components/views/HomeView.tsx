@@ -43,7 +43,7 @@ const QUICK_PROMPTS: { icon: ComponentType<any>; title: string; prompt: string; 
     icon: FolderOpen,
     title: "Find a document",
     prompt: "Find recent contracts or SOPs across my drives and knowledge base.",
-    goTo: "documents",
+    goTo: "copilot",
   },
 ];
 

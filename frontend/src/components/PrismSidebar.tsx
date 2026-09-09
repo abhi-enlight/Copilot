@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   House,
   Robot,
-  EnvelopeSimple,
-  FolderOpen,
   Megaphone,
   PlugsConnected,
   Users,
@@ -14,18 +12,22 @@ import {
   SidebarSimple,
   Buildings,
   X,
+  // Preserved for later release:
+  // EnvelopeSimple,
+  // FolderOpen,
 } from "@phosphor-icons/react";
 import PrismLogo from "@/components/brand/PrismLogo";
 
 export type NavView =
   | "home"
   | "copilot"
-  | "inbox"
-  | "documents"
   | "campaigns"
   | "connections"
   | "users"
-  | "settings";
+  | "settings"
+  // Deferred / Preserved for future release:
+  | "inbox"
+  | "documents";
 
 interface NavItem {
   id: NavView;
@@ -44,8 +46,9 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "home", label: "Home", icon: House },
       { id: "copilot", label: "Copilot", icon: Robot },
-      { id: "inbox", label: "Inbox", icon: EnvelopeSimple },
-      { id: "documents", label: "Documents", icon: FolderOpen },
+      // Preserved for later release:
+      // { id: "inbox", label: "Inbox", icon: EnvelopeSimple },
+      // { id: "documents", label: "Documents", icon: FolderOpen },
     ],
   },
   {
@@ -64,9 +67,17 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-export const NAV_LABELS: Record<NavView, string> = Object.fromEntries(
-  NAV_GROUPS.flatMap((g) => g.items.map((i) => [i.id, i.label]))
-) as Record<NavView, string>;
+export const NAV_LABELS: Record<NavView, string> = {
+  home: "Home",
+  copilot: "Copilot",
+  campaigns: "Campaigns",
+  connections: "Connections",
+  users: "Users & Roles",
+  settings: "Settings",
+  // Preserved labels for later release
+  inbox: "Inbox",
+  documents: "Documents",
+};
 
 interface PrismSidebarProps {
   currentView: NavView;

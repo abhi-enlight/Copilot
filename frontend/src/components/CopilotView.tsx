@@ -29,6 +29,7 @@ import {
   Info,
   WarningCircle,
   FloppyDisk,
+  ArrowDown,
 } from "@phosphor-icons/react";
 import ChatMessage, { type Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
@@ -311,9 +312,13 @@ export default function CopilotView({
   });
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesInnerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const userHasScrolledUpRef = useRef(false);
+  const isPinnedToBottomRef = useRef(true);
+  const isProgrammaticScrollRef = useRef(false);
+  const touchStartYRef = useRef(0);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
   const lastProcessedContextRef = useRef<string | null>(null);
 
   const messages = session.messages;
@@ -330,35 +335,155 @@ export default function CopilotView({
     []
   );
 
-  const scrollToBottom = useCallback((force = false) => {
-    if (force || !userHasScrolledUpRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
+  const checkIfAtBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
   }, []);
 
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 120;
-    userHasScrolledUpRef.current = !isAtBottom;
-  };
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto", force = false) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
 
-  // Follow the latest message: fires on message-list changes, thinking/tool
-  // label updates, and while the assistant message is streaming in.
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isThinking, workingPlan, scrollToBottom]);
+      if (force || isPinnedToBottomRef.current) {
+        isProgrammaticScrollRef.current = true;
+        if (behavior === "smooth") {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "smooth",
+          });
+          setTimeout(() => {
+            isProgrammaticScrollRef.current = false;
+            if (checkIfAtBottom()) {
+              isPinnedToBottomRef.current = true;
+              setShowScrollBottomBtn(false);
+            }
+          }, 350);
+        } else {
+          container.scrollTop = container.scrollHeight;
+          requestAnimationFrame(() => {
+            isProgrammaticScrollRef.current = false;
+          });
+        }
+      }
+    },
+    [checkIfAtBottom]
+  );
 
+  const handleScroll = useCallback(() => {
+    if (isProgrammaticScrollRef.current) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const atBottom = checkIfAtBottom();
+    if (atBottom) {
+      isPinnedToBottomRef.current = true;
+      setShowScrollBottomBtn(false);
+    } else {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > 100) {
+        isPinnedToBottomRef.current = false;
+        setShowScrollBottomBtn(messages.length > 1 || isLoading || isThinking);
+      }
+    }
+  }, [checkIfAtBottom, messages.length, isLoading, isThinking]);
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (e.deltaY < 0) {
+        // User scrolled upward
+        isPinnedToBottomRef.current = false;
+        const el = scrollContainerRef.current;
+        if (el && el.scrollHeight - el.scrollTop - el.clientHeight > 60) {
+          setShowScrollBottomBtn(true);
+        }
+      } else if (e.deltaY > 0) {
+        // User scrolled downward
+        requestAnimationFrame(() => {
+          if (checkIfAtBottom()) {
+            isPinnedToBottomRef.current = true;
+            setShowScrollBottomBtn(false);
+          }
+        });
+      }
+    },
+    [checkIfAtBottom]
+  );
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartYRef.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const currentY = e.touches[0].clientY;
+      const deltaY = touchStartYRef.current - currentY;
+      if (deltaY < -10) {
+        // Swiping down (scrolls upward)
+        isPinnedToBottomRef.current = false;
+        setShowScrollBottomBtn(true);
+      } else if (deltaY > 10) {
+        // Swiping up (scrolls downward)
+        requestAnimationFrame(() => {
+          if (checkIfAtBottom()) {
+            isPinnedToBottomRef.current = true;
+            setShowScrollBottomBtn(false);
+          }
+        });
+      }
+    },
+    [checkIfAtBottom]
+  );
+
+  // Observe size changes of the messages container (new tokens, thinking indicator animations, markdown layout)
   useEffect(() => {
-    scrollToBottom();
+    const inner = messagesInnerRef.current;
+    if (!inner) return;
+
+    const ro = new ResizeObserver(() => {
+      if (isPinnedToBottomRef.current) {
+        scrollToBottom(isLoading || isThinking ? "auto" : "smooth");
+      }
+    });
+
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, [isLoading, isThinking, scrollToBottom]);
+
+  // Follow message updates
+  useEffect(() => {
+    if (isPinnedToBottomRef.current) {
+      scrollToBottom(isLoading || isThinking ? "auto" : "smooth");
+    }
+  }, [messages, isThinking, workingPlan, isLoading, scrollToBottom]);
+
+  // When tool call label changes, keep smoothly centered on bottom
+  useEffect(() => {
+    if (isPinnedToBottomRef.current) {
+      scrollToBottom("smooth");
+    }
   }, [toolCallLabel, scrollToBottom]);
 
-  // While streaming, keep pinned to the bottom as content grows.
+  // When AI starts thinking, force scroll to bottom so the thinking stepper is immediately visible
   useEffect(() => {
-    if (!isThinking) return;
-    const id = window.setInterval(() => scrollToBottom(), 600);
-    return () => window.clearInterval(id);
+    if (isThinking) {
+      isPinnedToBottomRef.current = true;
+      setShowScrollBottomBtn(false);
+      scrollToBottom("smooth", true);
+    }
   }, [isThinking, scrollToBottom]);
+
+  // While active (thinking or streaming), safety ticker ensures scroll remains anchored
+  useEffect(() => {
+    if (!isLoading && !isThinking) return;
+    const id = window.setInterval(() => {
+      if (isPinnedToBottomRef.current) {
+        scrollToBottom("auto");
+      }
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [isLoading, isThinking, scrollToBottom]);
 
   // Fetch Risk Digest on mount
   useEffect(() => {
@@ -598,7 +723,11 @@ export default function CopilotView({
       };
       newSess.messages = [initialGreeting];
       setSession(newSess);
-      userHasScrolledUpRef.current = false;
+      isPinnedToBottomRef.current = true;
+      setShowScrollBottomBtn(false);
+      requestAnimationFrame(() => {
+        scrollToBottom("smooth", true);
+      });
       if (!alreadyApproved) {
         showToast(`Loaded ${initialPlanContext.plan.tasks.length} tasks for ${initialPlanContext.campaignData.name}`, "sparkle");
       }
@@ -1048,7 +1177,8 @@ export default function CopilotView({
 
   const sendMessage = useCallback(
     async (content: string) => {
-      userHasScrolledUpRef.current = false;
+      isPinnedToBottomRef.current = true;
+      setShowScrollBottomBtn(false);
       // Track last sent content so the retry button can re-send it
       lastSentContentRef.current = content;
       // Clear any previous chat error banner
@@ -1067,6 +1197,11 @@ export default function CopilotView({
           messages: newMessages,
           title: prev.messages.length === 0 ? deriveTitle(newMessages) : prev.title,
         };
+      });
+
+      // Force immediate scroll to bottom so the user message is visible right away
+      requestAnimationFrame(() => {
+        scrollToBottom("smooth", true);
       });
 
       // ⚡ Set loading and thinking IMMEDIATELY so loader animation shows instantly
@@ -1657,7 +1792,8 @@ export default function CopilotView({
     setIsPlanPanelOpen(false);
     lastProcessedContextRef.current = null;
     if (onClearPlanContext) onClearPlanContext();
-    userHasScrolledUpRef.current = false;
+    isPinnedToBottomRef.current = true;
+    setShowScrollBottomBtn(false);
   }, [onClearPlanContext]);
 
   const handleExport = useCallback(() => {
@@ -1827,12 +1963,15 @@ export default function CopilotView({
           <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 flex flex-col items-center scroll-smooth space-y-4 w-full min-w-0"
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 flex flex-col items-center space-y-4 w-full min-w-0"
           >
             {messages.length === 0 ? (
               <EmptyState onSelectPrompt={sendMessage} activeConnectors={activeConnectors ?? undefined} />
             ) : (
-              <div className="w-full max-w-2xl space-y-4 min-w-0">
+              <div ref={messagesInnerRef} className="w-full max-w-2xl space-y-4 min-w-0">
                 {/* Chat message stream */}
                 {messages.map((msg, index) => (
                   <ChatMessage key={msg.id} message={msg} index={index} />
@@ -1895,6 +2034,37 @@ export default function CopilotView({
             onDismiss={() => setTaskSyncError(false)}
             className="mx-4 mb-2"
           />
+
+          {/* Floating 'Latest messages' pill */}
+          <div className="relative w-full flex justify-center h-0 overflow-visible z-20 pointer-events-none">
+            <AnimatePresence>
+              {showScrollBottomBtn && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: -16, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.18 }}
+                  className="pointer-events-auto"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      isPinnedToBottomRef.current = true;
+                      setShowScrollBottomBtn(false);
+                      scrollToBottom("smooth", true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 backdrop-blur-md hover:bg-stone-50 border border-stone-200 shadow-md text-stone-700 hover:text-stone-900 text-xs font-semibold cursor-pointer transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+                  >
+                    <ArrowDown size={13} weight="bold" className="text-stone-600" />
+                    <span>Latest messages</span>
+                    {(isThinking || isLoading) && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse ml-0.5" />
+                    )}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Chat Input Bar */}
           <div className="p-3.5 bg-white border-t border-stone-200/80 flex-shrink-0 shadow-xs">
