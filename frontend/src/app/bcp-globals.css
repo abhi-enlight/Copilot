@@ -1,0 +1,240 @@
+/* Consolidated BCP Assist design layer (warm stone + amber) — merged into the
+   Prism app during Phase 1. The Plus Jakarta Sans / JetBrains Mono font import
+   lives at the top of ./globals.css so it stays valid in the final bundle. */
+@import "tailwindcss";
+
+:root {
+  /* --- Brand Palette: Warm Stone + Amber Gold --- */
+  --background: #FAFAF9;
+  --background-subtle: #F5F4F2;
+  --foreground: #0C0A09;
+  --surface: #FFFFFF;
+  --surface-elevated: #FFFFFF;
+  --surface-hover: #F5F4F2;
+  --surface-active: #EFEDE9;
+
+  /* Borders */
+  --border: rgba(28, 25, 23, 0.09);
+  --border-strong: rgba(28, 25, 23, 0.16);
+  --border-subtle: rgba(28, 25, 23, 0.04);
+
+  /* Accent: Amber Gold (premium, not generic) */
+  --accent: #A16207;
+  --accent-soft: #FFFBEB;
+  --accent-dim: rgba(161, 98, 7, 0.07);
+  --accent-hover: #92400E;
+
+  /* Primary: Warm Stone */
+  --primary: #1C1917;
+  --primary-soft: #F5F4F2;
+  --primary-dim: rgba(28, 25, 23, 0.05);
+
+  /* Text */
+  --text-primary: #0C0A09;
+  --text-secondary: #78716C;
+  --text-tertiary: #A8A29E;
+  --text-inverse: #FFFFFF;
+
+  /* Status (semantic, unchanged) */
+  --success: #059669;
+  --success-soft: #ECFDF5;
+  --success-border: rgba(5, 150, 105, 0.2);
+  --warning: #D97706;
+  --warning-soft: #FFFBEB;
+  --warning-border: rgba(217, 119, 6, 0.2);
+  --danger: #E11D48;
+  --danger-soft: #FFF1F2;
+  --danger-border: rgba(225, 29, 72, 0.18);
+
+  /* Shadows — near-invisible, premium */
+  --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(28, 25, 23, 0.06), 0 1px 3px -1px rgba(28, 25, 23, 0.03);
+  --shadow-lg: 0 8px 24px -4px rgba(28, 25, 23, 0.08), 0 2px 6px -2px rgba(28, 25, 23, 0.04);
+  --shadow-xl: 0 20px 48px -8px rgba(28, 25, 23, 0.10), 0 4px 12px -4px rgba(28, 25, 23, 0.05);
+
+  /* Motion tokens */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* Type scale */
+  --text-2xs: 0.6875rem;   /* 11px — JetBrains Mono data labels */
+  --text-xs: 0.75rem;      /* 12px — secondary info */
+  --text-sm: 0.8125rem;    /* 13px — body / UI labels */
+  --text-base: 0.9375rem;  /* 15px — card titles */
+  --text-lg: 1.125rem;     /* 18px — page titles */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-subtle: var(--background-subtle);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-hover: var(--accent-hover);
+  --color-primary: var(--primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-dim: var(--primary-dim);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-inverse: var(--text-inverse);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-subtle: var(--border-subtle);
+}
+
+/* --- Scrollbar --- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #D6D3D1 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #D6D3D1;
+  border-radius: 2px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #A8A29E;
+}
+
+::selection {
+  background: rgba(161, 98, 7, 0.15);
+  color: #451A03;
+}
+
+/* --- Base --- */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  letter-spacing: -0.015em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* --- Utility classes --- */
+.font-mono-data {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
+/* --- Chat content formatting --- */
+.chat-content {
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: #1C1917;
+}
+
+.chat-content h1,
+.chat-content h2,
+.chat-content h3 {
+  font-weight: 700;
+  margin-top: 1.1em;
+  margin-bottom: 0.45em;
+  color: #0C0A09;
+  letter-spacing: -0.02em;
+}
+
+.chat-content p {
+  margin-bottom: 0.65em;
+  line-height: 1.75;
+  color: #44403C;
+}
+
+.chat-content p:last-child { margin-bottom: 0; }
+
+.chat-content strong {
+  color: #0C0A09;
+  font-weight: 600;
+}
+
+.chat-content code:not(pre code) {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  background: #F5F4F2;
+  border: 1px solid #E7E5E4;
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
+  color: #92400E;
+  font-weight: 500;
+}
+
+.chat-content pre {
+  margin: 0.8em 0;
+  padding: 0.9em 1.1em;
+  background: #1C1917;
+  border: 1px solid #292524;
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 0.83em;
+  line-height: 1.6;
+  color: #FAFAF9;
+  box-shadow: var(--shadow-md);
+}
+
+.chat-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+.chat-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.88em;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #E7E5E4;
+  background: #FFFFFF;
+  box-shadow: var(--shadow-sm);
+}
+
+.chat-content th,
+.chat-content td {
+  padding: 0.6em 0.9em;
+  text-align: left;
+}
+
+.chat-content th {
+  background: #F5F4F2;
+  color: #0C0A09;
+  font-weight: 600;
+  border-bottom: 1px solid #E7E5E4;
+}
+
+.chat-content td {
+  color: #57534E;
+  border-bottom: 1px solid #F5F4F2;
+}
+
+.chat-content tr:last-child td { border-bottom: none; }

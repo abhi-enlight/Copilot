@@ -1,10 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { ensureAppUser } from "@/lib/entitlements-server";
 
 /**
  * Microsoft 365 OAuth Callback Handler
- * 
+ *
  * Receives the authorization code from Microsoft, exchanges it for tokens,
- * and saves the encrypted integration credentials for the tenant.
+ * and saves the session cookies. CRM entitlement is probed via the shared
+ * entitlements engine (license + Dataverse WhoAmI) and cached in the
+ * ms_crm_probed_at cookie so the verdict survives page navigation and is
+ * re-probed after its TTL (or on explicit re-check).
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -30,9 +34,21 @@ export async function GET(request: Request) {
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
 
+  if (searchParams.get('admin_consent') === 'True') {
+    return NextResponse.redirect(`${baseUrl}${returnTo}?admin_consent_granted=1`);
+  }
+
   // Handle user cancellation or Azure authorization errors
   if (error) {
     console.error('Azure OAuth Error:', error, errorDescription);
+    const isAdminApproval =
+      error === 'access_denied' ||
+      error === 'consent_required' ||
+      /admin|consent|approval|AADSTS65004|AADSTS65005|AADSTS50076/i.test(errorDescription || '');
+
+    if (isAdminApproval) {
+      return NextResponse.redirect(`${baseUrl}${returnTo}?m365_admin_approval=1`);
+    }
     return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=${encodeURIComponent(errorDescription || error)}`);
   }
 
@@ -42,17 +58,16 @@ export async function GET(request: Request) {
 
   const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
   const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET || '';
-  const REDIRECT_URI = `${baseUrl}/api/integrations/microsoft/callback`;
+  const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || `${baseUrl}/api/integrations/microsoft/callback`;
 
   try {
     let userEmail = '';
     let userName = '';
     let hasCrm = false;
-    let crmOrg = '';
+    let crmDetail = '';
+    let m365UserId = '';
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Azure token payload shape varies */
     let tokenData: any = null;
-
-    const CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || '';
-    const DEFAULT_CRM_ORG = CRM_ORG_URL.replace(/^https?:\/\//, '').replace(/\.dynamics\.com.*$/, '');
 
     if (AZURE_CLIENT_SECRET) {
       // Exchange authorization code for refresh token and access token
@@ -77,8 +92,8 @@ export async function GET(request: Request) {
       tokenData = await tokenResponse.json();
       console.log(`Successfully acquired tokens for tenant: ${tenantId}`);
 
-      // Query Microsoft Graph /v1.0/me to get the authenticated user's actual profile & email
       if (tokenData.access_token) {
+        // Query Microsoft Graph /v1.0/me to get the authenticated user's profile
         try {
           const profileResponse = await fetch('https://graph.microsoft.com/v1.0/me', {
             headers: { Authorization: `Bearer ${tokenData.access_token}` },
@@ -87,52 +102,39 @@ export async function GET(request: Request) {
             const profile = await profileResponse.json();
             userEmail = profile.mail || profile.userPrincipalName || '';
             userName = profile.displayName || '';
+            m365UserId = profile.id || '';
           }
         } catch (profileErr) {
           console.warn('Could not fetch MS Graph user profile:', profileErr);
         }
 
-        // Automatic CRM Detection strictly for the signing-in user:
-        const isPersonalAccount = userEmail ? /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(userEmail) : false;
-
-        if (!isPersonalAccount && tokenData.access_token) {
-          try {
-            // Check user licenses via MS Graph for Dynamics 365 / Dataverse
-            const licenseRes = await fetch('https://graph.microsoft.com/v1.0/me/licenseDetails', {
-              headers: { Authorization: `Bearer ${tokenData.access_token}` },
-            });
-
-            if (licenseRes.ok) {
-              const licenseData = await licenseRes.json();
-              const licenses = licenseData.value || [];
-              const hasCrmLicense = licenses.some((l: { skuPartNumber?: string; servicePlans?: Array<{ servicePlanName?: string }> }) => {
-                const sku = (l.skuPartNumber || '').toUpperCase();
-                const plans = (l.servicePlans || []).map((p) => (p.servicePlanName || '').toUpperCase());
-                return (
-                  sku.includes('DYN365') ||
-                  sku.includes('CRM') ||
-                  sku.includes('POWERAPPS') ||
-                  sku.includes('CDS') ||
-                  plans.some((p) => p.includes('CRM') || p.includes('DYN365') || p.includes('COMMON_DATA_SERVICE'))
-                );
-              });
-
-              if (hasCrmLicense) {
-                hasCrm = true;
-                crmOrg = 'Dataverse CRM Active';
-              } else {
-                hasCrm = false;
-                crmOrg = '';
-              }
-            } else {
-              hasCrm = false;
-            }
-          } catch (crmCheckErr) {
-            console.warn('CRM detection check failed:', crmCheckErr);
-            hasCrm = false;
-          }
-        } else {
+        // CRM entitlement probe via the shared entitlements engine
+        try {
+          const { probeDynamicsCrmAccess, ensureAppUser } = await import('@/lib/entitlements-server');
+          const probe = await probeDynamicsCrmAccess({
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token || null,
+            userEmail: userEmail || null,
+            userName: userName || null,
+            expiresAt: Date.now() + ((tokenData.expires_in || 3600) * 1000),
+            grantedScopes: String(tokenData.scope || '').split(' ').filter(Boolean),
+            hasCrmCookie: false,
+            probedAt: 0,
+          });
+          hasCrm = probe.ok;
+          crmDetail = probe.detail;
+        } catch (probeErr) {
+          console.warn('CRM entitlement probe failed:', probeErr);
           hasCrm = false;
+        }
+
+        // Register / sync the app user row (role persists across logins)
+        if (userEmail) {
+          try {
+            await ensureAppUser({ email: userEmail, displayName: userName || null, m365UserId: m365UserId || null });
+          } catch (userErr) {
+            console.warn('App user upsert failed:', userErr);
+          }
         }
       }
     }
@@ -143,8 +145,9 @@ export async function GET(request: Request) {
     if (userEmail) redirectUrl.searchParams.set('email', userEmail);
     if (userName) redirectUrl.searchParams.set('name', `${userName}'s Workspace`);
     redirectUrl.searchParams.set('has_crm', hasCrm ? '1' : '0');
-    if (hasCrm && crmOrg) {
-      redirectUrl.searchParams.set('org', crmOrg);
+    if (hasCrm) {
+      redirectUrl.searchParams.set('org', 'Dataverse CRM Active');
+      if (crmDetail) redirectUrl.searchParams.set('crm_check', encodeURIComponent(crmDetail));
     }
 
     const response = NextResponse.redirect(redirectUrl.toString());
@@ -200,6 +203,33 @@ export async function GET(request: Request) {
           maxAge
         });
       }
+
+      if (tokenData.scope) {
+        response.cookies.set('ms_granted_scopes', tokenData.scope, {
+          httpOnly: false,
+          secure: isProd,
+          sameSite: 'lax',
+          path: '/',
+          maxAge
+        });
+      }
+
+      response.cookies.set('ms_has_crm', hasCrm ? '1' : '0', {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge
+      });
+
+      // Probe timestamp, drives the 15-minute entitlement cache TTL
+      response.cookies.set('ms_crm_probed_at', String(Date.now()), {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'lax',
+        path: '/',
+        maxAge
+      });
     }
 
     return response;

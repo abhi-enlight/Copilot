@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -78,4 +79,75 @@ body {
 .bg-light-grain {
   background-image: radial-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 0);
   background-size: 20px 20px;
+}
+
+/* ==========================================================================
+   🔷 PRISM Brand Layer (Phase 3 design system)
+   Palette: violet #7C3AED → cyan #06B6D4 on warm stone #FAFAF9
+   ========================================================================== */
+:root {
+  --prism-violet: #7c3aed;
+  --prism-violet-deep: #6d28d9;
+  --prism-cyan: #06b6d4;
+  --prism-ink: #1c1917;
+  --prism-paper: #fafaf9;
+}
+
+/* Brand gradient surface (buttons, tiles, active states) */
+.prism-gradient {
+  background-image: linear-gradient(135deg, var(--prism-violet) 0%, var(--prism-cyan) 100%);
+}
+
+.prism-gradient-soft {
+  background-image: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%);
+}
+
+/* Gradient text (display headings, emphasis) */
+.prism-gradient-text {
+  background-image: linear-gradient(120deg, var(--prism-violet) 10%, var(--prism-cyan) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Subtle violet glow ring for keyboard focus in the Prism shell */
+.prism-focus:focus-visible {
+  outline: 2px solid rgba(124, 58, 237, 0.55);
+  outline-offset: 2px;
+}
+
+/* Shell surface helpers */
+.prism-shell-bg {
+  background-color: var(--prism-paper);
+}
+
+.prism-sidebar-link {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.prism-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d6d3d1 transparent;
+}
+
+.prism-scroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.prism-scroll::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 9999px;
+}
+
+.prism-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
+}
+
+/* Soft aurora backdrop for the Home view */
+.prism-aurora {
+  background:
+    radial-gradient(600px 260px at 12% -6%, rgba(124, 58, 237, 0.1), transparent 60%),
+    radial-gradient(520px 240px at 92% -4%, rgba(6, 182, 212, 0.1), transparent 60%),
+    var(--prism-paper);
 }

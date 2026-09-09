@@ -96,7 +96,7 @@ export function TelemetrySidebar({
                   {activeTenant.dynamicsOrg}
                 </span>
               ) : (
-                <span className="text-slate-400 italic">Not Connected</span>
+                <span className="text-slate-400 italic">Optional / Off</span>
               )}
             </div>
           </div>

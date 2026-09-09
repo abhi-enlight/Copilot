@@ -54,16 +54,17 @@ export async function refreshMicrosoftToken(refreshToken: string): Promise<Token
   }
 
   try {
+    const bodyParams: Record<string, string> = {
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    };
+
     const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        scope: 'offline_access openid profile User.Read Mail.Read Sites.Read.All Files.Read.All'
-      })
+      body: new URLSearchParams(bodyParams)
     });
 
     if (!res.ok) {

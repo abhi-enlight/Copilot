@@ -26,7 +26,7 @@ export function LoginView({ activeTenant, onEnterDemo }: LoginViewProps) {
 
         <div className="space-y-3 pt-1">
           <a
-            href={`/api/integrations/microsoft/connect?tenant=${activeTenant.slug}&returnTo=/`}
+            href={`/api/integrations/microsoft/connect?preset=personal_files&tenant=${activeTenant.slug}&returnTo=/`}
             className="w-full py-3 px-4 rounded-xl bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-slate-900/10 group"
           >
             <Building2 className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />

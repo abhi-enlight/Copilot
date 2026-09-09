@@ -62,7 +62,7 @@ export function IntegrationsModal({
                   </div>
                 </div>
                 <a
-                  href={`/api/integrations/microsoft/connect?tenant=${activeTenant.slug}&returnTo=/`}
+                  href={`/api/integrations/microsoft/connect?preset=personal_files&tenant=${activeTenant.slug}&returnTo=/`}
                   className="px-3 py-1.5 rounded-xl bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-medium flex items-center space-x-1.5 transition-all shadow-xs"
                 >
                   <span>Connect</span>
@@ -78,14 +78,14 @@ export function IntegrationsModal({
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-slate-900">Dynamics 365 CRM</div>
-                    <div className="text-[11px] text-slate-500">Dataverse v9.2 Pipeline & Deals</div>
+                    <div className="text-[11px] text-slate-500">Dataverse v9.2 Pipeline & Deals (Licensed Users)</div>
                   </div>
                 </div>
                 <a
-                  href={`/api/integrations/microsoft/connect?tenant=${activeTenant.slug}&returnTo=/`}
+                  href={`/api/integrations/microsoft/connect?preset=dynamics_crm&tenant=${activeTenant.slug}&returnTo=/`}
                   className="px-3 py-1.5 rounded-xl bg-[#0f172a] hover:bg-slate-800 text-white text-xs font-medium flex items-center space-x-1.5 transition-all shadow-xs"
                 >
-                  <span>Authorize</span>
+                  <span>Authorize CRM</span>
                   <ArrowUpRight className="w-3 h-3" />
                 </a>
               </div>

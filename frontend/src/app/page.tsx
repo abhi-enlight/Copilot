@@ -1,142 +1,236 @@
-'use client';
+"use client";
 
-import React, { useEffect } from 'react';
-import { AmbientBackground } from '@/components/ui/AmbientBackground';
-import { CockpitHeader } from '@/components/cockpit/CockpitHeader';
-import { TelemetrySidebar } from '@/components/cockpit/TelemetrySidebar';
-import { IntelligenceStream } from '@/components/cockpit/IntelligenceStream';
-import { HardwareInputBar } from '@/components/cockpit/HardwareInputBar';
-import { LoginView } from '@/components/cockpit/LoginView';
-import { AdminConsentModal } from '@/components/modals/AdminConsentModal';
-import { IntegrationsModal } from '@/components/modals/IntegrationsModal';
-import { useTenantContext } from '@/hooks/useTenantContext';
-import { useCopilotChat } from '@/hooks/useCopilotChat';
+// =============================================================================
+// 🔷 Prism, unified app shell (Phase 3)
+//
+// Root page of the merged product. The 8-view sidebar shell hosts both feature
+// sets: Workspace (Home / Copilot / Inbox / Documents), Operations (Campaigns /
+// Connections) and Administration (Users & Roles / Settings). The legacy
+// Microsoft cockpit remains mounted at /cockpit until its flows migrate onto
+// the connector architecture (Phase 4).
+// =============================================================================
 
-export default function OperationsCockpitPage() {
-  const {
-    activeTenant,
-    isAuthenticated,
-    isTenantDropdownOpen,
-    setIsTenantDropdownOpen,
-    showConsentModal,
-    setShowConsentModal,
-    showConsentSuccess,
-    setShowConsentSuccess,
-    showIntegrationsModal,
-    setShowIntegrationsModal,
-    tenantDropdownRef,
-    handleSelectTenant,
-    handleLogout,
-    handleLogin
-  } = useTenantContext();
+import { useState, useEffect } from "react";
+import { List } from "@phosphor-icons/react";
+import { motion, AnimatePresence } from "motion/react";
+import PrismSidebar, { type NavView, NAV_LABELS } from "@/components/PrismSidebar";
+import PrismLogo from "@/components/brand/PrismLogo";
+import HomeView from "@/components/views/HomeView";
+import InboxView from "@/components/views/InboxView";
+import DocumentsView from "@/components/views/DocumentsView";
+import CopilotView from "@/components/CopilotView";
+import CampaignsView from "@/components/CampaignsView";
+import ConnectionsView from "@/components/ConnectionsView";
+import UsersAndRolesView from "@/components/UsersAndRolesView";
+import SettingsView from "@/components/SettingsView";
 
-  const {
-    messages,
-    input,
-    setInput,
-    isLoading,
-    copiedId,
-    messagesEndRef,
-    inputRef,
-    handleCopy,
-    handleQuickAction,
-    handleSendMessage,
-    resetMessages
-  } = useCopilotChat(activeTenant);
+const pageVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -4 },
+};
 
-  // Global ⌘K keyboard shortcut
+export interface PlanContextForCopilot {
+  campaignData: {
+    name: string;
+    client: string;
+    rewardType: string;
+    budget: string;
+    codeVolume: string;
+    startDate: string;
+    endDate: string;
+    brief: string;
+  };
+  plan: {
+    tasks: any[];
+    aspectSummary: any;
+  };
+}
+
+const VALID_VIEWS: NavView[] = [
+  "home",
+  "copilot",
+  "inbox",
+  "documents",
+  "campaigns",
+  "connections",
+  "users",
+  "settings",
+];
+
+export default function PrismApp() {
+  const [currentView, setCurrentView] = useState<NavView>("home");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [activePlanForCopilot, setActivePlanForCopilot] = useState<PlanContextForCopilot | null>(null);
+  const [campaignCount, setCampaignCount] = useState<number>(0);
+
+  // Restore navigation view and active plan context on mount
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        inputRef.current?.focus();
+    if (typeof window === "undefined") return;
+
+    // 1. Resolve view from URL hash or localStorage
+    const hash = window.location.hash.replace("#", "") as NavView;
+    let initialView: NavView | null = null;
+    if (VALID_VIEWS.includes(hash)) {
+      initialView = hash;
+    } else {
+      try {
+        const savedView = localStorage.getItem("prism_active_view") as NavView;
+        if (VALID_VIEWS.includes(savedView)) {
+          initialView = savedView;
+        }
+      } catch {}
+    }
+    if (initialView && initialView !== "home") {
+      setCurrentView(initialView);
+      window.history.replaceState(null, "", `#${initialView}`);
+    }
+
+    // 2. Resolve active plan context
+    try {
+      const savedPlan = localStorage.getItem("prism_active_plan_context");
+      if (savedPlan) {
+        const parsed = JSON.parse(savedPlan);
+        if (parsed && parsed.campaignData) {
+          setActivePlanForCopilot(parsed);
+        }
+      }
+    } catch {}
+
+    // 3. Listen to hashchange for browser back/forward buttons
+    const handleHashChange = () => {
+      const currentHash = window.location.hash.replace("#", "") as NavView;
+      if (VALID_VIEWS.includes(currentHash)) {
+        setCurrentView(currentHash);
+        try {
+          localStorage.setItem("prism_active_view", currentHash);
+        } catch {}
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [inputRef]);
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
-  const onLogin = () => {
-    handleLogin();
-    resetMessages();
+  const handleNavigate = (view: NavView) => {
+    setCurrentView(view);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("prism_active_view", view);
+        window.history.replaceState(null, "", `#${view}`);
+      } catch {}
+    }
   };
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleSendMessage();
+  useEffect(() => {
+    fetch("/api/campaigns")
+      .then((res) => (res.ok ? res.json() : { campaigns: [] }))
+      .then((data) => {
+        if (Array.isArray(data.campaigns)) {
+          setCampaignCount(data.campaigns.length);
+        }
+      })
+      .catch(() => {});
+  }, [currentView]);
+
+  const handleModifyInCopilot = (campaignData: any, plan: any) => {
+    const planContext = { campaignData, plan };
+    setActivePlanForCopilot(planContext);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("prism_active_plan_context", JSON.stringify(planContext));
+      } catch {}
+    }
+    handleNavigate("copilot");
+  };
+
+  const handleClearPlanContext = () => {
+    setActivePlanForCopilot(null);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("prism_active_plan_context");
+      } catch {}
+    }
+  };
+
+  const renderView = () => {
+    switch (currentView) {
+      case "home":
+        return <HomeView onNavigate={handleNavigate} />;
+      case "copilot":
+        return (
+          <CopilotView
+            initialPlanContext={activePlanForCopilot}
+            onClearPlanContext={handleClearPlanContext}
+            onViewCampaigns={() => handleNavigate("campaigns")}
+            onNavigateToConnections={() => handleNavigate("connections")}
+          />
+        );
+      case "inbox":
+        return <InboxView />;
+      case "documents":
+        return <DocumentsView />;
+      case "campaigns":
+        return <CampaignsView onModifyInCopilot={handleModifyInCopilot} />;
+      case "connections":
+        return <ConnectionsView />;
+      case "users":
+        return <UsersAndRolesView />;
+      case "settings":
+        return <SettingsView />;
+      default:
+        return <HomeView onNavigate={handleNavigate} />;
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f7fa] text-[#0f172a] font-sans flex flex-col items-center justify-between p-3 sm:p-5 lg:p-7 relative selection:bg-indigo-500/20 selection:text-indigo-900">
-      {/* Bespoke Ambient Light Aura */}
-      <AmbientBackground />
-
-      {/* Top Floating Navigation Capsule */}
-      <CockpitHeader
-        isAuthenticated={isAuthenticated}
-        activeTenant={activeTenant}
-        isTenantDropdownOpen={isTenantDropdownOpen}
-        tenantDropdownRef={tenantDropdownRef}
-        setIsTenantDropdownOpen={setIsTenantDropdownOpen}
-        setShowIntegrationsModal={setShowIntegrationsModal}
-        setShowConsentModal={setShowConsentModal}
-        onSelectTenant={handleSelectTenant}
-        onLogin={onLogin}
-        onLogout={handleLogout}
+    <div className="flex h-screen bg-[#FAFAF9] text-stone-900 overflow-hidden font-sans antialiased">
+      {/* Persistent Prism Sidebar */}
+      <PrismSidebar
+        currentView={currentView}
+        onViewChange={handleNavigate}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
+        campaignCount={campaignCount}
       />
 
-      {/* Main Hardware Chassis Container (Double-Bezel Light Architecture) */}
-      <div className="w-full max-w-7xl h-[calc(100vh-5.75rem)] flex flex-col md:flex-row chassis-outer-light p-2.5 rounded-[2.25rem] relative z-10 overflow-hidden">
-        {!isAuthenticated ? (
-          <LoginView activeTenant={activeTenant} onEnterDemo={onLogin} />
-        ) : (
-          <>
-            {/* Left HUD: Telemetry & Endpoint Orchestration */}
-            <TelemetrySidebar
-              activeTenant={activeTenant}
-              onQuickAction={handleQuickAction}
-              onOpenConsentModal={() => setShowConsentModal(true)}
-              onLogout={handleLogout}
-            />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+        {/* Mobile Top Bar */}
+        <div className="lg:hidden h-14 border-b border-stone-200/70 bg-white/90 backdrop-blur-md px-4 flex items-center justify-between flex-shrink-0 z-30">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 rounded-lg text-stone-600 hover:bg-stone-100 cursor-pointer"
+              aria-label="Open navigation"
+            >
+              <List size={20} weight="bold" />
+            </button>
+            <div className="flex items-center gap-2">
+              <PrismLogo size={26} />
+              <span className="text-sm font-bold text-stone-900 capitalize">
+                {NAV_LABELS[currentView]}
+              </span>
+            </div>
+          </div>
+          <div className="w-8" />
+        </div>
 
-            {/* Right Pane: Intelligence Stream & Hardware Input Bar */}
-            <main className="flex-1 flex flex-col chassis-inner-light rounded-[calc(2.25rem-0.625rem)] overflow-hidden relative border border-slate-200/70">
-              <IntelligenceStream
-                messages={messages}
-                isLoading={isLoading}
-                activeTenant={activeTenant}
-                copiedId={copiedId}
-                messagesEndRef={messagesEndRef}
-                onCopy={handleCopy}
-              />
-
-              <HardwareInputBar
-                input={input}
-                isLoading={isLoading}
-                inputRef={inputRef}
-                setInput={setInput}
-                onSubmit={onSubmit}
-              />
-            </main>
-          </>
-        )}
+        {/* Animated View Switcher */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentView}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+          >
+            {renderView()}
+          </motion.div>
+        </AnimatePresence>
       </div>
-
-      {/* Enterprise IT Admin Consent Modal */}
-      <AdminConsentModal
-        isOpen={showConsentModal}
-        activeTenant={activeTenant}
-        showConsentSuccess={showConsentSuccess}
-        setShowConsentSuccess={setShowConsentSuccess}
-        onClose={() => setShowConsentModal(false)}
-      />
-
-      {/* Connect Data Sources & Integrations Modal */}
-      <IntegrationsModal
-        isOpen={showIntegrationsModal}
-        activeTenant={activeTenant}
-        onClose={() => setShowIntegrationsModal(false)}
-      />
     </div>
   );
 }

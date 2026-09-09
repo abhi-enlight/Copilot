@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "kill": "lsof -ti:3000 | xargs kill -9 2>/dev/null || true",
+    "predev": "lsof -ti:3000 | xargs kill -9 2>/dev/null || true",
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "start": "npm --prefix frontend run start",

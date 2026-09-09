@@ -26,3 +26,6 @@ frontend/next-env.d.ts
 .vscode/
 .idea/
 .freebuff/
+
+# Workflows
+workflows/
