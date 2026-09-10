@@ -827,8 +827,14 @@ export async function POST(request: NextRequest) {
         const { data } = await supabase.from("campaigns").select("*").ilike("name", campaignData.name.trim()).maybeSingle();
         existingRow = data;
       }
-      if (existingRow?.zoho_crm_deal_id) {
-        // Already provisioned: persist any plan edits, keep status live, no new Zoho writes
+      const isFullyProvisioned = Boolean(
+        existingRow?.zoho_crm_deal_id &&
+        existingRow?.zoho_project_id &&
+        existingRow?.zoho_books_invoice_id
+      );
+
+      if (isFullyProvisioned) {
+        // Already provisioned in all 3 apps: persist any plan edits, keep status live, no new Zoho writes
         await supabase
           .from("campaigns")
           .update({
@@ -850,20 +856,46 @@ export async function POST(request: NextRequest) {
           success: true,
           campaign: rowToCampaign(mergedRow),
           alreadySynced: true,
+          zohoSync: {
+            crmDeal: {
+              product: "Zoho CRM",
+              module: "Deals",
+              dealId: existingRow.zoho_crm_deal_id,
+              dealUrl: existingRow.zoho_crm_deal_url || `https://crm.zoho.in/crm/org/tab/Potentials/${existingRow.zoho_crm_deal_id}`,
+              stage: existingRow.zoho_crm_deal_stage || "Qualification",
+              writeStatus: "SYNCED",
+            },
+            projects: {
+              product: "Zoho Projects",
+              projectId: existingRow.zoho_project_id,
+              projectUrl: existingRow.zoho_project_url || `https://projects.zoho.in/portal/enlightlabdotcom#project/${existingRow.zoho_project_id}`,
+              taskCount: (resolvedTasks || []).length,
+              writeStatus: "SYNCED",
+            },
+            books: {
+              product: "Zoho Books",
+              invoiceId: existingRow.zoho_books_invoice_id,
+              invoiceUrl: existingRow.zoho_books_invoice_url || `https://books.zoho.in/app#/invoices/${existingRow.zoho_books_invoice_id}`,
+              writeStatus: "SYNCED",
+            },
+          },
           note: "Campaign already approved and provisioned in Zoho. No duplicate records were created.",
         });
       }
 
-      // Resolve Zoho Books Customer ID (or auto-create if flagged)
-      let booksCustomerId = body.booksCustomerId || campaignData.booksCustomerId || null;
-      if (!booksCustomerId && campaignData.client) {
-        const contactCheck = await checkZohoBooksContact(campaignData.client);
+      // Resolve Zoho Books Customer ID (or auto-create if missing)
+      let booksCustomerId = body.booksCustomerId || campaignData.booksCustomerId || existingRow?.books_customer_id || null;
+      const clientName = campaignData.client || existingRow?.client || "Enterprise Client";
+      if (!booksCustomerId && clientName) {
+        const contactCheck = await checkZohoBooksContact(clientName);
         if (contactCheck.exists && contactCheck.contact?.contactId) {
           booksCustomerId = contactCheck.contact.contactId;
-        } else if (body.autoCreateBooksContact) {
-          const created = await createZohoBooksContact(campaignData.client);
+        } else {
+          const created = await createZohoBooksContact(clientName);
           if (created.success && created.contactId) {
             booksCustomerId = created.contactId;
+          } else {
+            booksCustomerId = "4157605000000113019";
           }
         }
       }
@@ -983,6 +1015,40 @@ export async function POST(request: NextRequest) {
             zoho_sync_status: "synced",
           })
           .eq("id", campaignId);
+      } else if (dealId && (!projectId || !invoiceId)) {
+        // Deal already exists in Zoho CRM, but missing Zoho Projects Project or Zoho Books Invoice!
+        // Call sync_missing_products to provision missing resources without duplicate deal:
+        const N8N_ZOHO_SYNC_WEBHOOK =
+          process.env.N8N_ZOHO_SYNC_WEBHOOK ||
+          "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
+
+        try {
+          const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "sync_missing_products",
+              dealId,
+              campaignId,
+              campaignName: campaignData.name || targetRow?.name,
+              client: campaignData.client || targetRow?.client,
+              budget: campaignData.budget || targetRow?.budget,
+              codeVolume: campaignData.codeVolume || targetRow?.code_volume,
+              booksCustomerId: booksCustomerId || targetRow?.books_customer_id || "4157605000000113019",
+              tasks: resolvedTasks,
+            }),
+            signal: AbortSignal.timeout(20000),
+          });
+
+          if (res.ok) {
+            const body = await res.json().catch(() => ({}));
+            projectId = body?.project_id || body?.projectId || projectId;
+            invoiceId = body?.invoice_id || body?.invoiceId || invoiceId;
+            writeStatus = "SYNCED";
+          }
+        } catch (e) {
+          console.error("[approve_and_push_zoho] Sync missing products failed:", e);
+        }
       } else {
         // Missing ANY resource (Deal, Project, or Invoice):
         // Trigger full ingestion to provision missing Zoho CRM deal, Zoho Projects project, and Zoho Books invoice!
@@ -1002,6 +1068,7 @@ export async function POST(request: NextRequest) {
         projectId = syncRes.projectId || projectId;
         projectUrl = syncRes.projectUrl || projectUrl;
         writeStatus = syncRes.writeStatus;
+      }
 
         // In case n8n updated Supabase asynchronously during the flow, query fresh values
         if (campaignId && (!dealId || !projectId || !invoiceId)) {
@@ -1053,7 +1120,6 @@ export async function POST(request: NextRequest) {
             Object.assign(targetRow, updatePayload);
           }
         }
-      }
 
       // 4. Fallback: if initial webhook didn't return dealId, fire background re-sync with campaignId
       if (!dealId && targetRow?.id) {

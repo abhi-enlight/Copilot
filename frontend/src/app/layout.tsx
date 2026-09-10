@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Prism. One interface for every system.",
-    template: "%s · Prism",
+    default: "BCP Assist. One interface for every system.",
+    template: "%s · BCP Assist",
   },
   description:
-    "Prism is the unified productivity copilot connecting Microsoft 365 (Outlook, SharePoint, Dynamics 365 CRM) and Zoho (CRM, Projects, Books), all in one conversation across every system you work in.",
+    "BCP Assist is the unified productivity copilot connecting Microsoft 365 (Outlook, SharePoint, Dynamics 365 CRM) and Zoho (CRM, Projects, Books), all in one conversation across every system you work in.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

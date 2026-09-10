@@ -16,7 +16,8 @@ import {
   // EnvelopeSimple,
   // FolderOpen,
 } from "@phosphor-icons/react";
-import PrismLogo from "@/components/brand/PrismLogo";
+import BigCityLogo from "@/components/BigCityLogo";
+import EnlightLogo from "@/components/brand/EnlightLogo";
 
 export type NavView =
   | "home"
@@ -62,7 +63,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Administration",
     items: [
       { id: "users", label: "Users & Roles", icon: Users },
-      { id: "settings", label: "Settings", icon: GearSix },
+      // Preserved for later release:
+      // { id: "settings", label: "Settings", icon: GearSix },
     ],
   },
 ];
@@ -118,38 +120,62 @@ export default function PrismSidebar({
           collapsed ? "w-[70px]" : "w-60"
         } ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
-        {/* Brand header (click toggles collapse on desktop) */}
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof window !== "undefined" && window.innerWidth >= 1024) {
-              setIsCollapsed(!collapsed);
-            }
-          }}
-          className={`h-[60px] border-b border-stone-200/70 flex items-center flex-shrink-0 w-full cursor-pointer text-left hover:bg-stone-50/70 transition-colors ${
+        {/* Brand header: App Icon Tile + Product Name + by Enlight Lab subtext */}
+        <div
+          className={`h-[66px] border-b border-stone-200/70 flex items-center flex-shrink-0 transition-colors ${
             collapsed ? "justify-center px-0" : "justify-between px-3.5"
           }`}
-          title={collapsed ? "Expand sidebar" : "Prism. One interface for every system"}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <PrismLogo size={34} />
-            {!collapsed && (
-              <span className="min-w-0">
-                <span className="block text-[15px] font-bold tracking-tight text-stone-900 leading-tight">
-                  Prism
-                </span>
-                <span className="block text-[10px] text-stone-400 font-medium truncate leading-tight">
-                  One interface, every system
-                </span>
-              </span>
-            )}
-          </div>
-          {!collapsed && (
-            <span className="hidden lg:flex p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-white transition-colors flex-shrink-0">
-              <SidebarSimple size={15} weight="bold" />
-            </span>
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={() => setIsCollapsed(false)}
+              className="p-1 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+              title="Expand sidebar — BCP Assist by Enlight Lab"
+            >
+              <BigCityLogo size={34} variant="tile" className="rounded-xl border border-stone-200/90 shadow-2xs p-1" />
+            </button>
+          ) : (
+            <div className="flex items-center justify-between w-full min-w-0">
+              <button
+                type="button"
+                onClick={() => onViewChange("home")}
+                className="flex items-center gap-2.5 min-w-0 flex-1 group text-left cursor-pointer"
+                title="BCP Assist — by Enlight Lab"
+              >
+                {/* BigCity skyline icon tile */}
+                <BigCityLogo
+                  size={36}
+                  variant="tile"
+                  className="rounded-xl border border-stone-200/90 shadow-2xs p-1 shrink-0 group-hover:border-stone-300 transition-colors"
+                />
+
+                <div className="min-w-0 flex-1">
+                  {/* Product title */}
+                  <span className="block text-[14.5px] font-bold tracking-tight text-stone-900 leading-tight group-hover:text-blue-600 transition-colors truncate">
+                    BCP Assist
+                  </span>
+                  {/* Clean by Enlight Lab subtext */}
+                  <div className="flex items-center gap-1 leading-tight mt-0.5">
+                    <span className="text-[11px] text-stone-400 font-medium">by</span>
+                    <span className="text-[11px] font-semibold text-blue-600 tracking-tight">
+                      Enlight Lab
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCollapsed(true)}
+                className="hidden lg:flex p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors flex-shrink-0 cursor-pointer ml-1"
+                title="Collapse sidebar"
+              >
+                <SidebarSimple size={15} weight="bold" />
+              </button>
+            </div>
           )}
-        </button>
+        </div>
 
         {/* Mobile close */}
         {isMobileOpen && (

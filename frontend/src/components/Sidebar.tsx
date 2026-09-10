@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 
 import BigCityLogo from "./BigCityLogo";
+import EnlightLogo from "./brand/EnlightLogo";
 
 export type NavView = "copilot" | "campaigns" | "connections" | "users";
 
@@ -96,7 +97,7 @@ export default function Sidebar({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[13.5px] font-bold tracking-tight text-stone-900 truncate">
-                    Prism
+                    BCP Assist
                   </span>
                 </div>
                 <div className="flex items-center gap-1 mt-px">
@@ -179,8 +180,8 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* User Profile */}
-        <div className="p-3 border-t border-stone-200/70">
+        {/* User Profile & Enlight Labs attribution */}
+        <div className="p-3 border-t border-stone-200/70 space-y-2.5">
           <div className="flex items-center gap-2.5 px-1">
             <div className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-400 flex-shrink-0 shadow-2xs">
               <User size={16} weight="duotone" className="text-stone-500" />
@@ -201,6 +202,17 @@ export default function Sidebar({
               </div>
             )}
           </div>
+
+          {!isCollapsed ? (
+            <div className="pt-2 border-t border-stone-100 px-1 flex items-center justify-between">
+              <span className="text-[10px] text-stone-400 font-medium">Built by</span>
+              <EnlightLogo size="xs" showWordmark={false} href="/" ariaLabel="Enlight Lab" />
+            </div>
+          ) : (
+            <div className="pt-1 flex justify-center" title="Built by Enlight Lab">
+              <EnlightLogo size="xs" showWordmark={false} href="/" ariaLabel="Enlight Lab" />
+            </div>
+          )}
         </div>
       </aside>
     </>

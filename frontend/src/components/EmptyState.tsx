@@ -10,7 +10,8 @@ import {
   Database,
   Sparkle,
 } from "@phosphor-icons/react";
-import PrismLogo from "@/components/brand/PrismLogo";
+import BigCityLogo from "@/components/BigCityLogo";
+import EnlightLogo from "@/components/brand/EnlightLogo";
 import type { ConnectorId } from "@/hooks/useConnectors";
 
 interface EmptyStateProps {
@@ -131,29 +132,32 @@ export default function EmptyState({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-10 max-w-2xl w-full mx-auto my-auto select-none">
-      {/* Brand Hero Glow */}
+      {/* Brand Hero: App Icon Tile */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="relative mb-6"
+        className="relative mb-5 flex flex-col items-center"
       >
         <div className="relative flex items-center justify-center">
-          <div className="absolute inset-0 rounded-2xl bg-violet-500/15 blur-xl scale-125" />
-          <PrismLogo size={58} className="relative shadow-md rounded-2xl" />
+          <div className="absolute inset-0 rounded-2xl bg-blue-500/10 blur-xl scale-125" />
+          <BigCityLogo size={56} variant="tile" className="relative shadow-md rounded-2xl p-2 bg-white border border-stone-200/80" />
         </div>
       </motion.div>
 
-      {/* Heading */}
+      {/* Heading with Subtext */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.08 }}
         className="text-center mb-8"
       >
-        <h2 className="text-2xl font-bold text-stone-900 tracking-tight mb-2">
-          Prism Unified Copilot
+        <h2 className="text-2xl font-bold text-stone-900 tracking-tight mb-1.5">
+          BCP Assist
         </h2>
+        <p className="text-xs text-stone-400 font-medium mb-2.5">
+          by <span className="text-blue-600 font-semibold">Enlight Lab</span> · BigCity Promotions
+        </p>
         <p className="text-[13px] text-stone-500 max-w-md mx-auto leading-relaxed">
           Ask questions across your enabled mail, documents, CRM deals, projects, and invoices, gated strictly by your real permissions.
         </p>

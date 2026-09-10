@@ -96,7 +96,7 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
           {/* Author & Timestamp */}
           <div className="flex items-center gap-2 px-1">
             <span className="text-[11.5px] font-semibold text-slate-700">
-              {isUser ? "Campaign Manager" : "Prism Copilot"}
+              {isUser ? "Campaign Manager" : "BCP Assist"}
             </span>
             <span className="text-[10px] text-slate-400 tabular-nums">
               {new Date(message.timestamp).toLocaleTimeString([], {

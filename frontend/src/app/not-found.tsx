@@ -9,10 +9,10 @@
 
 import Link from "next/link";
 import type { Metadata } from "next";
-import PrismLogo from "@/components/brand/PrismLogo";
+import BigCityLogo from "@/components/BigCityLogo";
 
 export const metadata: Metadata = {
-  title: "Page not found · Prism",
+  title: "Page not found · BCP Assist",
   description: "The page you're looking for doesn't exist.",
 };
 
@@ -25,7 +25,7 @@ export default function NotFound() {
           <div className="w-full max-w-md bg-white rounded-3xl border border-stone-200 shadow-xl shadow-stone-900/5 p-10 flex flex-col items-center text-center gap-6">
 
             {/* Logo */}
-            <PrismLogo size={40} />
+            <BigCityLogo size={44} variant="tile" className="rounded-2xl p-1.5" />
 
             {/* Error code */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-[11px] font-mono font-semibold text-stone-500">
@@ -64,7 +64,7 @@ export default function NotFound() {
 
             {/* Footer note */}
             <p className="text-[11px] text-stone-400">
-              If you were following a link from inside Prism, please let your admin know.
+              If you were following a link from inside BCP Assist, please let your admin know.
             </p>
           </div>
         </div>

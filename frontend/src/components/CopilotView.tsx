@@ -35,6 +35,8 @@ import ChatMessage, { type Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import ThinkingProcess from "@/components/ThinkingProcess";
 import EmptyState from "@/components/EmptyState";
+import BigCityLogo from "@/components/BigCityLogo";
+import EnlightLogo from "@/components/brand/EnlightLogo";
 import { useConnectors, PAUSED_PILL_LABELS } from "@/hooks/useConnectors";
 import { type PlanContextForCopilot } from "@/app/page";
 import { type AspectTask, type Campaign } from "@/types/campaign";
@@ -980,7 +982,7 @@ export default function CopilotView({
       showToast(
         isOffline
           ? "You appear to be offline. Your campaign plan is safe. Reconnect and try approving again."
-          : "Couldn't reach Prism. Check your internet connection. Your campaign plan is unchanged.",
+          : "Couldn't reach BCP Assist. Check your internet connection. Your campaign plan is unchanged.",
         "error"
       );
       setWorkingPlan((prev) => (prev ? { ...prev, status: "draft" } : null));
@@ -1798,7 +1800,7 @@ export default function CopilotView({
 
   const handleExport = useCallback(() => {
     if (messages.length === 0) return;
-    let md = `# Prism, Copilot Session\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
+    let md = `# BCP Assist, Copilot Session\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
     messages.forEach((m) => {
       const timeStr = m.timestamp instanceof Date ? m.timestamp.toLocaleTimeString() : new Date(m.timestamp).toLocaleTimeString();
       md += `### ${m.role.toUpperCase()} (${timeStr}):\n\n${m.content}\n\n---\n\n`;
@@ -1807,7 +1809,7 @@ export default function CopilotView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Prism_Copilot_${Date.now()}.md`;
+    a.download = `BCP_Assist_Copilot_${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
     showToast("Exported chat session to Markdown", "check");
@@ -1849,9 +1851,15 @@ export default function CopilotView({
       {/* Header */}
       <header className="h-14 border-b border-stone-200/70 bg-white/90 backdrop-blur-md px-6 flex items-center justify-between flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
-          <h1 className="text-[15px] font-bold text-stone-900 tracking-tight">
-            {workingPlan ? "Plan Copilot Studio" : "AI Copilot"}
-          </h1>
+          <div className="flex items-center gap-2">
+            <BigCityLogo size={22} variant="tile" className="rounded-md border border-stone-200/80 shadow-2xs p-0.5 shrink-0" />
+            <h1 className="text-[14.5px] font-bold text-stone-900 tracking-tight">
+              {workingPlan ? "Plan Copilot Studio" : "BCP Assist"}
+            </h1>
+            <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
+              by <span className="text-blue-600 font-semibold">Enlight Lab</span>
+            </span>
+          </div>
           {workingPlan && !isPlanPanelOpen && (
             <button
               type="button"

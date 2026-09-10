@@ -1,15 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#7C3AED"/>
-      <stop offset="1" stop-color="#06B6D4"/>
+    <linearGradient id="bcp-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#184E68"/>
+      <stop offset="1" stop-color="#0E2D3D"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="18" fill="url(#bg)"/>
-  <g transform="translate(14 14)">
-    <path d="M18 1.5 30 34H6L18 1.5Z" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
-    <path d="M0 27H9" stroke="rgba(255,255,255,0.8)" stroke-width="3" stroke-linecap="round"/>
-    <path d="M18 20 25.5 30" stroke="rgba(255,255,255,0.95)" stroke-width="3" stroke-linecap="round"/>
-    <path d="M23.5 22.5 30.5 32" stroke="rgba(255,255,255,0.55)" stroke-width="3" stroke-linecap="round"/>
+  <!-- Background squircle -->
+  <rect width="64" height="64" rx="16" fill="url(#bcp-bg)"/>
+
+  <!-- City Skyline Group -->
+  <g fill="#FFFFFF" transform="translate(6, 6)">
+    <!-- Central Tower Spire -->
+    <rect x="25" y="4" width="2" height="7" rx="0.5"/>
+    <circle cx="26" cy="3.5" r="1.5"/>
+
+    <!-- Central Tower Body -->
+    <path d="M20 11 H32 V43 H20 Z"/>
+
+    <!-- Central Tower Windows -->
+    <g fill="#184E68">
+      <rect x="22" y="14" width="3" height="4" rx="0.5"/>
+      <rect x="27" y="14" width="3" height="4" rx="0.5"/>
+      <rect x="22" y="21" width="3" height="4" rx="0.5"/>
+      <rect x="27" y="21" width="3" height="4" rx="0.5"/>
+      <rect x="22" y="28" width="3" height="4" rx="0.5"/>
+      <rect x="27" y="28" width="3" height="4" rx="0.5"/>
+    </g>
+
+    <!-- Left Main Tower -->
+    <path d="M9 21 L19 25 V43 H9 Z"/>
+    <g fill="#184E68">
+      <rect x="11" y="27" width="2.5" height="3" rx="0.4"/>
+      <rect x="15" y="28.5" width="2.5" height="3" rx="0.4"/>
+      <rect x="11" y="33" width="2.5" height="3" rx="0.4"/>
+      <rect x="15" y="34.5" width="2.5" height="3" rx="0.4"/>
+    </g>
+
+    <!-- Far Left Tower -->
+    <path d="M4 29 L9 27 V43 H4 Z"/>
+    <g fill="#184E68">
+      <rect x="5.5" y="31" width="2" height="2.5" rx="0.3"/>
+      <rect x="5.5" y="36" width="2" height="2.5" rx="0.3"/>
+    </g>
+
+    <!-- Right Main Tower -->
+    <path d="M33 21 L43 24 V43 H33 Z"/>
+    <g fill="#184E68">
+      <rect x="35" y="26" width="2.5" height="3" rx="0.4"/>
+      <rect x="39" y="27.5" width="2.5" height="3" rx="0.4"/>
+      <rect x="35" y="32" width="2.5" height="3" rx="0.4"/>
+      <rect x="39" y="33.5" width="2.5" height="3" rx="0.4"/>
+    </g>
+
+    <!-- Far Right Tower -->
+    <path d="M43 27 L48 29 V43 H43 Z"/>
+    <g fill="#184E68">
+      <rect x="44.5" y="31" width="2" height="2.5" rx="0.3"/>
+      <rect x="44.5" y="36" width="2" height="2.5" rx="0.3"/>
+    </g>
+
+    <!-- Base Horizon Line -->
+    <rect x="2" y="43" width="48" height="2.5" rx="1" fill="#FFFFFF"/>
   </g>
 </svg>

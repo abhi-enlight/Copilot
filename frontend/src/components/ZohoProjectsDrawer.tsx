@@ -583,7 +583,7 @@ export default function ZohoProjectsDrawer({
                   </div>
                   <pre className="text-[10.5px] text-amber-300 font-mono p-4 overflow-x-auto leading-relaxed">
 {JSON.stringify({
-  action: "TASK_CREATED_BATCH",   source: "Prism AI Agent",
+  action: "TASK_CREATED_BATCH",   source: "BCP Assist AI Agent",
   aspects_pushed: ["legal", "compliance", "accounting", "implementation"],
   tasks_injected: campaign.tasks.length,
   timestamp: new Date().toISOString(),

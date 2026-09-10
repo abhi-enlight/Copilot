@@ -1,7 +1,7 @@
 "use client";
 
 import { FolderOpen, MagnifyingGlass, FileText, UploadSimple } from "@phosphor-icons/react";
-import PrismLogo from "@/components/brand/PrismLogo";
+import BigCityLogo from "@/components/BigCityLogo";
 
 /**
  * Documents, cross-source explorer (Phase 6 feature surface).
@@ -18,7 +18,7 @@ export default function DocumentsView() {
   return (
     <div className="flex-1 overflow-y-auto prism-scroll prism-shell-bg">
       <div className="max-w-3xl mx-auto px-6 lg:px-8 py-14 flex flex-col items-center text-center">
-        <PrismLogo variant="glyph" size={54} className="mb-5 opacity-90" />
+        <BigCityLogo size={54} variant="tile" className="mb-5 p-2 rounded-2xl" />
         <h1 className="text-[22px] font-bold tracking-tight text-stone-900">Documents</h1>
         <p className="text-sm text-stone-500 max-w-md mt-2 leading-relaxed">
           Explore and interrogate every file across your drives and the organization knowledge

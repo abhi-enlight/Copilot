@@ -14,7 +14,8 @@ import { useState, useEffect } from "react";
 import { List } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import PrismSidebar, { type NavView, NAV_LABELS } from "@/components/PrismSidebar";
-import PrismLogo from "@/components/brand/PrismLogo";
+import BigCityLogo from "@/components/BigCityLogo";
+import EnlightLogo from "@/components/brand/EnlightLogo";
 import HomeView from "@/components/views/HomeView";
 import InboxView from "@/components/views/InboxView";
 import DocumentsView from "@/components/views/DocumentsView";
@@ -83,7 +84,7 @@ export default function PrismApp() {
     }
     if (initialView && initialView !== "home") {
       // If returning to a deferred view, gently redirect to home
-      if (initialView === "inbox" || initialView === "documents") {
+      if (initialView === "inbox" || initialView === "documents" || initialView === "settings") {
         initialView = "home";
         try {
           localStorage.setItem("prism_active_view", "home");
@@ -214,8 +215,15 @@ export default function PrismApp() {
               <List size={20} weight="bold" />
             </button>
             <div className="flex items-center gap-2">
-              <PrismLogo size={26} />
-              <span className="text-sm font-bold text-stone-900 capitalize">
+              <BigCityLogo size={22} variant="tile" className="rounded-lg p-0.5 bg-white border border-stone-200/60 shadow-2xs" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-stone-900">BCP Assist</span>
+                <span className="text-[10.5px] text-stone-400 font-medium">
+                  by <span className="text-blue-600 font-semibold">Enlight Lab</span>
+                </span>
+              </div>
+              <span className="text-stone-300 font-normal">/</span>
+              <span className="text-xs text-stone-500 font-medium capitalize">
                 {NAV_LABELS[currentView]}
               </span>
             </div>

@@ -13,6 +13,8 @@ import { useEffect, useState, type ComponentType } from "react";import {
   PauseCircle,
 } from "@phosphor-icons/react";
 import type { NavView } from "@/components/PrismSidebar";
+import BigCityLogo from "@/components/BigCityLogo";
+import EnlightLogo from "@/components/brand/EnlightLogo";
 import { useConnectors, PAUSED_PILL_LABELS, type ConnectorId } from "@/hooks/useConnectors";
 
 interface HomeViewProps {
@@ -80,12 +82,20 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
       <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8 space-y-7">
         {/* Hero */}
         <div className="space-y-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-stone-200/90 shadow-2xs text-[11.5px] font-semibold text-stone-700">
+            <BigCityLogo size={16} />
+            <span>BCP Assist</span>
+            <span className="text-stone-300">·</span>
+            <span className="text-stone-500 font-normal">by <span className="text-blue-600 font-semibold">Enlight Lab</span></span>
+            <span className="text-stone-300">·</span>
+            <span className="text-stone-400 font-normal">BigCity Promotions</span>
+          </div>
           <h1 className="text-[26px] lg:text-[30px] font-bold tracking-tight text-stone-900 leading-tight">
             One interface for every system
             <span className="block prism-gradient-text">you work in.</span>
           </h1>
           <p className="text-sm text-stone-500 max-w-xl leading-relaxed">
-            Prism connects your mail, documents, CRM deals, projects, and invoices into a single
+            BCP Assist connects your mail, documents, CRM deals, projects, and invoices into a single
             copilot conversation, gated by the real permissions of each platform.
           </p>
         </div>
@@ -250,6 +260,19 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
                 One search across mail, files, CRM, tasks, and the knowledge base
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Footer (OrgForge-style brand lockup & attribution) */}
+        <div className="pt-8 pb-4 border-t border-stone-200/70 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <EnlightLogo size="sm" showWordmark={true} wordmark="BCP ASSIST" href="/" />
+
+          <p className="text-xs text-stone-400 text-center sm:text-left">
+            BCP Assist by Enlight Lab. Unified productivity copilot for BigCity Promotions.
+          </p>
+
+          <div className="flex items-center gap-4 text-xs text-stone-400">
+            <span>One interface for every system</span>
           </div>
         </div>
       </div>

@@ -12,7 +12,7 @@
 // =============================================================================
 
 import { useEffect } from "react";
-import PrismLogo from "@/components/brand/PrismLogo";
+import BigCityLogo from "@/components/BigCityLogo";
 import { ArrowsClockwise, Warning } from "@phosphor-icons/react";
 
 interface ErrorProps {
@@ -24,7 +24,7 @@ export default function GlobalError({ error, retry }: ErrorProps) {
   // Log server-side digest for cross-referencing server logs, but never
   // expose the message itself in the UI.
   useEffect(() => {
-    console.error("[Prism] Unhandled error (digest:", error.digest ?? "n/a", ")");
+    console.error("[BCP Assist] Unhandled error (digest:", error.digest ?? "n/a", ")");
   }, [error]);
 
   return (
@@ -32,7 +32,7 @@ export default function GlobalError({ error, retry }: ErrorProps) {
       <div className="w-full max-w-md bg-white rounded-3xl border border-stone-200 shadow-xl shadow-stone-900/5 p-10 flex flex-col items-center text-center gap-6">
 
         {/* Logo */}
-        <PrismLogo size={40} />
+        <BigCityLogo size={44} variant="tile" className="rounded-2xl p-1.5" />
 
         {/* Icon */}
         <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center">
@@ -45,7 +45,7 @@ export default function GlobalError({ error, retry }: ErrorProps) {
             Something went wrong on our end
           </h1>
           <p className="text-sm text-stone-500 leading-relaxed max-w-xs mx-auto">
-            Prism ran into an unexpected problem. Your data is safe. This is a
+            BCP Assist ran into an unexpected problem. Your data is safe. This is a
             temporary issue with the service, not something you did.
           </p>
         </div>

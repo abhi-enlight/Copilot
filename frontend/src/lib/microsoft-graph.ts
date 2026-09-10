@@ -1,6 +1,5 @@
 /**
  * Microsoft Graph API Integration Helper
- * 
  * Provides authenticated queries to Microsoft Graph endpoints for the currently
  * authenticated user, with automatic token refresh support.
  */

@@ -118,7 +118,7 @@ export default function ChatInput({
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Ask Prism about briefs, deals, documents, or SOP precedents..."
+        placeholder="Ask BCP Assist about briefs, deals, documents, or SOP precedents..."
         rows={1}
         disabled={disabled}
         className="flex-1 bg-transparent text-[13.5px] text-slate-900 placeholder:text-slate-400 resize-none outline-none leading-relaxed max-h-40 px-2 py-1.5 disabled:opacity-40 font-normal"
