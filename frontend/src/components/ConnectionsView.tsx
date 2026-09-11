@@ -39,7 +39,16 @@ export default function ConnectionsView() {
     prefSaveError,
     clearPrefSaveError,
     hasPausedAny,
+    pausedConnectorIds,
   } = useConnectors();
+
+  // Dismissed pause-set for the paused-connections banner. Keyed by the exact
+  // set of paused connector ids, so pausing/unpausing makes the banner relevant again.
+  const [dismissedPauseKey, setDismissedPauseKey] = useState<string | null>(null);
+  const pausedKey = pausedConnectorIds.length > 0 ? pausedConnectorIds.slice().sort().join("|") : "";
+
+  const [dismissedStatusError, setDismissedStatusError] = useState(false);
+  const [dismissedZohoReauth, setDismissedZohoReauth] = useState(false);
 
   const [isPingingAll, setIsPingingAll] = useState(false);
   const [pingNotice, setPingNotice] = useState<string | null>(null);
@@ -293,16 +302,19 @@ export default function ConnectionsView() {
 
       {/* Status check unavailable */}
       <AnimatedErrorBanner
-        show={statusError && !isSyncing}
+        show={statusError && !isSyncing && !dismissedStatusError}
         severity="warning"
         title="Connection status couldn't be verified"
         description="The health checks below may not reflect your actual access. This is a temporary issue on our end."
         action={{
           label: "Retry",
-          onClick: recheckEntitlements,
+          onClick: () => {
+            setDismissedStatusError(false);
+            void recheckEntitlements();
+          },
           isLoading: isSyncing,
         }}
-        onDismiss={() => { /* statusError auto-clears on next successful check */ }}
+        onDismiss={() => setDismissedStatusError(true)}
         className="mx-6 mt-3"
       />
 
@@ -319,7 +331,7 @@ export default function ConnectionsView() {
 
       {/* Reconnection required, deep-link into the Zoho reconnect flow */}
       <AnimatedErrorBanner
-        show={zohoReauth.length > 0}
+        show={zohoReauth.length > 0 && !dismissedZohoReauth}
         severity="warning"
         title="Reconnection required"
         description={`${zohoReauth.map((r) => r.label).join(", ")} lost authorization. Your Zoho token was revoked or expired. Reconnect to restore access.`}
@@ -328,17 +340,17 @@ export default function ConnectionsView() {
             ? { label: `Reconnect ${zohoReauth[0].label}`, onClick: () => { window.location.href = zohoReauth[0].href; } }
             : undefined
         }
-        onDismiss={() => { /* re-derived from live status; dismisses once reconnected */ }}
+        onDismiss={() => setDismissedZohoReauth(true)}
         className="mx-6 mt-3"
       />
 
       {/* Paused-connections pointer (matches the chat paused banner) */}
       <AnimatedErrorBanner
-        show={Boolean(activeConnectors) && hasPausedAny}
+        show={Boolean(activeConnectors) && hasPausedAny && pausedKey !== dismissedPauseKey}
         severity="info"
         title="Some connections are paused"
         description="The Copilot and automations can't touch paused connections. Turn them back on here whenever you're ready."
-        onDismiss={() => { /* informational only */ }}
+        onDismiss={() => setDismissedPauseKey(pausedKey)}
         className="mx-6 mt-3"
       />
 
