@@ -58,7 +58,7 @@ export default function PrismLogo({
 
   return (
     <div
-      className={`prism-gradient inline-flex items-center justify-center rounded-[30%] text-white shadow-md shadow-violet-600/20 select-none flex-shrink-0 ${className}`}
+      className={`prism-gradient inline-flex items-center justify-center rounded-[30%] text-white shadow-md shadow-blue-900/20 select-none flex-shrink-0 ${className}`}
       style={{ width: size, height: size }}
       aria-hidden="true"
     >

@@ -57,18 +57,18 @@ const ALL_SUGGESTIONS: SuggestionItem[] = [
     icon: Receipt,
     label: "What are my recent invoices?",
     tag: "Zoho Books",
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
-    border: "border-indigo-200/70",
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    border: "border-blue-200/70",
     text: "What are our recent invoices in Zoho Books? Check open balances and payment statuses.",
   },
   {
     icon: Megaphone,
     label: "What are my active campaigns?",
     tag: "Campaigns",
-    color: "text-violet-600",
-    bg: "bg-violet-50",
-    border: "border-violet-200/70",
+    color: "text-sky-600",
+    bg: "bg-sky-50",
+    border: "border-sky-200/70",
     text: "Show all my active campaigns, their task completion status, and pending approvals.",
   },
   {
@@ -76,9 +76,9 @@ const ALL_SUGGESTIONS: SuggestionItem[] = [
     icon: Briefcase,
     label: "What are our open CRM deals?",
     tag: "Zoho CRM",
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200/70",
+    color: "text-blue-600",
+    bg: "bg-blue-50",
+    border: "border-blue-200/70",
     text: "Show our active Zoho CRM deals, pipeline stages, and high-value customer accounts.",
   },
   {
@@ -86,9 +86,9 @@ const ALL_SUGGESTIONS: SuggestionItem[] = [
     icon: Kanban,
     label: "What tasks are due in Projects?",
     tag: "Zoho Projects",
-    color: "text-teal-600",
-    bg: "bg-teal-50",
-    border: "border-teal-200/70",
+    color: "text-cyan-600",
+    bg: "bg-cyan-50",
+    border: "border-cyan-200/70",
     text: "List our active projects and pending tasks across teams in Zoho Projects.",
   },
   {
@@ -131,7 +131,7 @@ export default function EmptyState({
         className="relative mb-6 flex flex-col items-center"
       >
         <div className="relative">
-          <div className="absolute inset-0 rounded-2xl bg-violet-500/10 blur-2xl scale-150" />
+          <div className="absolute inset-0 rounded-2xl bg-sky-500/10 blur-2xl scale-150" />
           <PrismLogo size={52} className="relative shadow-sm rounded-2xl" />
         </div>
       </motion.div>
@@ -164,20 +164,20 @@ export default function EmptyState({
               whileHover={{ y: -1, scale: 1.01 }}
               whileTap={{ scale: 0.985 }}
               onClick={() => handleClick(item.text)}
-              className="group flex items-start gap-3 p-3.5 rounded-xl bg-white hover:bg-stone-50/80 border border-stone-200/80 hover:border-violet-200 hover:shadow-sm transition-all text-left cursor-pointer"
+              className="group flex items-start gap-3 p-3.5 rounded-xl bg-white hover:bg-slate-50/80 border border-slate-200/80 hover:border-sky-200 hover:shadow-sm transition-all text-left cursor-pointer"
             >
               <div className={`p-1.5 rounded-lg ${item.bg} ${item.border} border flex-shrink-0 mt-0.5`}>
                 <IconComp size={14} weight="duotone" className={item.color} />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[13px] font-semibold text-stone-800 group-hover:text-violet-700 transition-colors leading-snug block">
+                <span className="text-[13px] font-semibold text-slate-800 group-hover:text-sky-700 transition-colors leading-snug block">
                   {item.label}
                 </span>
                 <span className="text-[11px] text-stone-400 mt-0.5 block">{item.tag}</span>
               </div>
               <ArrowRight
                 size={13}
-                className="text-stone-300 group-hover:text-violet-400 flex-shrink-0 mt-1 transition-colors"
+                className="text-slate-300 group-hover:text-sky-500 flex-shrink-0 mt-1 transition-colors"
               />
             </motion.button>
           );

@@ -130,7 +130,7 @@ export default function ChatInput({
     <div
       className={`relative flex items-end gap-2 bg-white rounded-2xl p-2 transition-all duration-200 ${
         isFocused
-          ? "shadow-[0_0_0_2px_rgba(124,58,237,0.18),0_4px_24px_-4px_rgba(124,58,237,0.12)]  ring-0 border border-violet-300/80"
+          ? "shadow-[0_0_0_2px_rgba(2,132,199,0.18),0_4px_24px_-4px_rgba(2,132,199,0.12)]  ring-0 border border-sky-300/80"
           : "shadow-[0_2px_16px_-2px_rgba(15,23,42,0.07),0_0_0_1px_rgba(15,23,42,0.07)] border border-transparent"
       }`}
     >
@@ -181,7 +181,7 @@ export default function ChatInput({
             disabled={!hasContent || disabled}
             className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
               hasContent
-                ? "bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-[0_2px_8px_-1px_rgba(124,58,237,0.4)] hover:shadow-[0_4px_12px_-2px_rgba(124,58,237,0.5)]"
+                ? "bg-gradient-to-br from-sky-600 to-blue-700 text-white shadow-[0_2px_8px_-1px_rgba(2,132,199,0.4)] hover:shadow-[0_4px_12px_-2px_rgba(2,132,199,0.5)] active:scale-95"
                 : "bg-stone-100 text-stone-300 cursor-not-allowed"
             }`}
             title="Send message"

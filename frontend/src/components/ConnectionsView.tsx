@@ -372,7 +372,7 @@ export default function ConnectionsView() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <User size={16} weight="bold" className="text-violet-600" />
+                <User size={16} weight="bold" className="text-sky-600" />
                 <h2 className="text-xs font-bold uppercase tracking-wider text-stone-700">
                   Personal & User-Managed Connections
                 </h2>
@@ -515,8 +515,8 @@ export default function ConnectionsView() {
               name="Dynamics 365 CRM"
               provider="Microsoft Dataverse"
               description="Dataverse opportunities, pipeline accounts, and contacts for licensed CRM enterprise users."
-              icon={<Briefcase size={18} weight="duotone" className="text-indigo-600" />}
-              iconBg="bg-indigo-50 border-indigo-200"
+              icon={<Briefcase size={18} weight="duotone" className="text-blue-600" />}
+              iconBg="bg-blue-50 border-blue-200"
               isLoading={isInitialLoading}
               isConnected={isCrmLive}
               isEnabled={activeConnectors?.["microsoft.dynamics"] ?? false}
@@ -541,8 +541,8 @@ export default function ConnectionsView() {
               name="Knowledge Base"
               provider="Supabase pgvector"
               description="Semantic retrieval across company SOPs, precedent memos, legal guidelines, and contracts."
-              icon={<Database size={18} weight="duotone" className="text-violet-600" />}
-              iconBg="bg-violet-50 border-violet-200"
+              icon={<Database size={18} weight="duotone" className="text-sky-600" />}
+              iconBg="bg-sky-50 border-sky-200"
               isLoading={isInitialLoading}
               isConnected={true}
               isEnabled={activeConnectors?.["internal.kb"] ?? false}

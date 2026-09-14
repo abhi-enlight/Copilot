@@ -84,7 +84,7 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
           className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
             isUser
               ? "bg-stone-800 text-white"
-              : "bg-gradient-to-br from-violet-500 to-violet-700 text-white shadow-sm"
+              : "bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-sm"
           }`}
         >
           {isUser ? (
@@ -150,9 +150,9 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
 
                       if (text.includes("[Confirmed Information]")) {
                         return (
-                          <div className="my-2 p-3 rounded-xl bg-violet-50/60 border border-violet-200/70">
-                            <div className="flex items-center gap-1.5 text-violet-700 font-semibold text-[10.5px] mb-1 uppercase tracking-wider">
-                              <BookmarkSimple size={12} weight="bold" className="text-violet-500" />
+                          <div className="my-2 p-3 rounded-xl bg-sky-50/60 border border-sky-200/70">
+                            <div className="flex items-center gap-1.5 text-sky-700 font-semibold text-[10.5px] mb-1 uppercase tracking-wider">
+                              <BookmarkSimple size={12} weight="bold" className="text-sky-500" />
                               <span>Confirmed Information</span>
                             </div>
                             <div className="text-[13px] text-stone-700 leading-relaxed font-normal">
@@ -269,8 +269,7 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
                         </strong>
                       );
                     },
-                    em: ({ children }) => (
-                      <em className="text-violet-600 font-medium not-italic">{children}</em>
+                    em: ({ children }) => (                        <em className="text-sky-600 font-medium not-italic">{children}</em>
                     ),
                     code: ({ children, className }) => {
                       const isBlock = className?.includes("language-");
@@ -282,7 +281,7 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
                         );
                       }
                       return (
-                        <code className="px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-700 font-mono text-xs border border-violet-100">
+                        <code className="px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 font-mono text-xs border border-sky-100">
                           {children}
                         </code>
                       );
@@ -307,7 +306,7 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-violet-600 hover:underline font-medium"
+                        className="text-sky-600 hover:underline font-medium"
                       >
                         {children}
                       </a>
@@ -322,7 +321,7 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
                       <h3 className="text-[13px] font-semibold text-stone-700 mb-1 mt-2 first:mt-0">{children}</h3>
                     ),
                     blockquote: ({ children }) => (
-                      <blockquote className="border-l-2 border-violet-300 pl-3 my-2 text-stone-500 italic">
+                      <blockquote className="border-l-2 border-sky-300 pl-3 my-2 text-stone-500 italic">
                         {children}
                       </blockquote>
                     ),

@@ -128,7 +128,7 @@ export default function ThinkingProcess({
         return {
           text: "Searching Knowledge Base…",
           icon: MagnifyingGlass,
-          iconColor: "text-indigo-600",
+          iconColor: "text-sky-600",
         };
       }
 
@@ -196,7 +196,7 @@ export default function ThinkingProcess({
       return {
         text: "Searching Knowledge Base…",
         icon: MagnifyingGlass,
-        iconColor: "text-indigo-600",
+        iconColor: "text-sky-600",
       };
     }
 
@@ -204,7 +204,7 @@ export default function ThinkingProcess({
       return {
         text: "Organizing campaign…",
         icon: Sparkle,
-        iconColor: "text-indigo-600",
+        iconColor: "text-sky-600",
       };
     }
 
@@ -225,7 +225,7 @@ export default function ThinkingProcess({
       className="flex gap-3 max-w-3xl w-full py-1"
     >
       {/* Assistant Avatar matching ChatMessage */}
-      <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-gradient-to-br from-violet-500 to-violet-700 text-white shadow-sm">
+      <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-sm">
         <Robot size={13} weight="bold" />
       </div>
 
@@ -235,7 +235,7 @@ export default function ThinkingProcess({
           <CircleNotch
             size={12}
             weight="bold"
-            className="animate-spin text-violet-500"
+            className="animate-spin text-sky-500"
           />
           <IconComponent size={14} weight="duotone" className={iconColor} />
           <span className="tracking-tight text-stone-600 font-medium">

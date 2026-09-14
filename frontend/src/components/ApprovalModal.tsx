@@ -36,7 +36,7 @@ const ICONS = {
 };
 
 const ASPECT_META = {
-  legal: { icon: Scales, label: "Legal", text: "text-violet-700" },
+  legal: { icon: Scales, label: "Legal", text: "text-sky-700" },
   compliance: { icon: ShieldCheck, label: "Compliance", text: "text-amber-700" },
   accounting: { icon: Receipt, label: "Accounting", text: "text-emerald-700" },
   implementation: { icon: Cpu, label: "Tech & Ops", text: "text-blue-700" },

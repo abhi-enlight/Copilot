@@ -83,36 +83,37 @@ body {
 
 /* ==========================================================================
    🔷 PRISM Brand Layer (Phase 3 design system)
-   Palette: violet #7C3AED → cyan #06B6D4 on warm stone #FAFAF9
+   Palette: sky #0284C7 → blue #2563EB on cool paper #F8FAFC
+   Accent lock: sky/blue is the ONLY accent family across the shell.
    ========================================================================== */
 :root {
-  --prism-violet: #7c3aed;
-  --prism-violet-deep: #6d28d9;
-  --prism-cyan: #06b6d4;
-  --prism-ink: #1c1917;
-  --prism-paper: #fafaf9;
+  --prism-accent: #0284c7;
+  --prism-accent-deep: #1d4ed8;
+  --prism-accent-bright: #38bdf8;
+  --prism-ink: #0f172a;
+  --prism-paper: #f8fafc;
 }
 
 /* Brand gradient surface (buttons, tiles, active states) */
 .prism-gradient {
-  background-image: linear-gradient(135deg, var(--prism-violet) 0%, var(--prism-cyan) 100%);
+  background-image: linear-gradient(135deg, #0369a1 0%, #2563eb 60%, #3b82f6 100%);
 }
 
 .prism-gradient-soft {
-  background-image: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(6, 182, 212, 0.08) 100%);
+  background-image: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(37, 99, 235, 0.08) 100%);
 }
 
 /* Gradient text (display headings, emphasis) */
 .prism-gradient-text {
-  background-image: linear-gradient(120deg, var(--prism-violet) 10%, var(--prism-cyan) 90%);
+  background-image: linear-gradient(120deg, #0369a1 10%, #2563eb 90%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* Subtle violet glow ring for keyboard focus in the Prism shell */
+/* Subtle sky glow ring for keyboard focus in the Prism shell */
 .prism-focus:focus-visible {
-  outline: 2px solid rgba(124, 58, 237, 0.55);
+  outline: 2px solid rgba(2, 132, 199, 0.55);
   outline-offset: 2px;
 }
 
@@ -147,7 +148,22 @@ body {
 /* Soft aurora backdrop for the Home view */
 .prism-aurora {
   background:
-    radial-gradient(600px 260px at 12% -6%, rgba(124, 58, 237, 0.1), transparent 60%),
-    radial-gradient(520px 240px at 92% -4%, rgba(6, 182, 212, 0.1), transparent 60%),
+    radial-gradient(600px 260px at 12% -6%, rgba(2, 132, 199, 0.09), transparent 60%),
+    radial-gradient(520px 240px at 92% -4%, rgba(59, 130, 246, 0.08), transparent 60%),
     var(--prism-paper);
+}
+
+/* ==========================================================================
+   Reduced motion: continuous loops (pulse, ping, spin decorations) collapse
+   to static/instant for users with prefers-reduced-motion.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

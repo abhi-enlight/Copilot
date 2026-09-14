@@ -33,7 +33,7 @@ export default function DocumentsView() {
                 key={idx}
                 className="p-4 rounded-2xl bg-white border border-stone-200/90 shadow-2xs"
               >
-                <div className="w-8 h-8 rounded-lg prism-gradient-soft border border-cyan-100 text-cyan-700 flex items-center justify-center mb-2.5">
+                <div className="w-8 h-8 rounded-lg prism-gradient-soft border border-sky-100 text-sky-700 flex items-center justify-center mb-2.5">
                   <Icon size={15} weight="duotone" />
                 </div>
                 <div className="text-[12.5px] font-bold text-stone-900">{s.title}</div>
@@ -53,8 +53,8 @@ export default function DocumentsView() {
 
         <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-stone-200 text-[11.5px] font-semibold text-stone-600 shadow-2xs">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500" />
           </span>
           Coming Soon
         </div>

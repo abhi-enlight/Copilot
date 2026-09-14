@@ -92,7 +92,7 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
           />
         </div>
 
@@ -111,7 +111,7 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
           />
         </div>
 
@@ -129,7 +129,7 @@ function LoginForm() {
             background:
               loading || !email || !password
                 ? "#a78bfa"
-                : "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
+                : "linear-gradient(135deg, #0369a1 0%, #2563eb 100%)",
           }}
         >
           {loading ? "Signing in…" : "Sign in"}
@@ -141,7 +141,7 @@ function LoginForm() {
         Don&apos;t have an account?{" "}
         <Link
           href="/auth/signup"
-          className="text-violet-600 font-semibold hover:text-violet-700"
+          className="text-sky-600 font-semibold hover:text-sky-700"
         >
           Sign up
         </Link>

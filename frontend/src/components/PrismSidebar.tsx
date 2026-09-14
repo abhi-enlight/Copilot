@@ -317,7 +317,7 @@ export default function PrismSidebar({
                     value={newOrgName}
                     onChange={(e) => setNewOrgName(e.target.value)}
                     placeholder="e.g. Acme Corp or Marketing"
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
+                    className="w-full px-3 py-2 text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
                   />
                 </div>
                 {orgCreateError && (
@@ -386,7 +386,7 @@ export default function PrismSidebar({
                   </span>
                   <div className="flex items-center gap-1 leading-tight mt-0.5">
                     <span className="text-[10px] text-stone-400 font-medium">by</span>
-                    <span className="text-[10px] font-semibold text-violet-600 tracking-tight">
+                    <span className="text-[10px] font-semibold text-sky-600 tracking-tight">
                       Enlight Lab
                     </span>
                   </div>
@@ -454,7 +454,7 @@ export default function PrismSidebar({
                       {isActive && (
                         <motion.span
                           layoutId="prism-active-bar"
-                          className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-4 rounded-full bg-violet-600"
+                          className="absolute left-0 top-1/2 -translate-y-1/2 w-[2.5px] h-4 rounded-full bg-sky-600"
                         />
                       )}
                       <Icon
@@ -462,7 +462,7 @@ export default function PrismSidebar({
                         weight={isActive ? "fill" : "bold"}
                         className={`flex-shrink-0 ${
                           isActive
-                            ? "text-violet-600"
+                            ? "text-sky-600"
                             : "text-stone-400 group-hover:text-stone-600"
                         }`}
                       />
@@ -473,7 +473,7 @@ export default function PrismSidebar({
                             <span
                               className={`text-[9.5px] font-mono font-bold px-1.5 py-px rounded-full flex-shrink-0 ${
                                 isActive
-                                  ? "bg-violet-100 text-violet-700"
+                                  ? "bg-sky-100 text-sky-700"
                                   : "bg-stone-200/60 text-stone-600"
                               }`}
                             >
@@ -641,7 +641,7 @@ export default function PrismSidebar({
                               {org.ownerRole || org.type}
                             </span>
                           </div>
-                          {isCurrent && <Check size={12} weight="bold" className="text-violet-600 shrink-0 ml-1" />}
+                          {isCurrent && <Check size={12} weight="bold" className="text-sky-600 shrink-0 ml-1" />}
                         </button>
                       );
                     })}
@@ -653,7 +653,7 @@ export default function PrismSidebar({
                       setIsOrgDropdownOpen(false);
                       setShowNewOrgModal(true);
                     }}
-                    className="w-full mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-violet-600 hover:bg-violet-50 transition cursor-pointer"
+                    className="w-full mt-1.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-sky-600 hover:bg-sky-50 transition cursor-pointer"
                   >
                     <Plus size={12} weight="bold" />
                     <span>Create Organization</span>
@@ -695,7 +695,7 @@ export default function PrismSidebar({
             title={`${activeOrg?.name || "Workspace"} (${user?.email || ""})`}
           >
             {/* User avatar */}
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0 shadow-2xs">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-600 to-blue-700 text-white flex items-center justify-center text-[10px] font-bold shrink-0 shadow-2xs">
               {getUserInitials()}
             </div>
 

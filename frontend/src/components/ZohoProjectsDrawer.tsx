@@ -35,11 +35,11 @@ const ASPECT_META = {
   legal: {
     icon: Scales,
     label: "Legal",
-    accent: "bg-violet-500",
-    light: "text-violet-700",
-    bg: "bg-violet-50",
-    border: "border-l-violet-400",
-    badge: "bg-violet-50 text-violet-700 border-violet-200",
+    accent: "bg-sky-500",
+    light: "text-sky-700",
+    bg: "bg-sky-50",
+    border: "border-l-sky-400",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
   },
   compliance: {
     icon: ShieldCheck,

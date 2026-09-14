@@ -68,7 +68,7 @@ export function AdminConsentModal({
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-700">
                 <div className="text-slate-400 mb-1">Required Entra Scopes:</div>
                 {REQUIRED_ENTRA_SCOPES.map((scope, idx) => (
-                  <div key={idx} className="text-indigo-700">
+                  <div key={idx} className="text-sky-700">
                     • {scope}
                   </div>
                 ))}

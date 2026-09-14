@@ -33,7 +33,7 @@ export function IntegrationsModal({
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>

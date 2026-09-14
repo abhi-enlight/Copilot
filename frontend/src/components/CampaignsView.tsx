@@ -40,11 +40,11 @@ const ASPECT_META = {
   legal: {
     icon: Scales,
     label: "Legal",
-    accent: "bg-violet-500",
-    light: "text-violet-700",
-    bg: "bg-violet-50",
-    border: "border-l-violet-400",
-    badge: "bg-violet-50 text-violet-700 border-violet-200",
+    accent: "bg-sky-500",
+    light: "text-sky-700",
+    bg: "bg-sky-50",
+    border: "border-l-sky-400",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
   },
   compliance: {
     icon: ShieldCheck,
@@ -715,7 +715,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
   });
 
   const aspectColors = {
-    legal: "text-violet-700 bg-violet-50 border-violet-200",
+    legal: "text-sky-700 bg-sky-50 border-sky-200",
     compliance: "text-amber-700 bg-amber-50 border-amber-200",
     accounting: "text-emerald-700 bg-emerald-50 border-emerald-200",
     implementation: "text-sky-700 bg-sky-50 border-sky-200",

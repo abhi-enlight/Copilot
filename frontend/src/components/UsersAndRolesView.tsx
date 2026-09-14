@@ -34,7 +34,7 @@ export interface BigCityUser {
 }
 
 const AVATAR_COLORS = [
-  "from-violet-600 to-violet-800",
+  "from-sky-600 to-sky-800",
   "from-emerald-600 to-emerald-800",
   "from-amber-600 to-amber-800",
   "from-cyan-600 to-cyan-800",
@@ -388,7 +388,7 @@ export default function UsersAndRolesView() {
                             className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 shadow-2xs transition-colors cursor-pointer"
                           >
                             {isAdmin ? (
-                              <ShieldCheck size={13} weight="fill" className="text-violet-600" />
+                              <ShieldCheck size={13} weight="fill" className="text-sky-600" />
                             ) : (
                               <User size={13} className="text-stone-500" />
                             )}
@@ -427,7 +427,7 @@ export default function UsersAndRolesView() {
                             isOwner
                               ? "bg-stone-900 text-white border-stone-900"
                               : isAdmin
-                              ? "bg-violet-50 text-violet-700 border-violet-200"
+                              ? "bg-sky-50 text-sky-700 border-sky-200"
                               : "bg-stone-100 text-stone-600 border-stone-200"
                           }`}
                         >

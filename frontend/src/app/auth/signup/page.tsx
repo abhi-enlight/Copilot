@@ -117,7 +117,7 @@ export default function SignupPage() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Abhinav"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
           />
         </div>
 
@@ -136,7 +136,7 @@ export default function SignupPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
           />
         </div>
 
@@ -156,7 +156,7 @@ export default function SignupPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="At least 6 characters"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
           />
         </div>
 
@@ -174,7 +174,7 @@ export default function SignupPage() {
             background:
               loading || !email || !password || !displayName
                 ? "#a78bfa"
-                : "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
+                : "linear-gradient(135deg, #0369a1 0%, #2563eb 100%)",
           }}
         >
           {loading ? "Creating account…" : "Create account"}
@@ -186,7 +186,7 @@ export default function SignupPage() {
         Already have an account?{" "}
         <Link
           href="/auth/login"
-          className="text-violet-600 font-semibold hover:text-violet-700"
+          className="text-sky-600 font-semibold hover:text-sky-700"
         >
           Sign in
         </Link>

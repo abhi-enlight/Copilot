@@ -103,7 +103,7 @@ export default function AdminApprovalModal({
               <div className="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-stone-900 font-semibold text-[13px]">
-                    <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-[11px] font-bold flex items-center justify-center">
+                    <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 text-[11px] font-bold flex items-center justify-center">
                       1
                     </span>
                     <span>Connect Outlook & SharePoint / OneDrive</span>

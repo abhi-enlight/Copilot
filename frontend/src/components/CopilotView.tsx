@@ -160,11 +160,11 @@ function deriveTitle(messages: Message[]): string {
 const ASPECT_META = {
   legal: {
     icon: Scales,
-    light: "text-violet-700",
-    bg: "bg-violet-50",
-    border: "border-l-violet-500",
-    badge: "bg-violet-50 text-violet-700 border-violet-200",
-    activeTab: "bg-violet-100/90 text-violet-900 border-violet-300 ring-1 ring-violet-300",
+    light: "text-sky-700",
+    bg: "bg-sky-50",
+    border: "border-l-sky-500",
+    badge: "bg-sky-50 text-sky-700 border-sky-200",
+    activeTab: "bg-sky-100/90 text-sky-900 border-sky-300 ring-1 ring-sky-300",
     label: "Legal",
   },
   compliance: {
@@ -2066,16 +2066,16 @@ export default function CopilotView({
               {workingPlan ? "Plan Copilot" : "Prism"}
             </h1>
             <span className="text-[10.5px] text-stone-400 font-medium hidden sm:inline">
-              by <span className="text-violet-600 font-semibold">Enlight Lab</span>
+              by <span className="text-sky-600 font-semibold">Enlight Lab</span>
             </span>
           </div>
           {workingPlan && !isPlanPanelOpen && (
             <button
               type="button"
               onClick={() => setIsPlanPanelOpen(true)}
-              className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-colors shadow-sm cursor-pointer"
             >
-              <Sparkle size={13} weight="fill" className="text-indigo-500" />
+              <Sparkle size={13} weight="fill" className="text-sky-500" />
               Show Plan ({workingPlan.tasks.length})
             </button>
           )}
@@ -2287,7 +2287,7 @@ export default function CopilotView({
                     <ArrowDown size={13} weight="bold" className="text-stone-600" />
                     <span>Latest messages</span>
                     {(isThinking || isLoading) && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse ml-0.5" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse ml-0.5" />
                     )}
                   </button>
                 </motion.div>
