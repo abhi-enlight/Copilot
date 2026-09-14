@@ -1,105 +1,159 @@
 import { NextResponse } from "next/server";
+import { randomBytes } from "crypto";
+import { createClient } from "@/lib/supabase-server";
+import { safeReturnTo } from "@/lib/http-utils";
+
+const MS_OAUTH_STATE_COOKIE = "ms_oauth_state";
 
 /**
  * Microsoft 365 Multi-Tenant OAuth Authorization Initiator
  *
- * Redirects the user to Microsoft's universal multi-tenant OAuth endpoint.
- * Presets now include WRITE scopes (Mail.Send / Mail.ReadWrite /
- * Files.ReadWrite) so approved copilot actions can create mail and documents, * Dataverse writes are governed by the user's CRM security role
- * (user_impersonation), which the entitlement probe verifies.
+ * Encodes the authenticated Supabase user ID in the OAuth state so the
+ * callback can associate tokens with the correct user regardless of which
+ * Microsoft account they authenticate with.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const tenantId = searchParams.get('tenant') || 'personal';
-  const returnTo = searchParams.get('returnTo') || '/';
+  // Only same-origin paths may be used as the post-auth redirect target.
+  const returnTo = safeReturnTo(searchParams.get("returnTo"), "/");
 
-  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
-  const host = request.headers.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || `${protocol}://${host}/api/integrations/microsoft/callback`;
+  const host = request.headers.get("host") || "localhost:3000";
+  const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+  const REDIRECT_URI =
+    isLocal && !process.env.AZURE_REDIRECT_URI?.includes("localhost")
+      ? `http://${host}/api/integrations/microsoft/callback`
+      : process.env.AZURE_REDIRECT_URI || `${isLocal ? "http" : "https"}://${host}/api/integrations/microsoft/callback`;
 
-  const preset = searchParams.get('preset') || 'standard';
-  const customScopes = searchParams.get('scopes');
+  const AZURE_CLIENT_ID =
+    process.env.AZURE_CLIENT_ID ||
+    process.env.MICROSOFT_CLIENT_ID ||
+    "";
 
-  const DYNAMICS_CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || '';
-  const crmScope = DYNAMICS_CRM_ORG_URL
-    ? `${DYNAMICS_CRM_ORG_URL.replace(/\/$/, '')}/user_impersonation`
-    : 'https://admin.services.crm.dynamics.com/user_impersonation';
-
-  const mode = searchParams.get('mode') || 'standard';
-  const isAdminConsent = searchParams.get('admin_consent') === '1' || preset === 'admin_consent';
-
-  if (isAdminConsent) {
-    const adminUrl = new URL('https://login.microsoftonline.com/common/adminconsent');
-    adminUrl.searchParams.set('client_id', AZURE_CLIENT_ID);
-    adminUrl.searchParams.set('redirect_uri', REDIRECT_URI);
-    adminUrl.searchParams.set('state', Buffer.from(JSON.stringify({ tenantId, returnTo, preset: 'admin_consent' })).toString('base64'));
-    return NextResponse.redirect(adminUrl.toString());
+  if (!AZURE_CLIENT_ID) {
+    return NextResponse.redirect(
+      new URL(`${returnTo}?auth_error=azure_client_id_not_configured`, request.url)
+    );
   }
 
-  // Base scopes allowed for all standard users without IT admin approval
-  const baseScopes = ['offline_access', 'openid', 'profile', 'User.Read'];
+  const DYNAMICS_CRM_ORG_URL = process.env.DYNAMICS_CRM_ORG_URL || "";
+  const crmScope = DYNAMICS_CRM_ORG_URL
+    ? `${DYNAMICS_CRM_ORG_URL.replace(/\/$/, "")}/user_impersonation`
+    : "https://admin.services.crm.dynamics.com/user_impersonation";
 
+  const preset = searchParams.get("preset") || "standard";
+  const customScopes = searchParams.get("scopes");
+  const mode = searchParams.get("mode") || "standard";
+  const isAdminConsent =
+    searchParams.get("admin_consent") === "1" || preset === "admin_consent";
+
+  // Get authenticated user ID to embed in OAuth state
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const authUserId = user?.id || null;
+
+  if (isAdminConsent) {
+    const adminUrl = new URL(
+      "https://login.microsoftonline.com/common/adminconsent"
+    );
+    const adminNonce = randomBytes(24).toString("hex");
+    adminUrl.searchParams.set("client_id", AZURE_CLIENT_ID);
+    adminUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+    adminUrl.searchParams.set(
+      "state",
+      Buffer.from(JSON.stringify({ authUserId, returnTo, preset: "admin_consent", nonce: adminNonce })).toString("base64")
+    );
+    const adminResponse = NextResponse.redirect(adminUrl.toString());
+    adminResponse.cookies.set(MS_OAUTH_STATE_COOKIE, adminNonce, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 600,
+    });
+    return adminResponse;
+  }
+
+  const baseScopes = ["offline_access", "openid", "profile", "User.Read"];
   let selectedScopes: string[];
 
   if (customScopes) {
-    selectedScopes = [...baseScopes, ...customScopes.split(' ')];
+    selectedScopes = [...baseScopes, ...customScopes.split(" ")];
   } else {
     switch (preset) {
-      case 'minimal':
-      case 'mail_readonly':
-        // Personal mail read-only, standard delegated scope with zero admin approval required
-        selectedScopes = [...baseScopes, 'Mail.Read'];
+      case "minimal":
+      case "mail_readonly":
+        selectedScopes = [...baseScopes, "Mail.Read"];
         break;
-      case 'files_readonly':
-        // Personal OneDrive read-only, zero admin approval required
-        selectedScopes = [...baseScopes, 'Files.Read'];
+      case "files_readonly":
+        selectedScopes = [...baseScopes, "Files.Read"];
         break;
-      case 'readonly':
-      case 'personal_readonly':
-        // Safe read-only bundle for personal mail & drive
-        selectedScopes = [...baseScopes, 'Mail.Read', 'Files.Read'];
+      case "readonly":
+      case "personal_readonly":
+        selectedScopes = [...baseScopes, "Mail.Read", "Files.Read"];
         break;
-      case 'mail':
-        // If mode === 'write', request write/send; otherwise default to safe Mail.Read
-        selectedScopes = mode === 'write'
-          ? [...baseScopes, 'Mail.Read', 'Mail.ReadWrite', 'Mail.Send']
-          : [...baseScopes, 'Mail.Read'];
+      case "mail":
+        selectedScopes =
+          mode === "write"
+            ? [...baseScopes, "Mail.Read", "Mail.ReadWrite", "Mail.Send"]
+            : [...baseScopes, "Mail.Read"];
         break;
-      case 'personal_files':
-      case 'standard':
-      default:
-        // If mode === 'write', request write; otherwise default to safe Files.Read & Mail.Read
-        selectedScopes = mode === 'write'
-          ? [...baseScopes, 'Mail.Read', 'Files.Read', 'Files.ReadWrite']
-          : [...baseScopes, 'Mail.Read', 'Files.Read'];
+      case "org_sharepoint":
+        selectedScopes = [
+          ...baseScopes,
+          "Mail.Read", "Files.Read", "Files.ReadWrite",
+          "Sites.Read.All", "Sites.ReadWrite.All",
+        ];
         break;
-      case 'org_sharepoint':
-        // Org-wide SharePoint read + write (requires IT Admin Consent)
-        selectedScopes = [...baseScopes, 'Mail.Read', 'Files.Read', 'Files.ReadWrite', 'Sites.Read.All', 'Sites.ReadWrite.All'];
-        break;
-      case 'dynamics_crm':
-        // Dataverse Dynamics CRM (requires Dynamics 365 license + CRM role)
+      case "dynamics_crm":
         selectedScopes = [...baseScopes, crmScope];
         break;
-      case 'full':
-        // Full enterprise suite, read + write
-        selectedScopes = [...baseScopes, 'Mail.Read', 'Mail.ReadWrite', 'Mail.Send', 'Files.Read', 'Files.ReadWrite', 'Sites.Read.All', 'Sites.ReadWrite.All', crmScope];
+      case "full":
+        selectedScopes = [
+          ...baseScopes,
+          "Mail.Read", "Mail.ReadWrite", "Mail.Send",
+          "Files.Read", "Files.ReadWrite",
+          "Sites.Read.All", "Sites.ReadWrite.All",
+          crmScope,
+        ];
+        break;
+      case "personal_files":
+      case "standard":
+      default:
+        selectedScopes =
+          mode === "write"
+            ? [...baseScopes, "Mail.Read", "Files.Read", "Files.ReadWrite"]
+            : [...baseScopes, "Mail.Read", "Files.Read"];
         break;
     }
   }
 
-  const scopes = Array.from(new Set(selectedScopes)).join(' ');
-  const statePayload = Buffer.from(JSON.stringify({ tenantId, returnTo, preset })).toString('base64');
+  // CSRF nonce: issued as a short-lived HttpOnly cookie and embedded in the
+  // OAuth state. The callback refuses to proceed unless both match.
+  const nonce = randomBytes(24).toString("hex");
+  const statePayload = Buffer.from(
+    JSON.stringify({ authUserId, returnTo, preset, nonce })
+  ).toString("base64");
 
-  const authUrl = new URL('https://login.microsoftonline.com/common/oauth2/v2.0/authorize');
-  authUrl.searchParams.set('client_id', AZURE_CLIENT_ID);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
-  authUrl.searchParams.set('response_mode', 'query');
-  authUrl.searchParams.set('scope', scopes);
-  authUrl.searchParams.set('state', statePayload);
-  authUrl.searchParams.set('prompt', 'select_account');
+  const scopes = Array.from(new Set(selectedScopes)).join(" ");
 
-  return NextResponse.redirect(authUrl.toString());
+  const authUrl = new URL(
+    "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+  );
+  authUrl.searchParams.set("client_id", AZURE_CLIENT_ID);
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+  authUrl.searchParams.set("response_mode", "query");
+  authUrl.searchParams.set("scope", scopes);
+  authUrl.searchParams.set("state", statePayload);
+  authUrl.searchParams.set("prompt", "select_account");
+
+  const response = NextResponse.redirect(authUrl.toString());
+  response.cookies.set(MS_OAUTH_STATE_COOKIE, nonce, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 600, // 10 minutes — one OAuth round-trip
+  });
+  return response;
 }

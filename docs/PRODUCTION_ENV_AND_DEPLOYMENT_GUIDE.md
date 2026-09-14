@@ -22,8 +22,8 @@ This guide documents the complete environment variable specification for deployi
 ### A. Microsoft 365 & Entra ID OAuth
 | Variable | Required? | Description | Example / Production Value |
 | :--- | :--- | :--- | :--- |
-| `AZURE_CLIENT_ID` | **Yes** | Azure App Registration Application (client) ID | `9b9717eb-8dbf-41b1-b788-d7a3ae6f4269` |
-| `NEXT_PUBLIC_AZURE_CLIENT_ID` | **Yes** | Client ID exposed to frontend for modal consent generation | `9b9717eb-8dbf-41b1-b788-d7a3ae6f4269` |
+| `AZURE_CLIENT_ID` | **Yes** | Azure App Registration Application (client) ID | `<YOUR_AZURE_CLIENT_ID>` |
+| `NEXT_PUBLIC_AZURE_CLIENT_ID` | **Yes** | Client ID exposed to frontend for modal consent generation | `<YOUR_AZURE_CLIENT_ID>` |
 | `AZURE_CLIENT_SECRET` | **Yes** | Azure App Registration client secret value | `<AZURE_CLIENT_SECRET>` |
 | `AZURE_TENANT_ID` | **Yes** | Directory (tenant) ID or `common` for multi-tenant apps | `<AZURE_TENANT_ID>` (or `common`) |
 | `AZURE_REDIRECT_URI` | **Yes** | OAuth redirect URL callback for Microsoft login | `https://<YOUR_PRODUCTION_DOMAIN>/api/integrations/microsoft/callback` |
@@ -62,8 +62,8 @@ This guide documents the complete environment variable specification for deployi
 ### E. n8n Unified Copilot Webhook
 | Variable | Required? | Description | Production Value |
 | :--- | :--- | :--- | :--- |
-| `N8N_WEBHOOK_URL` | **Yes** | Server-side webhook target for the Prism Copilot Agent | `https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat` |
-| `NEXT_PUBLIC_N8N_WEBHOOK_URL` | **Yes** | Client-side accessible webhook target | `https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat` |
+| `N8N_WEBHOOK_URL` | **Yes** | Server-side webhook target for the Prism Copilot Agent | `https://<YOUR_N8N_DOMAIN>/webhook/<CHAT_WEBHOOK_ID>/chat` |
+| `NEXT_PUBLIC_N8N_WEBHOOK_URL` | **Yes** | Client-side accessible webhook target | `https://<YOUR_N8N_DOMAIN>/webhook/<CHAT_WEBHOOK_ID>/chat` |
 
 ### F. Optional Scheduler & Operations
 | Variable | Required? | Description | Default / Example |
@@ -79,7 +79,7 @@ Before deploying, make sure the production redirect URIs are registered in both 
 
 ### 1. Microsoft Azure Portal (Entra ID)
 1. Navigate to **Azure Portal** → **Microsoft Entra ID** → **App registrations**.
-2. Select your application (`Budibase-Dynamics-Agent` / `9b9717eb-8dbf-41b1-b788-d7a3ae6f4269`).
+2. Select your application (`<YOUR_AZURE_CLIENT_ID>`).
 3. Under **Manage** → **Authentication** → **Web**, add:
    ```
    https://<YOUR_PRODUCTION_DOMAIN>/api/integrations/microsoft/callback
@@ -89,7 +89,7 @@ Before deploying, make sure the production redirect URIs are registered in both 
 
 ### 2. Zoho API Console
 1. Navigate to [Zoho API Console](https://api-console.zoho.in).
-2. Select your client (`1000.QGDY8ZROICOLZXB8M0QK3Q41KZ562H`).
+2. Select your client (`<YOUR_ZOHO_CLIENT_ID>`).
 3. Under **Client Details** → **Authorized Redirect URIs**, add:
    ```
    https://<YOUR_PRODUCTION_DOMAIN>/api/integrations/zoho/callback
@@ -132,8 +132,8 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<DB_PASSWORD>@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require
 
 # ── n8n Unified Copilot Webhook (Prism: M365 + Zoho Orchestrator) ─────────────
-N8N_WEBHOOK_URL=https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat
-NEXT_PUBLIC_N8N_WEBHOOK_URL=https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat
+N8N_WEBHOOK_URL=https://<YOUR_N8N_DOMAIN>/webhook/<CHAT_WEBHOOK_ID>/chat
+NEXT_PUBLIC_N8N_WEBHOOK_URL=https://<YOUR_N8N_DOMAIN>/webhook/<CHAT_WEBHOOK_ID>/chat
 ```
 
 ---

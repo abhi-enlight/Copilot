@@ -29,7 +29,7 @@ export default function AdminApprovalModal({
 }: AdminApprovalModalProps) {
   const [copied, setCopied] = useState(false);
 
-  const clientId = "9b9717eb-8dbf-41b1-b788-d7a3ae6f4269";
+  const clientId = process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || "";
   const redirectUri = typeof window !== "undefined"
     ? `${window.location.origin}/api/integrations/microsoft/callback`
     : "http://localhost:3000/api/integrations/microsoft/callback";

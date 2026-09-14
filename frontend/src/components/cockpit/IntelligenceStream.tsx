@@ -3,7 +3,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
 import { Bot, User, Loader2, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Message, Tenant } from '@/types';
@@ -92,7 +91,6 @@ export function IntelligenceStream({
                   >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
-                      rehypePlugins={[rehypeRaw]}
                       components={{
                         table: ({ ...props }) => (
                           <div className="overflow-x-auto my-3 rounded-xl border border-slate-200">

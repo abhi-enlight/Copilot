@@ -27,19 +27,7 @@ export function extractCampaignMetadata(input: {
       ? trimmedName
       : quoteMatch
       ? quoteMatch[1].trim()
-      : /cadbury|mondelez/i.test(text)
-      ? "Cadbury Celebrations Assured Reward Campaign"
-      : /nestl/i.test(text)
-      ? "Nestlé Festive Scratch & Win Promo"
-      : /pepsi/i.test(text)
-      ? "Pepsi League Dining Reward Campaign"
-      : /coca-?cola/i.test(text)
-      ? "Coca-Cola Refresh & Win UPI Cashback"
-      : /samsung/i.test(text)
-      ? "Samsung Galaxy Festive Assured EGV"
-      : /tata/i.test(text)
-      ? "Tata Tea Gold Assured Reward"
-      : trimmedName || "Consumer Promotion Campaign";
+      : trimmedName || "Untitled Campaign";
 
   // Extract client
   const clientMatch = text.match(/for\s+["']?([A-Za-z0-9\s&.,'-]+?)(?:["']|\s+with|\s+having|\s+and|\s+featuring|\s+in|\.|$)/i);
@@ -47,29 +35,9 @@ export function extractCampaignMetadata(input: {
   const client =
     trimmedClient && trimmedClient !== "Brand Partner" && trimmedClient !== "Enterprise Client"
       ? trimmedClient
-      : /amul/i.test(text)
-      ? "Amul India (GCMMF)"
-      : /puma/i.test(text)
-      ? "Puma Sports India Pvt Ltd"
-      : /cadbury|mondelez/i.test(text)
-      ? "Mondelez India Foods Pvt Ltd"
-      : /nestl/i.test(text)
-      ? "Nestlé India Ltd"
-      : /pepsi/i.test(text)
-      ? "PepsiCo India Holdings"
-      : /coca-?cola/i.test(text)
-      ? "Coca-Cola India Pvt Ltd"
-      : /samsung/i.test(text)
-      ? "Samsung India Electronics"
-      : /itc/i.test(text)
-      ? "ITC Limited"
-      : /britannia/i.test(text)
-      ? "Britannia Industries Ltd"
-      : /tata/i.test(text)
-      ? "Tata Consumer Products"
       : clientMatch
       ? clientMatch[1].trim()
-      : trimmedClient || "Enterprise Client";
+      : trimmedClient || "";
 
   // Extract budget
   let budget = input.budget || "";
@@ -1546,8 +1514,9 @@ export async function generateAIAspectPlan(campaignInput: {
 }> {
   const meta = extractCampaignMetadata(campaignInput);
   const N8N_WEBHOOK_URL =
+    process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
     process.env.N8N_WEBHOOK_URL ||
-    "https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat";
+    "";
 
   // Prompt engineered for Gemini to reason deeply and return JSON tasks
   const aiPrompt = `[CAMPAIGN OPERATIONAL TASK MATRIX GENERATION]
@@ -1602,8 +1571,9 @@ Instructions:
   "aiAnalysis": "Strategic summary of campaign risks and failover architecture..."
 }`;
 
-  try {
-    const res = await fetch(N8N_WEBHOOK_URL, {
+  if (N8N_WEBHOOK_URL) {
+    try {
+      const res = await fetch(N8N_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "69420" },
       body: JSON.stringify({
@@ -1707,8 +1677,9 @@ Instructions:
         }
       }
     }
-  } catch (err: unknown) {
-    console.warn("[generateAIAspectPlan] AI webhook timed out or failed, using dynamic bespoke synthesis:", (err as Error)?.message);
+    } catch (err: unknown) {
+      console.warn("[generateAIAspectPlan] AI webhook timed out or failed, using dynamic bespoke synthesis:", (err as Error)?.message);
+    }
   }
 
   // Fallback to dynamic bespoke synthesizer

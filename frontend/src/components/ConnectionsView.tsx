@@ -20,11 +20,13 @@ import {
   PauseCircle,
 } from "@phosphor-icons/react";
 import { useConnectors, type ConnectorId, type ConnectorAccess } from "@/hooks/useConnectors";
+import { useOrganization } from "@/hooks/useOrganization";
 import NoAccessModal from "./NoAccessModal";
 import AdminApprovalModal from "./AdminApprovalModal";
 import { AnimatedErrorBanner } from "@/components/ui/ErrorInlineBanner";
 
 export default function ConnectionsView() {
+  const { activeOrg } = useOrganization();
   const {
     activeConnectors,
     serverStatus,
@@ -52,7 +54,6 @@ export default function ConnectionsView() {
 
   const [isPingingAll, setIsPingingAll] = useState(false);
   const [pingNotice, setPingNotice] = useState<string | null>(null);
-  const [dealCount, setDealCount] = useState<number | null>(null);
   const [noAccessFor, setNoAccessFor] = useState<ConnectorId | null>(null);
   const [isRechecking, setIsRechecking] = useState(false);
   // Error state for disconnect failures, shown as banners instead of being swallowed
@@ -108,17 +109,6 @@ export default function ConnectionsView() {
     void apply();
   }, []);
 
-  useEffect(() => {
-    fetch("/api/campaigns")
-      .then((res) => (res.ok ? res.json() : { campaigns: [] }))
-      .then((data) => {
-        if (Array.isArray(data.campaigns)) {
-          setDealCount(data.campaigns.length);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   const handleTestAll = async () => {
     setIsPingingAll(true);
     await recheckEntitlements();
@@ -136,14 +126,15 @@ export default function ConnectionsView() {
   const handleDisconnectMicrosoft = async () => {
     setDisconnectError(null);
     try {
-      const res = await fetch("/api/auth/logout", { method: "POST" });
+      const res = await fetch("/api/integrations/microsoft/disconnect", { method: "POST" });
       if (!res.ok) {
-        setDisconnectError("Couldn't disconnect Microsoft. Please try again, or clear your session cookies.");
+        setDisconnectError("Couldn't disconnect Microsoft. Please try again.");
         return;
       }
       await syncStatus();
+      await recheckEntitlements();
     } catch {
-      setDisconnectError("Couldn't disconnect Microsoft. Please try again, or clear your session cookies.");
+      setDisconnectError("Couldn't disconnect Microsoft. Please try again.");
     }
   };
 
@@ -415,11 +406,6 @@ export default function ConnectionsView() {
               account={isOutlookLive ? userEmail : undefined}
               connectHref="/api/integrations/microsoft/connect?preset=mail&returnTo=/"
               onDisconnect={handleDisconnectMicrosoft}
-              badges={["Mail.Read", "Personal & Org", "No Admin Required"]}
-              metrics={[
-                { label: "Inbox Mode", value: isOutlookLive ? "Live Graph" : "Disconnected" },
-                { label: "Permissions", value: "Read (Delegated)" },
-              ]}
             />
 
             {/* Card: Microsoft OneDrive & SharePoint */}
@@ -439,11 +425,6 @@ export default function ConnectionsView() {
               account={isOneDriveLive ? (serverStatus?.sharepointDrive || "/me/drive") : undefined}
               connectHref="/api/integrations/microsoft/connect?preset=personal_files&returnTo=/"
               onDisconnect={handleDisconnectMicrosoft}
-              badges={["Files.Read", "Personal & Shared", "No Admin Required"]}
-              metrics={[
-                { label: "Root Path", value: isOneDriveLive ? "/me/drive" : "Not mounted" },
-                { label: "Permissions", value: "Read (Delegated)" },
-              ]}
             />
           </div>
         </div>
@@ -462,9 +443,6 @@ export default function ConnectionsView() {
                 Gated by real provider permissions: Dynamics license + CRM role, or your own connected Zoho account.
               </p>
             </div>
-            <span className="text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-              Permission-Honest
-            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -485,11 +463,6 @@ export default function ConnectionsView() {
               connectHref="/api/integrations/zoho/connect?product=crm&returnTo=/"
               onConnectClick={() => guardConnect("zoho.crm")}
               onDisconnect={() => handleDisconnectZoho("crm")}
-              badges={zohoCrmLocked ? ["License / Role Required", "OAuth 2.0"] : ["Your Own Org", "OAuth 2.0", "Read + Write"]}
-              metrics={[
-                { label: "Active Deals", value: zohoConnected("zoho.crm") ? (dealCount === null ? "…" : String(dealCount)) : "None yet" },
-                { label: "Data Center", value: zohoConnected("zoho.crm") ? "Your Zoho" : "Not connected" },
-              ]}
               requiresAdminNotice={
                 zohoCrmLocked
                   ? entitlementFor("zoho.crm")?.reason ||
@@ -515,11 +488,6 @@ export default function ConnectionsView() {
               connectHref="/api/integrations/zoho/connect?product=projects&returnTo=/"
               onConnectClick={() => guardConnect("zoho.projects")}
               onDisconnect={() => handleDisconnectZoho("projects")}
-              badges={["Your Own Portal", "Projects API v3", "Read + Write"]}
-              metrics={[
-                { label: "Portal", value: zohoConnected("zoho.projects") ? "Your portal" : "Not connected" },
-                { label: "Milestones", value: zohoConnected("zoho.projects") ? "4 Aspects" : "Not connected" },
-              ]}
             />
 
             {/* Card: Zoho Books */}
@@ -539,11 +507,6 @@ export default function ConnectionsView() {
               connectHref="/api/integrations/zoho/connect?product=books&returnTo=/"
               onConnectClick={() => guardConnect("zoho.books")}
               onDisconnect={() => handleDisconnectZoho("books")}
-              badges={["Your Own Org", "Books v3", "Read + Write"]}
-              metrics={[
-                { label: "Module", value: zohoConnected("zoho.books") ? "Invoices & Escrow" : "Not connected" },
-                { label: "Advance Gate", value: zohoConnected("zoho.books") ? "Active (100%)" : "Not connected" },
-              ]}
             />
 
             {/* Card: Dynamics 365 CRM, hard entitlement lock */}
@@ -562,11 +525,6 @@ export default function ConnectionsView() {
               onToggle={() => guardToggle("microsoft.dynamics")}
               connectHref="/api/integrations/microsoft/connect?preset=dynamics_crm&returnTo=/"
               onConnectClick={() => guardConnect("microsoft.dynamics")}
-              badges={crmLocked ? ["Access Locked", "Dataverse API", "Role-Gated"] : ["Requires License", "Dataverse API", "Role-Gated"]}
-              metrics={[
-                { label: "License Status", value: isCrmLive ? "Active Role" : crmLocked ? "No CRM Entitlement" : "Unlicensed / Off" },
-                { label: "Endpoint", value: isCrmLive ? (serverStatus?.dynamicsOrg || "Dataverse v9.2") : "Dataverse v9.2" },
-              ]}
               requiresAdminNotice={
                 crmLocked
                   ? `${entitlementFor("microsoft.dynamics")?.reason || "Requires a Dynamics 365 license and CRM security role."} Outlook, SharePoint & Zoho CRM remain accessible.`
@@ -591,11 +549,6 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("internal.kb")}
               accessState={access("internal.kb")}
               onToggle={() => guardToggle("internal.kb")}
-              badges={["pgvector RAG", "Gemini Embeddings", "Citations"]}
-              metrics={[
-                { label: "Vector Store", value: "documents" },
-                { label: "Embeddings", value: "Gemini 768-dim" },
-              ]}
             />
           </div>
         </div>
@@ -650,7 +603,6 @@ interface ConnectorCardProps {
   connectHref?: string;
   onConnectClick?: () => void;
   onDisconnect?: () => void;
-  badges?: string[];
   metrics?: { label: string; value: string }[];
   requiresAdminNotice?: string;
   onAdminApprovalClick?: () => void;
@@ -673,7 +625,6 @@ function ConnectorCard({
   connectHref,
   onConnectClick,
   onDisconnect,
-  badges = [],
   metrics = [],
   requiresAdminNotice,
   onAdminApprovalClick,
@@ -702,11 +653,6 @@ function ConnectorCard({
           <div className="space-y-1.5 mb-3">
             <div className="h-2.5 w-full bg-stone-100 rounded" />
             <div className="h-2.5 w-4/5 bg-stone-100 rounded" />
-          </div>
-          <div className="flex gap-1.5 mb-3">
-            <div className="h-4 w-16 bg-stone-100 rounded-md" />
-            <div className="h-4 w-20 bg-stone-100 rounded-md" />
-            <div className="h-4 w-14 bg-stone-100 rounded-md" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="h-10 bg-stone-50 rounded-lg border border-stone-100" />
@@ -753,14 +699,14 @@ function ConnectorCard({
           {/* Interactive Toggle Switch */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <span
-              className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border ${
+              className={`text-[11px] font-medium ${
                 isLocked
-                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                  ? "text-rose-600 font-semibold"
                   : isOperating
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  ? "text-emerald-600 font-semibold"
                   : isPaused
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-stone-100 text-stone-500 border-stone-200"
+                  ? "text-amber-600 font-semibold"
+                  : "text-stone-400"
               }`}
             >
               {isToggling ? "Saving…" : isLocked ? "No Access" : isOperating ? "Active" : isPaused ? "Paused" : "Off"}
@@ -814,23 +760,9 @@ function ConnectorCard({
         </div>
 
         {/* Description */}
-        <p className="text-[11.5px] text-stone-500 leading-relaxed line-clamp-2 mt-1 mb-3">
+        <p className="text-[12px] text-stone-500 leading-relaxed mt-1 mb-3">
           {description}
         </p>
-
-        {/* Badges */}
-        {badges.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {badges.map((b, idx) => (
-              <span
-                key={idx}
-                className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 border border-stone-200/70"
-              >
-                {b}
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* Paused explainer, the exact message requested for paused connections */}
         {isPaused && (

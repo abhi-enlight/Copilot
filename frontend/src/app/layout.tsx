@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./bcp-globals.css";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,11 +16,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "BCP Assist. One interface for every system.",
-    template: "%s · BCP Assist",
+    default: "Prism. One interface for every system.",
+    template: "%s · Prism",
   },
   description:
-    "BCP Assist is the unified productivity copilot connecting Microsoft 365 (Outlook, SharePoint, Dynamics 365 CRM) and Zoho (CRM, Projects, Books), all in one conversation across every system you work in.",
+    "Prism is the unified productivity copilot connecting Microsoft 365 (Outlook, SharePoint, Dynamics 365 CRM) and Zoho (CRM, Projects, Books), all in one conversation across every system you work in.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

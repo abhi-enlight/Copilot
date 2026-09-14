@@ -45,11 +45,11 @@ export interface TokenRefreshResult {
  * Refreshes an expired Microsoft OAuth access token using the refresh token.
  */
 export async function refreshMicrosoftToken(refreshToken: string): Promise<TokenRefreshResult> {
-  const clientId = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
+  const clientId = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '';
   const clientSecret = process.env.AZURE_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET || '';
 
-  if (!clientSecret || !refreshToken) {
-    return { accessToken: null, error: 'Missing client secret or refresh token' };
+  if (!clientId || !clientSecret || !refreshToken) {
+    return { accessToken: null, error: 'Missing client ID, client secret, or refresh token' };
   }
 
   try {

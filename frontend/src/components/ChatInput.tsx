@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
 import { PaperPlaneTilt, StopCircle, Microphone } from "@phosphor-icons/react";
 
+import { useAuth } from "@/components/providers/AuthProvider";
+import { getDraftKey } from "@/lib/copilot-storage";
+
 interface ChatInputProps {
   onSendMessage?: (message: string) => void;
   onSend?: (message: string) => void;
@@ -12,8 +15,6 @@ interface ChatInputProps {
   disabled?: boolean;
 }
 
-const DRAFT_STORAGE_KEY = "prism_copilot_draft_input";
-
 export default function ChatInput({
   onSendMessage,
   onSend,
@@ -21,29 +22,40 @@ export default function ChatInput({
   isLoading,
   disabled = false,
 }: ChatInputProps) {
+  const { user } = useAuth();
+  const draftKey = getDraftKey(user?.id);
+
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Restore draft from localStorage after hydration
+  // Value last restored from localStorage. The sync effect skips writes while
+  // input still equals it, so the restore pass can't be clobbered by the
+  // initial "" render before setInput applies.
+  const lastRestoredRef = useRef<string | null>(null);
+
+  // Restore draft from localStorage when user/key changes
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (saved) setInput(saved);
+      const saved = localStorage.getItem(draftKey);
+      lastRestoredRef.current = saved || "";
+      setInput(saved || "");
     } catch {}
-  }, []);
+  }, [draftKey]);
 
   // Sync draft to localStorage
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (input === lastRestoredRef.current) return;
     try {
       if (input.trim()) {
-        localStorage.setItem(DRAFT_STORAGE_KEY, input);
+        localStorage.setItem(draftKey, input);
       } else {
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        localStorage.removeItem(draftKey);
       }
     } catch {}
-  }, [input]);
+  }, [input, draftKey]);
 
   const adjustHeight = useCallback(() => {
     const textarea = textareaRef.current;
@@ -63,9 +75,10 @@ export default function ChatInput({
     if (!trimmed || isLoading || disabled) return;
     if (typeof window !== "undefined") {
       try {
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        localStorage.removeItem(draftKey);
       } catch {}
     }
+    lastRestoredRef.current = "";
     if (onSendMessage) onSendMessage(trimmed);
     else if (onSend) onSend(trimmed);
     setInput("");
@@ -111,30 +124,42 @@ export default function ChatInput({
     }
   };
 
+  const hasContent = input.trim().length > 0;
+
   return (
-    <div className="relative flex items-end gap-2 bg-white border border-slate-300/90 rounded-2xl p-2.5 shadow-[0_4px_20px_-2px_rgba(15,23,42,0.08)] transition-all duration-200 focus-within:border-indigo-500 focus-within:ring-3 focus-within:ring-indigo-500/15">
+    <div
+      className={`relative flex items-end gap-2 bg-white rounded-2xl p-2 transition-all duration-200 ${
+        isFocused
+          ? "shadow-[0_0_0_2px_rgba(124,58,237,0.18),0_4px_24px_-4px_rgba(124,58,237,0.12)]  ring-0 border border-violet-300/80"
+          : "shadow-[0_2px_16px_-2px_rgba(15,23,42,0.07),0_0_0_1px_rgba(15,23,42,0.07)] border border-transparent"
+      }`}
+    >
       <textarea
         ref={textareaRef}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Ask BCP Assist about briefs, deals, documents, or SOP precedents..."
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        placeholder="Ask anything about your briefs, deals, mail, or SOPs…"
         rows={1}
         disabled={disabled}
-        className="flex-1 bg-transparent text-[13.5px] text-slate-900 placeholder:text-slate-400 resize-none outline-none leading-relaxed max-h-40 px-2 py-1.5 disabled:opacity-40 font-normal"
+        className="flex-1 bg-transparent text-[13.5px] text-stone-900 placeholder:text-stone-400 resize-none outline-none leading-relaxed max-h-40 px-2 py-1.5 disabled:opacity-40 font-normal"
       />
 
-      <div className="flex items-center gap-1.5 flex-shrink-0">
+      <div className="flex items-center gap-1 flex-shrink-0 pb-0.5">
         {/* Voice Input Button */}
         <button
           type="button"
           onClick={toggleVoice}
-          className={`p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ${
-            isListening ? "text-rose-600 bg-rose-50 animate-pulse" : ""
+          className={`p-2 rounded-xl transition-all cursor-pointer ${
+            isListening
+              ? "text-rose-600 bg-rose-50 animate-pulse"
+              : "text-stone-400 hover:text-stone-600 hover:bg-stone-100"
           }`}
           title="Voice input"
         >
-          <Microphone size={16} weight={isListening ? "fill" : "regular"} />
+          <Microphone size={15} weight={isListening ? "fill" : "regular"} />
         </button>
 
         {/* Send / Stop Button */}
@@ -143,18 +168,22 @@ export default function ChatInput({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onStop}
-            className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center hover:bg-rose-100 transition-colors shadow-2xs cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-stone-100 text-stone-600 border border-stone-200 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-xs cursor-pointer"
             title="Stop generation"
           >
-            <StopCircle size={16} weight="fill" />
+            <StopCircle size={15} weight="fill" />
           </motion.button>
         ) : (
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: hasContent ? 1.06 : 1 }}
+            whileTap={{ scale: hasContent ? 0.94 : 1 }}
             onClick={handleSubmit}
-            disabled={!input.trim() || disabled}
-            className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-sm hover:bg-slate-800 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            disabled={!hasContent || disabled}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+              hasContent
+                ? "bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-[0_2px_8px_-1px_rgba(124,58,237,0.4)] hover:shadow-[0_4px_12px_-2px_rgba(124,58,237,0.5)]"
+                : "bg-stone-100 text-stone-300 cursor-not-allowed"
+            }`}
             title="Send message"
           >
             <PaperPlaneTilt size={14} weight="bold" />

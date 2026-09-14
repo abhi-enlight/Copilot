@@ -13,8 +13,8 @@
  *   - /api/campaigns            (write-action gating + audit)
  */
 
-import { cookies } from "next/headers";
-import { supabase } from "@/lib/supabase";
+import { adminSupabase } from "@/lib/supabase-admin";
+import { createClient } from "@/lib/supabase-server";
 import {
   ZOHO_PRODUCTS,
   isZohoOrgSharedEnabled,
@@ -39,24 +39,30 @@ export type ConnectorId = (typeof CONNECTOR_IDS)[number];
 
 export interface ConnectorVerdict {
   access: ConnectorAccess;
-  /** Human-readable explanation surfaced in the UI. */
   reason: string;
-  /** True when the verdict came from an app-role override rather than a live probe. */
   viaRoleOverride: boolean;
-  /** Provider-level probe succeeded (independent of role). */
-  probeOk: boolean;
-  /** Probe performed in this request (not from cache). */
-  probedNow: boolean;
+  probeOk?: boolean;
+  probedNow?: boolean;
 }
 
 export interface EntitlementSnapshot {
-  userEmail: string | null;
   role: AppRole;
-  /** Microsoft session present and token valid. */
+  userEmail: string | null;
   m365Authenticated: boolean;
-  grantedScopes: string[];
+  grantedScopes?: string[];
+  m365?: {
+    authenticated: boolean;
+    userEmail: string | null;
+    userName: string | null;
+    hasCrmProbe: boolean;
+    probedAt: number;
+  };
+  zoho: {
+    crm: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> };
+    projects: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> };
+    books: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> };
+  };
   connectors: Record<ConnectorId, ConnectorVerdict>;
-  zoho: Record<ZohoProduct, { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> }>;
   checkedAt: string;
 }
 
@@ -70,15 +76,18 @@ export interface AppUser {
   role: AppRole;
 }
 
-export async function resolveAppUser(email: string | null | undefined): Promise<AppUser | null> {
-  if (!email) return null;
+export async function resolveAppUser(emailOrAuthId: string | null | undefined): Promise<AppUser | null> {
+  if (!emailOrAuthId) return null;
   if (!isSupabaseConfigured()) return null;
   try {
-    const { data, error } = await supabase
-      .from("app_users")
-      .select("email, display_name, role")
-      .eq("email", email.toLowerCase())
-      .maybeSingle();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emailOrAuthId);
+    let query = adminSupabase.from("app_users").select("email, display_name, role");
+    if (isUUID) {
+      query = query.eq("auth_user_id", emailOrAuthId);
+    } else {
+      query = query.eq("email", emailOrAuthId.toLowerCase());
+    }
+    const { data, error } = await query.maybeSingle();
     if (error || !data) return null;
     const role = (["owner", "admin", "member"] as const).includes(data.role) ? (data.role as AppRole) : "member";
     return { email: data.email, displayName: data.display_name || null, role };
@@ -113,19 +122,52 @@ export interface MicrosoftSession {
 }
 
 export async function readMicrosoftSession(): Promise<MicrosoftSession> {
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("ms_access_token")?.value || null;
-  const refreshToken = cookieStore.get("ms_refresh_token")?.value || null;
-  const expiresAtStr = cookieStore.get("ms_token_expires_at")?.value || null;
+  let accessToken: string | null = null;
+  let refreshToken: string | null = null;
+  let expiresAt = 0;
+  let userEmail: string | null = null;
+  let userName: string | null = null;
+  let grantedScopes: string[] = [];
+
+  try {
+    const serverSupabase = await createClient();
+    const {
+      data: { user },
+    } = await serverSupabase.auth.getUser();
+
+    if (user) {
+      userEmail = user.email || null;
+      userName =
+        (user.user_metadata?.display_name as string) ||
+        (user.user_metadata?.full_name as string) ||
+        null;
+
+      const { resolveMicrosoftVaultTokens } = await import("@/lib/microsoft-vault");
+      const vault = await resolveMicrosoftVaultTokens(user.id, user.email);
+
+      if (vault.accessToken) {
+        accessToken = vault.accessToken;
+        refreshToken = vault.refreshToken;
+        expiresAt = vault.expiresAt || 0;
+        grantedScopes = vault.scopes || [];
+      }
+    }
+  } catch (err) {
+    console.warn("[entitlements] Failed to read user MS vault:", err);
+  }
+
+  // SECURITY: no ms_* cookie fallbacks here. Those cookies are client-editable
+  // and previously let a caller spoof identity/scope/CRM-probe state for
+  // entitlement decisions. Authenticated vault data above is the only source.
   return {
     accessToken,
     refreshToken,
-    userEmail: cookieStore.get("ms_user_email")?.value || null,
-    userName: cookieStore.get("ms_user_name")?.value || null,
-    expiresAt: expiresAtStr ? parseInt(expiresAtStr, 10) : 0,
-    grantedScopes: (cookieStore.get("ms_granted_scopes")?.value || "").split(" ").filter(Boolean),
-    hasCrmCookie: cookieStore.get("ms_has_crm")?.value === "1",
-    probedAt: parseInt(cookieStore.get("ms_crm_probed_at")?.value || "0", 10),
+    userEmail,
+    userName,
+    expiresAt,
+    grantedScopes,
+    hasCrmCookie: false,
+    probedAt: 0,
   };
 }
 
@@ -271,14 +313,28 @@ export async function buildEntitlementSnapshot(opts: { forceReprobe?: boolean } 
     books: { connected: false, probeOk: false, detail: "Not connected", orgIds: {} },
   };
 
-  const cookieStore = await cookies();
-  const effectiveEmail = session.userEmail || cookieStore.get("zoho_user_email")?.value || null;
+  // SECURITY: identity for Zoho vault lookups comes only from the authenticated
+  // Supabase session (plus the vault-backed Microsoft session email). The
+  // zoho_user_email cookie is client-influenced and must not select vault rows.
+  let effectiveEmail = session.userEmail || null;
+  let authUserId: string | null = null;
+  if (isSupabaseConfigured()) {
+    try {
+      const serverSupabase = await createClient();
+      const { data: { user } } = await serverSupabase.auth.getUser();
+      if (user) {
+        effectiveEmail = effectiveEmail || user.email || null;
+        authUserId = user.id;
+      }
+    } catch {}
+  }
 
-  if (effectiveEmail && isSupabaseConfigured()) {
+  const lookupKey = authUserId || effectiveEmail;
+  if (lookupKey && isSupabaseConfigured()) {
     await Promise.all(
       ZOHO_PRODUCTS.map(async (product) => {
         try {
-          const resolved = await resolveZohoAccessToken(effectiveEmail, product);
+          const resolved = await resolveZohoAccessToken(lookupKey, product);
           if (resolved.record) {
             zohoState[product] = {
               connected: true,

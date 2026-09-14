@@ -1,381 +1,202 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AnimatedErrorBanner } from "@/components/ui/ErrorInlineBanner";
+import { useAuth } from "@/components/providers/AuthProvider";
+import { useOrganization, type OrgMember } from "@/hooks/useOrganization";
 import {
   UserPlus,
   Crown,
-  Briefcase,
-  Scales,
-  Megaphone,
+  ShieldCheck,
+  User,
   MagnifyingGlass,
   Check,
   X,
   CheckCircle,
   Trash,
   Info,
-  ShieldCheck,
-  WarningCircle,
+  CaretDown,
 } from "@phosphor-icons/react";
 
-export type RoleType = "Admin" | "Campaign Manager" | "Project Manager" | "Legal";
+export type RoleType = "owner" | "admin" | "member";
 
 export interface BigCityUser {
   id: string;
   name: string;
   email: string;
   role: RoleType;
-  department: string;
+  department?: string;
   status: "active" | "invited" | "active_now";
   lastActive: string;
   initials: string;
   avatarColor: string;
 }
 
-const INITIAL_USERS: BigCityUser[] = [
-  {
-    id: "usr-1",
-    name: "Rohit Sharma",
-    email: "rohit.sharma@bigcity.in",
-    role: "Admin",
-    department: "",
-    status: "active_now",
-    lastActive: "Active now",
-    initials: "RS",
-    avatarColor: "from-stone-700 to-stone-900",
-  },
-  {
-    id: "usr-2",
-    name: "Priya Nair",
-    email: "priya.nair@bigcity.in",
-    role: "Admin",
-    department: "Digital Operations & CRM",
-    status: "active",
-    lastActive: "12m ago",
-    initials: "PN",
-    avatarColor: "from-violet-600 to-violet-800",
-  },
-  {
-    id: "usr-3",
-    name: "Vikram Mehta",
-    email: "vikram.mehta@bigcity.in",
-    role: "Campaign Manager",
-    department: "FMCG Brand Campaigns",
-    status: "active_now",
-    lastActive: "Active now",
-    initials: "VM",
-    avatarColor: "from-indigo-600 to-indigo-800",
-  },
-  {
-    id: "usr-4",
-    name: "Ananya Deshmukh",
-    email: "ananya.deshmukh@bigcity.in",
-    role: "Campaign Manager",
-    department: "Consumer Electronics",
-    status: "active",
-    lastActive: "1h ago",
-    initials: "AD",
-    avatarColor: "from-teal-600 to-teal-800",
-  },
-  {
-    id: "usr-5",
-    name: "Arjun Patel",
-    email: "arjun.patel@bigcity.in",
-    role: "Project Manager",
-    department: "Platforms & OTP Gateways",
-    status: "active",
-    lastActive: "3h ago",
-    initials: "AP",
-    avatarColor: "from-cyan-600 to-cyan-800",
-  },
-  {
-    id: "usr-6",
-    name: "Kavita Rao",
-    email: "kavita.rao@bigcity.in",
-    role: "Legal",
-    department: "Legal & Regulatory Affairs",
-    status: "active",
-    lastActive: "45m ago",
-    initials: "KR",
-    avatarColor: "from-amber-600 to-amber-800",
-  },
-  {
-    id: "usr-7",
-    name: "Siddharth Verma",
-    email: "siddharth.verma@bigcity.in",
-    role: "Legal",
-    department: "Compliance & Governance",
-    status: "active",
-    lastActive: "Yesterday",
-    initials: "SV",
-    avatarColor: "from-orange-600 to-orange-800",
-  },
-  {
-    id: "usr-8",
-    name: "Tanvi Joshi",
-    email: "tanvi.joshi@bigcity.in",
-    role: "Project Manager",
-    department: "Vendor & Reward Operations",
-    status: "invited",
-    lastActive: "Invite sent",
-    initials: "TJ",
-    avatarColor: "from-stone-500 to-stone-700",
-  },
-  {
-    id: "usr-9",
-    name: "Akash Verma",
-    email: "akash.verma@bigcity.in",
-    role: "Legal",
-    department: "Legal & Commercial Contracts",
-    status: "active_now",
-    lastActive: "Active now",
-    initials: "AV",
-    avatarColor: "from-amber-600 to-amber-900",
-  },
+const AVATAR_COLORS = [
+  "from-violet-600 to-violet-800",
+  "from-emerald-600 to-emerald-800",
+  "from-amber-600 to-amber-800",
+  "from-cyan-600 to-cyan-800",
+  "from-teal-600 to-teal-800",
+  "from-blue-600 to-blue-800",
+  "from-stone-700 to-stone-900",
 ];
 
-const ROLE_META: Record<
-  RoleType,
-  {
-    icon: typeof Crown;
-    bg: string;
-    text: string;
-    border: string;
-    dot: string;
+function getAvatarColor(email: string): string {
+  let hash = 0;
+  for (let i = 0; i < email.length; i++) {
+    hash = (hash << 5) - hash + email.charCodeAt(i);
+    hash |= 0;
   }
-> = {
-  Admin: {
-    icon: Crown,
-    bg: "bg-stone-900",
-    text: "text-white",
-    border: "border-stone-700",
-    dot: "bg-stone-400",
-  },
-  "Campaign Manager": {
-    icon: Megaphone,
-    bg: "bg-indigo-50",
-    text: "text-indigo-800",
-    border: "border-indigo-200",
-    dot: "bg-indigo-500",
-  },
-  "Project Manager": {
-    icon: Briefcase,
-    bg: "bg-emerald-50",
-    text: "text-emerald-800",
-    border: "border-emerald-200",
-    dot: "bg-emerald-500",
-  },
-  Legal: {
-    icon: Scales,
-    bg: "bg-amber-50",
-    text: "text-amber-800",
-    border: "border-amber-200",
-    dot: "bg-amber-500",
-  },
-};
-
-interface UsersAndRolesViewProps {
-  onUserCountChange?: (count: number) => void;
+  const index = Math.abs(hash) % AVATAR_COLORS.length;
+  return AVATAR_COLORS[index];
 }
 
-export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesViewProps) {
-  const [users, setUsers] = useState<BigCityUser[]>(INITIAL_USERS);
+function getInitials(nameOrEmail: string): string {
+  const clean = nameOrEmail.replace(/@.*/, "").trim();
+  const parts = clean.split(/[ ._-]/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return clean.slice(0, 2).toUpperCase() || "U";
+}
+
+export default function UsersAndRolesView() {
+  const { user: authUser } = useAuth();
+  const {
+    activeOrg,
+    members,
+    callerRole,
+    isLoadingMembers,
+    error: membersError,
+    inviteMember,
+    removeMember,
+    refreshMembers,
+  } = useOrganization();
+
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<RoleType | "All">("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [activeRoleDropdownId, setActiveRoleDropdownId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  // Server-backed app roles (app_users table): which users hold Admin/Owner
-  // privileges that unlock the CRM connection, and whether the current
-  // session may mutate them.
-  const [appRoles, setAppRoles] = useState<Record<string, "owner" | "admin" | "member">>({});
-  const [myRole, setMyRole] = useState<"owner" | "admin" | "member" | null>(null);
-  const [usersConfigured, setUsersConfigured] = useState(true);
-  // Load-failure state for the app-roles directory, surfaced as a banner
-  const [appRolesError, setAppRolesError] = useState<boolean>(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // Invite form
-  const [inviteName, setInviteName] = useState("");
-  const [inviteEmailPrefix, setInviteEmailPrefix] = useState("");
-  const [inviteRole, setInviteRole] = useState<RoleType>("Project Manager");
+  // Invite modal form state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch("/api/users");
-        if (!res.ok || cancelled) {
-          if (!cancelled && res.status >= 500) setAppRolesError(true);
-          return;
-        }
-        const data = await res.json();
-        if (cancelled) return;
-        setUsersConfigured(Boolean(data.configured));
-        setMyRole(data.me?.role || null);
-        if (data.error) {
-          setAppRolesError(true);
-          return;
-        }
-        const roles: Record<string, "owner" | "admin" | "member"> = {};
-        (data.users || []).forEach((u: { email: string; role: string }) => {
-          if (u.role === "owner" || u.role === "admin" || u.role === "member") roles[u.email] = u.role;
-        });
-        setAppRoles(roles);
-        setAppRolesError(false);
-      } catch {
-        // Network failure, surface it rather than silently showing stale state
-        if (!cancelled) setAppRolesError(true);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const isElevated = myRole === "owner" || myRole === "admin";
-
-  const handleAppRoleChange = async (email: string, appRole: "owner" | "admin" | "member") => {
-    try {
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: appRole }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        showToast(data.detail || "Role change failed");
-        return;
-      }
-      setAppRoles((prev) => ({ ...prev, [email]: appRole }));
-      showToast(
-        appRole === "member"
-          ? `${email} → Member (CRM access revoked on next re-check)`
-          : `${email} → ${appRole === "admin" ? "Admin" : "Owner"}, CRM access unlocks on their next re-check`
-      );
-    } catch {
-      showToast("Role change failed");
-    }
-  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      const matchesRole = selectedRoleFilter === "All" || u.role === selectedRoleFilter;
-      const q = searchQuery.toLowerCase().trim();
-      const matchesQuery =
-        !q ||
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.department.toLowerCase().includes(q);
-      return matchesRole && matchesQuery;
-    });
-  }, [users, selectedRoleFilter, searchQuery]);
+  const isElevated = callerRole === "owner" || callerRole === "admin";
 
-  const counts = useMemo(() => ({
-    all: users.length,
-    admin: users.filter((u) => u.role === "Admin").length,
-    cm: users.filter((u) => u.role === "Campaign Manager").length,
-    pm: users.filter((u) => u.role === "Project Manager").length,
-    legal: users.filter((u) => u.role === "Legal").length,
-  }), [users]);
-
-  const handleRoleChange = (userId: string, newRole: RoleType) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
-    );
+  const handleRoleChange = async (userId: string, newRole: RoleType) => {
     setActiveRoleDropdownId(null);
-    const target = users.find((u) => u.id === userId);
-    showToast(`${target?.name || "User"} → ${newRole}`);
-  };
-
-  const handleRevokeUser = (userId: string, userName: string) => {
-    if (confirm(`Remove ${userName} from workspace?`)) {
-      setUsers((prev) => {
-        const next = prev.filter((u) => u.id !== userId);
-        onUserCountChange?.(next.length);
-        return next;
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(activeOrg?.id ? { "x-active-org-id": activeOrg.id } : {}),
+        },
+        body: JSON.stringify({ userId, role: newRole }),
       });
-      showToast(`Removed ${userName}`);
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.detail || data.error || "Role update failed");
+        return;
+      }
+
+      await refreshMembers();
+      showToast(`Role updated to ${newRole}`);
+    } catch {
+      showToast("Role update failed");
     }
   };
 
-  const handleInviteSubmit = (e: React.FormEvent) => {
+  const handleRevokeUser = async (userId: string, userEmail: string) => {
+    if (userId === authUser?.id) {
+      alert("You cannot remove yourself from the organization.");
+      return;
+    }
+
+    if (confirm(`Remove ${userEmail} from ${activeOrg?.name || "this workspace"}?`)) {
+      const res = await removeMember(userId);
+      if (res.ok) {
+        showToast(`Removed ${userEmail}`);
+      } else {
+        showToast(res.error || "Failed to remove member");
+      }
+    }
+  };
+
+  const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setInviteError("");
 
-    if (!inviteName.trim()) {
-      setInviteError("Name is required");
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setInviteError("Please enter a valid email address");
       return;
     }
 
-    const cleanPrefix = inviteEmailPrefix.trim().toLowerCase().replace(/@bigcity\.in$/i, "");
-    if (!cleanPrefix || !/^[a-z0-9._-]+$/i.test(cleanPrefix)) {
-      setInviteError("Enter a valid email username");
+    if (members.some((m) => m.email.toLowerCase() === email)) {
+      setInviteError(`${email} is already a member of this workspace`);
       return;
     }
 
-    const fullEmail = `${cleanPrefix}@bigcity.in`;
-    if (users.some((u) => u.email.toLowerCase() === fullEmail.toLowerCase())) {
-      setInviteError(`${fullEmail} already exists`);
-      return;
+    setIsInviting(true);
+    try {
+      const res = await inviteMember(email, inviteRole);
+      if (!res.ok) {
+        setInviteError(res.error || "Failed to send invitation");
+        return;
+      }
+
+      setIsInviteModalOpen(false);
+      setInviteEmail("");
+      setInviteRole("member");
+      showToast(`Added ${email} as ${inviteRole}`);
+    } catch (err: unknown) {
+      setInviteError((err as Error)?.message || "Failed to invite member");
+    } finally {
+      setIsInviting(false);
     }
-
-    const parts = inviteName.trim().split(" ");
-    const initials =
-      parts.length > 1
-        ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-        : inviteName.slice(0, 2).toUpperCase();
-
-    const colors = [
-      "from-violet-600 to-violet-800",
-      "from-emerald-600 to-emerald-800",
-      "from-amber-600 to-amber-800",
-      "from-cyan-600 to-cyan-800",
-      "from-teal-600 to-teal-800",
-    ];
-
-    // Seeded pseudo-random picks are fine here, this runs inside the submit
-    // handler (event), never during render.
-    const rand = (n: number) => Math.floor(Math.random() * n);
-    const now = new Date();
-    const newUser: BigCityUser = {
-      id: `usr-${rand(1e12).toString(36)}-${now.getTime().toString(36)}`,
-      name: inviteName.trim(),
-      email: fullEmail,
-      role: inviteRole,
-      department: inviteRole === "Legal" ? "Legal & Regulatory" : inviteRole === "Admin" ? "Executive Leadership" : "Campaign Operations",
-      status: "invited",
-      lastActive: "Just invited",
-      initials,
-      avatarColor: colors[rand(colors.length)],
-    };
-
-    setUsers((prev) => {
-      const next = [newUser, ...prev];
-      onUserCountChange?.(next.length);
-      return next;
-    });
-
-    setIsInviteModalOpen(false);
-    setInviteName("");
-    setInviteEmailPrefix("");
-    setInviteRole("Campaign Manager");
-    showToast(`Invited ${newUser.name}`);
   };
+
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      const matchesRole = selectedRoleFilter === "All" || m.orgRole === selectedRoleFilter;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesQuery =
+        !q ||
+        (m.displayName || "").toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q);
+      return matchesRole && matchesQuery;
+    });
+  }, [members, selectedRoleFilter, searchQuery]);
+
+  const counts = useMemo(
+    () => ({
+      all: members.length,
+      owner: members.filter((m) => m.orgRole === "owner").length,
+      admin: members.filter((m) => m.orgRole === "admin").length,
+      member: members.filter((m) => m.orgRole === "member").length,
+    }),
+    [members]
+  );
 
   const filterTabs = [
     { key: "All" as const, label: "All", count: counts.all },
-    { key: "Admin" as const, label: "Admins", count: counts.admin },
-    { key: "Campaign Manager" as const, label: "Campaign Managers", count: counts.cm },
-    { key: "Project Manager" as const, label: "PMs", count: counts.pm },
-    { key: "Legal" as const, label: "Legal", count: counts.legal },
+    { key: "owner" as const, label: "Owners", count: counts.owner },
+    { key: "admin" as const, label: "Admins", count: counts.admin },
+    { key: "member" as const, label: "Members", count: counts.member },
   ];
 
   return (
@@ -395,34 +216,43 @@ export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesVi
         )}
       </AnimatePresence>
 
-      {/* App-roles load failure banner */}
+      {/* Error banner */}
       <AnimatedErrorBanner
-        show={appRolesError}
+        show={Boolean(membersError || actionError)}
         severity="warning"
-        title="Couldn't load app roles"
-        description="Admin/Owner privileges shown below may be out of date. Retry to refresh them."
-        action={{ label: "Retry", onClick: () => window.location.reload() }}
-        onDismiss={() => setAppRolesError(false)}
+        title="Organization Member Notice"
+        description={membersError || actionError || "Could not load complete member list."}
+        action={{ label: "Retry", onClick: () => refreshMembers() }}
+        onDismiss={() => setActionError(null)}
         className="mx-6 mt-3"
       />
 
       {/* Header */}
       <header className="h-14 border-b border-stone-200/70 bg-white/90 backdrop-blur-md px-6 flex items-center justify-between flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
-          <h1 className="text-[15px] font-bold text-stone-900 tracking-tight">Users</h1>
+          <h1 className="text-[15px] font-bold text-stone-900 tracking-tight">
+            Users & Roles
+          </h1>
+          {activeOrg?.name && (
+            <span className="text-xs font-semibold text-stone-500 bg-stone-100 px-2.5 py-0.5 rounded-md border border-stone-200">
+              {activeOrg.name}
+            </span>
+          )}
           <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 border border-stone-200">
-            {counts.all} members
+            {counts.all} {counts.all === 1 ? "member" : "members"}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsInviteModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-all duration-200 cursor-pointer"
-        >
-          <UserPlus size={14} weight="bold" />
-          <span>Invite User</span>
-        </button>
+        {isElevated && (
+          <button
+            type="button"
+            onClick={() => setIsInviteModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-sm transition-all duration-200 cursor-pointer"
+          >
+            <UserPlus size={14} weight="bold" />
+            <span>Invite Member</span>
+          </button>
+        )}
       </header>
 
       {/* Content */}
@@ -445,7 +275,11 @@ export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesVi
                   }`}
                 >
                   {tab.label}
-                  <span className={`ml-1.5 text-[10px] font-mono ${isActive ? "text-stone-400" : "text-stone-400"}`}>
+                  <span
+                    className={`ml-1.5 text-[10px] font-mono ${
+                      isActive ? "text-stone-300" : "text-stone-400"
+                    }`}
+                  >
                     {tab.count}
                   </span>
                 </button>
@@ -453,199 +287,187 @@ export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesVi
             })}
           </div>
 
-          {/* Search */}
-          <div className="relative flex-1 sm:max-w-xs ml-auto">
+          {/* Search input */}
+          <div className="relative flex-1 max-w-sm ml-auto">
             <MagnifyingGlass
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
             />
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder="Search by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-white border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-all text-stone-900 placeholder:text-stone-400"
+              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-white border border-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 text-stone-900 placeholder:text-stone-400"
             />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
-              >
-                <X size={12} />
-              </button>
-            )}
           </div>
         </div>
 
-        {/* User List */}
-        <div className="space-y-2">
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm font-semibold text-stone-500">No users found</p>
-              <p className="text-xs text-stone-400 mt-1">Try adjusting your search or filter</p>
+        {/* Member Table / List */}
+        <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
+          {/* Table Header */}
+          <div className="px-5 py-3 border-b border-stone-100 flex items-center justify-between text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
+            <div className="w-64">Member</div>
+            <div className="w-36">Role</div>
+            <div className="w-32 hidden sm:block">Joined</div>
+            <div className="w-16 text-right">Actions</div>
+          </div>
+
+          {isLoadingMembers ? (
+            <div className="p-8 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-4 animate-pulse">
+                  <div className="w-9 h-9 rounded-full bg-stone-200" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-36 bg-stone-200 rounded" />
+                    <div className="h-2.5 w-48 bg-stone-100 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto mb-3">
+                <User size={24} />
+              </div>
+              <h3 className="text-sm font-bold text-stone-800">No members found</h3>
+              <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+                {searchQuery
+                  ? `No members match "${searchQuery}". Try a different search term.`
+                  : "Invite team members to collaborate in this workspace."}
+              </p>
             </div>
           ) : (
-            filteredUsers.map((user, idx) => {
-              const role = ROLE_META[user.role];
-              const RoleIcon = role.icon;
-              const isDropdownOpen = activeRoleDropdownId === user.id;
+            <div className="divide-y divide-stone-100">
+              {filteredMembers.map((member) => {
+                const isMe = member.userId === authUser?.id;
+                const initials = getInitials(member.displayName || member.email);
+                const avatarColor = getAvatarColor(member.email);
+                const isOwner = member.orgRole === "owner";
+                const isAdmin = member.orgRole === "admin";
+                const isDropdownOpen = activeRoleDropdownId === member.userId;
 
-              return (
-                <motion.div
-                  key={user.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: idx * 0.03 }}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl bg-white border border-stone-200/80 hover:border-stone-300 transition-colors group"
-                >
-                  {/* Avatar */}
+                return (
                   <div
-                    className={`w-9 h-9 rounded-full bg-gradient-to-br ${user.avatarColor} text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}
+                    key={member.userId}
+                    className="px-5 py-3.5 flex items-center justify-between hover:bg-stone-50/70 transition-colors"
                   >
-                    {user.initials}
-                  </div>
+                    {/* User Info */}
+                    <div className="w-64 flex items-center gap-3">
+                      <div
+                        className={`w-9 h-9 rounded-full bg-gradient-to-br ${avatarColor} text-white flex items-center justify-center text-xs font-bold shadow-xs flex-shrink-0`}
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-stone-900 truncate">
+                            {member.displayName || member.email.split("@")[0]}
+                          </span>
+                          {isMe && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                              You
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-stone-500 truncate font-mono">
+                          {member.email}
+                        </div>
+                      </div>
+                    </div>
 
-                  {/* Name + Email */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-semibold text-stone-900 truncate">
-                        {user.name}
-                      </span>
-                      {user.status === "active_now" && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                      )}
-                      {user.status === "invited" && (
-                        <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-1.5 py-px rounded border border-amber-200 flex-shrink-0">
-                          Invited
+                    {/* Role selector / badge */}
+                    <div className="w-36 relative">
+                      {isElevated && !isOwner && !isMe ? (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveRoleDropdownId(isDropdownOpen ? null : member.userId)
+                            }
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 shadow-2xs transition-colors cursor-pointer"
+                          >
+                            {isAdmin ? (
+                              <ShieldCheck size={13} weight="fill" className="text-violet-600" />
+                            ) : (
+                              <User size={13} className="text-stone-500" />
+                            )}
+                            <span className="capitalize">{member.orgRole}</span>
+                            <CaretDown size={11} className="text-stone-400 ml-0.5" />
+                          </button>
+
+                          <AnimatePresence>
+                            {isDropdownOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                                className="absolute left-0 top-full mt-1 w-32 bg-white rounded-xl shadow-lg border border-stone-200 py-1 z-30"
+                              >
+                                {(["admin", "member"] as const).map((r) => (
+                                  <button
+                                    key={r}
+                                    type="button"
+                                    onClick={() => handleRoleChange(member.userId, r)}
+                                    className="w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-stone-50 text-stone-700 capitalize cursor-pointer"
+                                  >
+                                    <span>{r}</span>
+                                    {member.orgRole === r && (
+                                      <Check size={12} className="text-amber-600" />
+                                    )}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md border ${
+                            isOwner
+                              ? "bg-stone-900 text-white border-stone-900"
+                              : isAdmin
+                              ? "bg-violet-50 text-violet-700 border-violet-200"
+                              : "bg-stone-100 text-stone-600 border-stone-200"
+                          }`}
+                        >
+                          {isOwner && <Crown size={12} weight="fill" className="text-amber-400" />}
+                          {isAdmin && <ShieldCheck size={12} weight="fill" />}
+                          <span className="capitalize">{member.orgRole}</span>
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-stone-400 block truncate">
-                      {user.email}
-                    </span>
-                  </div>
 
-                  {/* Role Badge, clickable dropdown */}
-                  <div className="relative flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setActiveRoleDropdownId(isDropdownOpen ? null : user.id)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all cursor-pointer ${role.bg} ${role.text} ${role.border}`}
-                    >
-                      <RoleIcon size={12} weight="fill" />
-                      <span>{user.role}</span>
-                    </button>
+                    {/* Joined Date */}
+                    <div className="w-32 hidden sm:block text-[11px] text-stone-400 font-mono">
+                      {member.joinedAt
+                        ? new Date(member.joinedAt).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : "Active"}
+                    </div>
 
-                    <AnimatePresence>
-                      {isDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95, y: 4 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: 4 }}
-                          transition={{ duration: 0.1 }}
-                          className="absolute right-0 top-full mt-1 w-44 rounded-xl bg-white border border-stone-200 shadow-lg p-1 z-30"
+                    {/* Actions */}
+                    <div className="w-16 text-right">
+                      {isElevated && !isOwner && !isMe ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeUser(member.userId, member.email)}
+                          className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title={`Remove ${member.email}`}
                         >
-                          {(["Admin", "Campaign Manager", "Project Manager", "Legal"] as RoleType[]).map((r) => {
-                            const meta = ROLE_META[r];
-                            const Icon = meta.icon;
-                            const isCurrent = user.role === r;
-                            return (
-                              <button
-                                key={r}
-                                type="button"
-                                onClick={() => handleRoleChange(user.id, r)}
-                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                                  isCurrent
-                                    ? "bg-stone-100 text-stone-900"
-                                    : "text-stone-600 hover:bg-stone-50"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Icon size={13} weight="duotone" />
-                                  <span>{r}</span>
-                                </div>
-                                {isCurrent && <Check size={12} weight="bold" className="text-emerald-600" />}
-                              </button>
-                            );
-                          })}
-                          {isElevated && usersConfigured && (
-                            <>
-                              <div className="border-t border-stone-100 my-1" />
-                              <p className="px-2.5 pb-1 pt-0.5 text-[9.5px] font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1">
-                                <ShieldCheck size={10} weight="fill" /> App privilege (CRM unlock)
-                              </p>
-                              {(["owner", "admin", "member"] as const).map((appRole) => {
-                                const current = appRoles[user.email.toLowerCase()] || "member";
-                                const isCurrentApp = current === appRole;
-                                return (
-                                  <button
-                                    key={appRole}
-                                    type="button"
-                                    onClick={() => handleAppRoleChange(user.email, appRole)}
-                                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                                      isCurrentApp
-                                        ? "bg-stone-100 text-stone-900"
-                                        : "text-stone-600 hover:bg-stone-50"
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <ShieldCheck size={13} weight="duotone" className={appRole === "member" ? "text-stone-400" : "text-emerald-600"} />
-                                      <span>{appRole === "owner" ? "Owner" : appRole === "admin" ? "Admin" : "Member"}</span>
-                                    </div>
-                                    {isCurrentApp && <Check size={12} weight="bold" className="text-emerald-600" />}
-                                  </button>
-                                );
-                              })}
-                              <p className="px-2.5 py-1.5 text-[10px] text-stone-400 leading-snug flex items-start gap-1">
-                                <WarningCircle size={11} className="mt-0.5 flex-shrink-0" />
-                                Admin/Owner unlocks the CRM connection without a provider license.
-                              </p>
-                            </>
-                          )}
-                        </motion.div>
+                          <Trash size={15} />
+                        </button>
+                      ) : (
+                        <span className="text-xs text-stone-300">—</span>
                       )}
-                    </AnimatePresence>
+                    </div>
                   </div>
-
-                  {/* App privilege (CRM unlock), server-backed role */}
-                  <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
-                    {appRoles[user.email.toLowerCase()] ? (
-                      <span
-                        title={
-                          appRoles[user.email.toLowerCase()] === "member"
-                            ? "Member, CRM connection locked"
-                            : "Elevated, unlocks the CRM connection on next re-check"
-                        }
-                        className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                          appRoles[user.email.toLowerCase()] === "member"
-                            ? "bg-stone-100 text-stone-500 border-stone-200"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        }`}
-                      >
-                        <ShieldCheck size={10} weight="fill" />
-                        {appRoles[user.email.toLowerCase()] === "member" ? "Member" : appRoles[user.email.toLowerCase()] === "admin" ? "Admin" : "Owner"}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {/* Last active */}
-                  <span className="hidden md:block text-[10px] text-stone-400 font-mono w-20 text-right flex-shrink-0">
-                    {user.status === "active_now" ? "now" : user.lastActive}
-                  </span>
-
-                  {/* Delete */}
-                  <button
-                    type="button"
-                    onClick={() => handleRevokeUser(user.id, user.name)}
-                    className="p-1.5 rounded-lg text-stone-300 hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer opacity-0 group-hover:opacity-100 flex-shrink-0"
-                    title="Remove user"
-                  >
-                    <Trash size={14} />
-                  </button>
-                </motion.div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -666,11 +488,16 @@ export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesVi
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 p-5 z-10"
+              className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 p-6 z-10"
             >
               {/* Modal header */}
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-sm font-bold text-stone-900">Invite Team Member</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900">Invite Team Member</h3>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Add a colleague to {activeOrg?.name || "your workspace"}.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsInviteModalOpen(false)}
@@ -680,69 +507,78 @@ export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesVi
                 </button>
               </div>
 
-              <form onSubmit={handleInviteSubmit} className="space-y-3.5">
+              <form onSubmit={handleInviteSubmit} className="space-y-4">
                 {inviteError && (
-                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
-                    <Info size={14} weight="bold" className="flex-shrink-0" />
-                    {inviteError}
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                    <Info size={15} weight="bold" className="flex-shrink-0" />
+                    <span>{inviteError}</span>
                   </div>
                 )}
 
-                {/* Name */}
+                {/* Email Address */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-stone-600 mb-1">Full Name</label>
+                  <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                    Email Address
+                  </label>
                   <input
-                    type="text"
+                    type="email"
                     required
-                    placeholder="e.g. Deepika Sengupta"
-                    value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-stone-50 border border-stone-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 text-stone-900"
+                    placeholder="name@company.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 font-mono text-stone-900"
                   />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-stone-600 mb-1">Email</label>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      required
-                      placeholder="deepika.sengupta"
-                      value={inviteEmailPrefix}
-                      onChange={(e) => setInviteEmailPrefix(e.target.value)}
-                      className="w-full pl-3 pr-24 py-2 text-xs rounded-lg bg-stone-50 border border-stone-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 font-mono text-stone-900"
-                    />
-                    <span className="absolute right-2 text-[10px] font-mono font-semibold text-stone-400">
-                      @bigcity.in
-                    </span>
-                  </div>
+                  <p className="text-[11px] text-stone-400 mt-1">
+                    Any valid email address can be invited to this organization.
+                  </p>
                 </div>
 
                 {/* Role */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-stone-600 mb-1.5">Role</label>
+                  <label className="block text-[11px] font-semibold text-stone-700 mb-1.5">
+                    Workspace Role
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(["Admin", "Campaign Manager", "Project Manager", "Legal"] as RoleType[]).map((r) => {
-                      const meta = ROLE_META[r];
-                      const Icon = meta.icon;
-                      const isChecked = inviteRole === r;
-                      return (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setInviteRole(r)}
-                          className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                            isChecked
-                              ? "bg-stone-900 text-white border-stone-700"
-                              : "bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100"
-                          }`}
-                        >
-                          <Icon size={13} weight={isChecked ? "fill" : "bold"} />
-                          <span>{r === "Campaign Manager" ? "Campaign Mgr" : r === "Project Manager" ? "PM" : r}</span>
-                        </button>
-                      );
-                    })}
+                    <button
+                      type="button"
+                      onClick={() => setInviteRole("member")}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        inviteRole === "member"
+                          ? "bg-stone-900 text-white border-stone-900"
+                          : "bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">Member</div>
+                      <div
+                        className={`text-[11px] mt-0.5 ${
+                          inviteRole === "member" ? "text-stone-300" : "text-stone-500"
+                        }`}
+                      >
+                        Standard access to chat, files, and mail.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInviteRole("admin")}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        inviteRole === "admin"
+                          ? "bg-stone-900 text-white border-stone-900"
+                          : "bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100"
+                      }`}
+                    >
+                      <div className="text-xs font-bold flex items-center gap-1">
+                        <ShieldCheck size={13} weight="fill" className="text-amber-400" />
+                        <span>Admin</span>
+                      </div>
+                      <div
+                        className={`text-[11px] mt-0.5 ${
+                          inviteRole === "admin" ? "text-stone-300" : "text-stone-500"
+                        }`}
+                      >
+                        Can manage members, connections, and CRM access.
+                      </div>
+                    </button>
                   </div>
                 </div>
 
@@ -751,15 +587,16 @@ export default function UsersAndRolesView({ onUserCountChange }: UsersAndRolesVi
                   <button
                     type="button"
                     onClick={() => setIsInviteModalOpen(false)}
-                    className="px-3.5 py-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 rounded-lg bg-stone-900 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                    disabled={isInviting}
+                    className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
                   >
-                    Send Invite
+                    {isInviting ? "Sending..." : "Send Invite"}
                   </button>
                 </div>
               </form>

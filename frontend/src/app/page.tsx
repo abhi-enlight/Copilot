@@ -14,7 +14,7 @@ import { useState, useEffect } from "react";
 import { List } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import PrismSidebar, { type NavView, NAV_LABELS } from "@/components/PrismSidebar";
-import BigCityLogo from "@/components/BigCityLogo";
+import PrismLogo from "@/components/brand/PrismLogo";
 import EnlightLogo from "@/components/brand/EnlightLogo";
 import HomeView from "@/components/views/HomeView";
 import InboxView from "@/components/views/InboxView";
@@ -24,6 +24,8 @@ import CampaignsView from "@/components/CampaignsView";
 import ConnectionsView from "@/components/ConnectionsView";
 import UsersAndRolesView from "@/components/UsersAndRolesView";
 import SettingsView from "@/components/SettingsView";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -38,14 +40,12 @@ export interface PlanContextForCopilot {
     rewardType: string;
     budget: string;
     codeVolume: string;
-    startDate: string;
-    endDate: string;
+    startDate?: string;
+    endDate?: string;
     brief: string;
+    brandColor?: string;
   };
-  plan: {
-    tasks: any[];
-    aspectSummary: any;
-  };
+  plan: any;
 }
 
 const VALID_VIEWS: NavView[] = [
@@ -60,12 +60,46 @@ const VALID_VIEWS: NavView[] = [
 ];
 
 export default function PrismApp() {
+  const { user } = useAuth();
+  const { activeOrg } = useOrganization();
+  const viewKey = user ? `prism_active_view_${user.id}` : "prism_active_view_guest";
+  const planContextKey = user ? `prism_active_plan_context_${user.id}` : "prism_active_plan_context_guest";
+
   const [currentView, setCurrentView] = useState<NavView>("home");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [activePlanForCopilot, setActivePlanForCopilot] = useState<PlanContextForCopilot | null>(null);
   const [campaignCount, setCampaignCount] = useState<number>(0);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
-  // Restore navigation view and active plan context on mount
+  const handleSelectSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    handleNavigate("copilot");
+  };
+
+  const handleNewChat = () => {
+    setActiveSessionId(null);
+    handleNavigate("copilot");
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    if (activeSessionId === sessionId) {
+      handleNewChat();
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const userSessionKey = user ? `prism_copilot_session_${user.id}` : "prism_copilot_session_guest";
+        const saved = localStorage.getItem(userSessionKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.id === sessionId) {
+            localStorage.removeItem(userSessionKey);
+          }
+        }
+      } catch {}
+    }
+  };
+
+  // Restore navigation view and active plan context on mount or user change
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -76,7 +110,7 @@ export default function PrismApp() {
       initialView = hash;
     } else {
       try {
-        const savedView = localStorage.getItem("prism_active_view") as NavView;
+        const savedView = localStorage.getItem(viewKey) as NavView;
         if (VALID_VIEWS.includes(savedView)) {
           initialView = savedView;
         }
@@ -87,7 +121,7 @@ export default function PrismApp() {
       if (initialView === "inbox" || initialView === "documents" || initialView === "settings") {
         initialView = "home";
         try {
-          localStorage.setItem("prism_active_view", "home");
+          localStorage.setItem(viewKey, "home");
         } catch {}
       }
       setCurrentView(initialView);
@@ -96,12 +130,14 @@ export default function PrismApp() {
 
     // 2. Resolve active plan context
     try {
-      const savedPlan = localStorage.getItem("prism_active_plan_context");
+      const savedPlan = localStorage.getItem(planContextKey);
       if (savedPlan) {
         const parsed = JSON.parse(savedPlan);
         if (parsed && parsed.campaignData) {
           setActivePlanForCopilot(parsed);
         }
+      } else {
+        setActivePlanForCopilot(null);
       }
     } catch {}
 
@@ -111,26 +147,29 @@ export default function PrismApp() {
       if (VALID_VIEWS.includes(currentHash)) {
         setCurrentView(currentHash);
         try {
-          localStorage.setItem("prism_active_view", currentHash);
+          localStorage.setItem(viewKey, currentHash);
         } catch {}
       }
     };
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
+  }, [viewKey, planContextKey]);
 
   const handleNavigate = (view: NavView) => {
     setCurrentView(view);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("prism_active_view", view);
+        localStorage.setItem(viewKey, view);
         window.history.replaceState(null, "", `#${view}`);
       } catch {}
     }
   };
 
   useEffect(() => {
-    fetch("/api/campaigns")
+    const headers: Record<string, string> = {};
+    if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
+
+    fetch("/api/campaigns", { headers })
       .then((res) => (res.ok ? res.json() : { campaigns: [] }))
       .then((data) => {
         if (Array.isArray(data.campaigns)) {
@@ -138,14 +177,14 @@ export default function PrismApp() {
         }
       })
       .catch(() => {});
-  }, [currentView]);
+  }, [currentView, activeOrg?.id]);
 
   const handleModifyInCopilot = (campaignData: any, plan: any) => {
     const planContext = { campaignData, plan };
     setActivePlanForCopilot(planContext);
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem("prism_active_plan_context", JSON.stringify(planContext));
+        localStorage.setItem(planContextKey, JSON.stringify(planContext));
       } catch {}
     }
     handleNavigate("copilot");
@@ -155,7 +194,7 @@ export default function PrismApp() {
     setActivePlanForCopilot(null);
     if (typeof window !== "undefined") {
       try {
-        localStorage.removeItem("prism_active_plan_context");
+        localStorage.removeItem(planContextKey);
       } catch {}
     }
   };
@@ -171,6 +210,8 @@ export default function PrismApp() {
             onClearPlanContext={handleClearPlanContext}
             onViewCampaigns={() => handleNavigate("campaigns")}
             onNavigateToConnections={() => handleNavigate("connections")}
+            activeSessionId={activeSessionId}
+            onSessionSelect={handleSelectSession}
           />
         );
       case "inbox":
@@ -199,33 +240,34 @@ export default function PrismApp() {
         isMobileOpen={isMobileSidebarOpen}
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         campaignCount={campaignCount}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
+        onNewChat={handleNewChat}
+        onDeleteSession={handleDeleteSession}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {/* Mobile Top Bar */}
-        <div className="lg:hidden h-14 border-b border-stone-200/70 bg-white/90 backdrop-blur-md px-4 flex items-center justify-between flex-shrink-0 z-30">
+        <div className="lg:hidden h-12 border-b border-stone-200/60 bg-white px-4 flex items-center justify-between flex-shrink-0 z-30">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="p-2 rounded-lg text-stone-600 hover:bg-stone-100 cursor-pointer"
+              className="p-1.5 rounded-lg text-stone-500 hover:bg-stone-100 cursor-pointer"
               aria-label="Open navigation"
             >
-              <List size={20} weight="bold" />
+              <List size={17} weight="bold" />
             </button>
             <div className="flex items-center gap-2">
-              <BigCityLogo size={22} variant="tile" className="rounded-lg p-0.5 bg-white border border-stone-200/60 shadow-2xs" />
+              <PrismLogo size={20} variant="tile" className="rounded-lg shrink-0" />
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-stone-900">BCP Assist</span>
-                <span className="text-[10.5px] text-stone-400 font-medium">
-                  by <span className="text-blue-600 font-semibold">Enlight Lab</span>
+                <span className="text-[12.5px] font-bold text-stone-900">Prism</span>
+                <span className="text-[10px] text-stone-300">·</span>
+                <span className="text-[11.5px] text-stone-500 font-medium capitalize">
+                  {NAV_LABELS[currentView]}
                 </span>
               </div>
-              <span className="text-stone-300 font-normal">/</span>
-              <span className="text-xs text-stone-500 font-medium capitalize">
-                {NAV_LABELS[currentView]}
-              </span>
             </div>
           </div>
           <div className="w-8" />

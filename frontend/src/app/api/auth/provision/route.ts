@@ -19,7 +19,8 @@ export async function POST(request: Request) {
       displayName?: string;
     };
 
-    let { authUserId, email, displayName } = body;
+    let { authUserId, email } = body;
+    const { displayName } = body;
 
     // If the caller HAS a session, they may only provision themselves — a
     // session user must never be able to create/modify another user's row.

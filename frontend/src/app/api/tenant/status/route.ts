@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { refreshMicrosoftToken } from '@/lib/microsoft-graph';
+import { requireAuth } from '@/lib/auth-helpers';
 import {
   buildEntitlementSnapshot,
   readMicrosoftSession,
@@ -17,39 +17,16 @@ import {
  *  - zohoConnected reflects the user's own per-user Zoho connections (or the
  *    legacy org-shared fallback when ZOHO_ORG_SHARED=true), never a hardcoded true.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
-    const cookieStore = await cookies();
-    let accessToken = cookieStore.get('ms_access_token')?.value || null;
-    const refreshToken = cookieStore.get('ms_refresh_token')?.value || null;
-    const expiresAtStr = cookieStore.get('ms_token_expires_at')?.value || null;
-    const userEmail = cookieStore.get('ms_user_email')?.value || null;
-    const userName = cookieStore.get('ms_user_name')?.value || null;
-
-    const expiresAt = expiresAtStr ? parseInt(expiresAtStr, 10) : 0;
-    const now = Date.now();
-    let isConnected = false;
-    let newAccessToken: string | null = null;
-    let newRefreshToken: string | null = null;
-    let newExpiresIn = 3600;
-    let isRefreshed = false;
-
-    // Check if token exists and is valid, or attempt refresh
-    if (accessToken && (expiresAt === 0 || now < expiresAt - 30000)) {
-      isConnected = true;
-    } else if (refreshToken) {
-      const refreshed = await refreshMicrosoftToken(refreshToken);
-      if (refreshed.accessToken) {
-        accessToken = refreshed.accessToken;
-        newAccessToken = refreshed.accessToken;
-        newRefreshToken = refreshed.refreshToken || refreshToken;
-        newExpiresIn = refreshed.expiresIn || 3600;
-        isConnected = true;
-        isRefreshed = true;
-      } else {
-        isConnected = false;
-      }
-    }
+    // Read session strictly from the per-user vault
+    const session = await readMicrosoftSession();
+    const isConnected = Boolean(session.accessToken);
+    const userEmail = session.userEmail;
+    const userName = session.userName;
 
     // Entitlement snapshot: role-aware verdicts + real Zoho state
     const snapshot = await buildEntitlementSnapshot();
@@ -58,7 +35,6 @@ export async function GET() {
     const zohoProjects = snapshot.connectors['zoho.projects'];
     const zohoBooks = snapshot.connectors['zoho.books'];
 
-    const session = await readMicrosoftSession();
     const sessionValid = isM365SessionValid(session) || isConnected;
 
     const hasMailScope = session.grantedScopes.length === 0 || session.grantedScopes.some((s) => /mail\.read/i.test(s));
@@ -96,40 +72,7 @@ export async function GET() {
 
     void sessionValid;
 
-    const response = NextResponse.json(statusData);
-
-    // If token refreshed, update cookies
-    if (isRefreshed && newAccessToken) {
-      const isProd = process.env.NODE_ENV === 'production';
-      response.cookies.set('ms_access_token', newAccessToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: newExpiresIn
-      });
-
-      if (newRefreshToken) {
-        response.cookies.set('ms_refresh_token', newRefreshToken, {
-          httpOnly: true,
-          secure: isProd,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 30
-        });
-      }
-
-      const expiresAtMs = Date.now() + (newExpiresIn * 1000);
-      response.cookies.set('ms_token_expires_at', expiresAtMs.toString(), {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 30
-      });
-    }
-
-    return response;
+    return NextResponse.json(statusData);
   } catch (err: any) {
     console.error('Status API Error:', err);
     return NextResponse.json({

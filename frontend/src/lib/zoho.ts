@@ -82,9 +82,18 @@ export const ZOHO_LEGACY = {
 };
 
 export function zohoRedirectUri(requestHost: string): string {
+  const isLocal = requestHost.includes("localhost") || requestHost.includes("127.0.0.1");
+  if (isLocal) {
+    if (
+      process.env.ZOHO_REDIRECT_URI &&
+      (process.env.ZOHO_REDIRECT_URI.includes("localhost") || process.env.ZOHO_REDIRECT_URI.includes("127.0.0.1"))
+    ) {
+      return process.env.ZOHO_REDIRECT_URI;
+    }
+    return `http://${requestHost}/api/integrations/zoho/callback`;
+  }
   if (process.env.ZOHO_REDIRECT_URI) return process.env.ZOHO_REDIRECT_URI;
-  const protocol = requestHost.includes("localhost") ? "http" : "https";
-  return `${protocol}://${requestHost}/api/integrations/zoho/callback`;
+  return `https://${requestHost}/api/integrations/zoho/callback`;
 }
 
 // ---------------------------------------------------------------------------
@@ -334,16 +343,29 @@ export async function upsertZohoIntegration(opts: {
 }
 
 /** Loads the stored integration and returns a fresh access token, refreshing when needed. */
-export async function getFreshZohoIntegration(userEmail: string, product: ZohoProduct): Promise<StoredZohoIntegration> {
+export async function getFreshZohoIntegration(
+  userEmail: string,
+  product: ZohoProduct,
+  authUserId?: string
+): Promise<StoredZohoIntegration> {
   if (!vaultEnabled()) return { ok: false, record: null, error: "Token vault not configured" };
 
-  const { data, error } = await supabase
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmail);
+  let query = supabase
     .from("user_integrations")
     .select("*")
-    .eq("user_email", userEmail)
     .eq("provider", "zoho")
-    .eq("product", product)
-    .maybeSingle();
+    .eq("product", product);
+
+  if (authUserId && !isUUID) {
+    query = query.or(`auth_user_id.eq.${authUserId},user_email.eq.${userEmail}`);
+  } else if (isUUID) {
+    query = query.or(`auth_user_id.eq.${userEmail},user_email.eq.auth:${userEmail}`);
+  } else {
+    query = query.eq("user_email", userEmail);
+  }
+
+  const { data, error } = await query.order("updated_at", { ascending: false }).limit(1).maybeSingle();
 
   if (error) return { ok: false, record: null, error: error.message };
   if (!data) return { ok: false, record: null, error: "not_connected" };
@@ -370,8 +392,12 @@ export async function getFreshZohoIntegration(userEmail: string, product: ZohoPr
 }
 
 /** Force-refreshes the stored access token and persists it. */
-export async function rotateZohoAccessToken(userEmail: string, product: ZohoProduct): Promise<StoredZohoIntegration> {
-  const current = await getFreshZohoIntegration(userEmail, product);
+export async function rotateZohoAccessToken(
+  userEmail: string,
+  product: ZohoProduct,
+  authUserId?: string
+): Promise<StoredZohoIntegration> {
+  const current = await getFreshZohoIntegration(userEmail, product, authUserId);
   if (!current.record?.refreshToken) {
     return { ok: false, record: current.record, error: current.error || "no_refresh_token" };
   }
@@ -379,16 +405,25 @@ export async function rotateZohoAccessToken(userEmail: string, product: ZohoProd
   if (!refreshed.accessToken) {
     // Refresh token rejected → user must reconnect
     if (vaultEnabled()) {
-      await supabase
+      let failQuery = supabase
         .from("user_integrations")
         .update({ status: "reauth_required", last_error_message: refreshed.error || "refresh_failed", updated_at: new Date().toISOString() })
-        .eq("user_email", userEmail)
         .eq("provider", "zoho")
         .eq("product", product);
+
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmail);
+      if (authUserId && !isUUID) {
+        failQuery = failQuery.or(`auth_user_id.eq.${authUserId},user_email.eq.${userEmail}`);
+      } else if (isUUID) {
+        failQuery = failQuery.or(`auth_user_id.eq.${userEmail},user_email.eq.auth:${userEmail}`);
+      } else {
+        failQuery = failQuery.eq("user_email", userEmail);
+      }
+      await failQuery;
     }
     return { ok: false, record: current.record, error: refreshed.error || "refresh_failed" };
   }
-  const persisted = await persistZohoTokenRefresh(userEmail, product, refreshed);
+  const persisted = await persistZohoTokenRefresh(userEmail, product, refreshed, authUserId);
   if (!persisted.ok) {
     return { ok: false, record: current.record, error: persisted.error || "persist_failed" };
   }
@@ -406,10 +441,12 @@ export async function rotateZohoAccessToken(userEmail: string, product: ZohoProd
 export async function persistZohoTokenRefresh(
   userEmail: string,
   product: ZohoProduct,
-  refreshed: ZohoTokenSet
+  refreshed: ZohoTokenSet,
+  authUserId?: string
 ): Promise<{ ok: boolean; error?: string }> {
   if (!vaultEnabled()) return { ok: false, error: "Token vault not configured" };
-  const { error } = await supabase
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmail);
+  let updateQuery = supabase
     .from("user_integrations")
     .update({
       access_token_encrypted: encryptToken(refreshed.accessToken as string),
@@ -420,9 +457,18 @@ export async function persistZohoTokenRefresh(
       last_error_message: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_email", userEmail)
     .eq("provider", "zoho")
     .eq("product", product);
+
+  if (authUserId && !isUUID) {
+    updateQuery = updateQuery.or(`auth_user_id.eq.${authUserId},user_email.eq.${userEmail}`);
+  } else if (isUUID) {
+    updateQuery = updateQuery.or(`auth_user_id.eq.${userEmail},user_email.eq.auth:${userEmail}`);
+  } else {
+    updateQuery = updateQuery.eq("user_email", userEmail);
+  }
+
+  const { error } = await updateQuery;
   if (error) {
     console.error("[zoho] Failed to persist refreshed token:", error.message);
     return { ok: false, error: error.message };
@@ -430,9 +476,15 @@ export async function persistZohoTokenRefresh(
   return { ok: true };
 }
 
-export async function deleteZohoIntegration(userEmail: string, product?: ZohoProduct): Promise<void> {
+export async function deleteZohoIntegration(userEmailOrAuthId: string, product?: ZohoProduct): Promise<void> {
   if (!vaultEnabled()) return;
-  let query = supabase.from("user_integrations").delete().eq("user_email", userEmail).eq("provider", "zoho");
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmailOrAuthId);
+  let query = supabase.from("user_integrations").delete().eq("provider", "zoho");
+  if (isUUID) {
+    query = query.or(`auth_user_id.eq.${userEmailOrAuthId},user_email.eq.auth:${userEmailOrAuthId}`);
+  } else {
+    query = query.eq("user_email", userEmailOrAuthId);
+  }
   if (product) query = query.eq("product", product);
   await query;
 }
@@ -449,17 +501,19 @@ export const UNKNOWN_EXPIRY_STALENESS_MS = 50 * 60 * 1000;
 
 export async function resolveZohoAccessToken(
   userEmail: string | null | undefined,
-  product: ZohoProduct
+  product: ZohoProduct,
+  authUserId?: string
 ): Promise<{ accessToken: string | null; record: ZohoIntegrationRecord | null }> {
-  if (!userEmail) return { accessToken: null, record: null };
-  const stored = await getFreshZohoIntegration(userEmail, product);
+  if (!userEmail && !authUserId) return { accessToken: null, record: null };
+  const target = userEmail || authUserId || "";
+  const stored = await getFreshZohoIntegration(target, product, authUserId);
   if (stored.ok && stored.record?.accessToken) {
     // Known-expiry tokens are refreshed *before* they lapse when the request
     // arrives inside the freshness window (proactive, no 401 round-trip).
     const expiresAt = stored.record.expiresAt;
     const nearlyExpired = expiresAt != null && expiresAt - Date.now() < TOKEN_FRESHNESS_MARGIN_MS;
     if (nearlyExpired && stored.record.refreshToken) {
-      const rotated = await rotateZohoAccessToken(userEmail, product);
+      const rotated = await rotateZohoAccessToken(target, product, authUserId);
       if (rotated.ok && rotated.record?.accessToken) {
         return { accessToken: rotated.record.accessToken, record: rotated.record };
       }
@@ -467,7 +521,7 @@ export async function resolveZohoAccessToken(
     return { accessToken: stored.record.accessToken, record: stored.record };
   }
   if (stored.record?.refreshToken) {
-    const rotated = await rotateZohoAccessToken(userEmail, product);
+    const rotated = await rotateZohoAccessToken(target, product, authUserId);
     if (rotated.ok && rotated.record?.accessToken) {
       return { accessToken: rotated.record.accessToken, record: rotated.record };
     }

@@ -56,30 +56,30 @@ const CONFIG: Record<
   }
 > = {
   error: {
-    wrapper: "bg-rose-50 border-rose-200",
+    wrapper: "bg-rose-50/80 border-rose-200/80 shadow-2xs backdrop-blur-xs",
     icon: "text-rose-500",
-    title: "text-rose-900",
-    description: "text-rose-700",
+    title: "text-rose-900 font-semibold",
+    description: "text-rose-700/90",
     actionBtn:
-      "bg-white border border-rose-200 text-rose-700 hover:bg-rose-100",
+      "bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 shadow-2xs",
     Icon: WarningCircle,
   },
   warning: {
-    wrapper: "bg-amber-50 border-amber-200",
+    wrapper: "bg-amber-50/70 border-amber-200/70 shadow-2xs backdrop-blur-xs",
     icon: "text-amber-500",
-    title: "text-amber-900",
-    description: "text-amber-700",
+    title: "text-amber-900 font-semibold",
+    description: "text-amber-700/90",
     actionBtn:
-      "bg-white border border-amber-200 text-amber-700 hover:bg-amber-100",
+      "bg-white border border-amber-200 text-amber-800 hover:bg-amber-50 hover:border-amber-300 shadow-2xs",
     Icon: Warning,
   },
   info: {
-    wrapper: "bg-stone-50 border-stone-200",
+    wrapper: "bg-stone-50/80 border-stone-200/80 shadow-2xs backdrop-blur-xs",
     icon: "text-stone-500",
-    title: "text-stone-700",
-    description: "text-stone-500",
+    title: "text-stone-800 font-semibold",
+    description: "text-stone-600",
     actionBtn:
-      "bg-white border border-stone-200 text-stone-600 hover:bg-stone-100",
+      "bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 hover:border-stone-300 shadow-2xs",
     Icon: Info,
   },
 };

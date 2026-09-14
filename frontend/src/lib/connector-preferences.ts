@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { supabase } from "@/lib/supabase";
+import { adminSupabase } from "@/lib/supabase-admin";
 import { CONNECTOR_IDS, type ConnectorId } from "@/lib/entitlements";
 
 export type ConnectorPreferences = Partial<Record<ConnectorId, boolean>>;
@@ -34,14 +35,17 @@ export function isConnectorPaused(prefs: ConnectorPreferences, id: ConnectorId):
 }
 
 /** Reads the user's pause map. Missing column / unconfigured Supabase → empty map. */
-export async function getConnectorPreferences(email: string | null | undefined): Promise<ConnectorPreferences> {
-  if (!email || !isSupabaseConfigured()) return {};
+export async function getConnectorPreferences(emailOrUserId: string | null | undefined): Promise<ConnectorPreferences> {
+  if (!emailOrUserId || !isSupabaseConfigured()) return {};
   try {
-    const { data, error } = await supabase
-      .from("app_users")
-      .select("connector_preferences")
-      .eq("email", email.toLowerCase())
-      .maybeSingle();
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(emailOrUserId);
+    let query = adminSupabase.from("app_users").select("connector_preferences");
+    if (isUUID) {
+      query = query.eq("auth_user_id", emailOrUserId);
+    } else {
+      query = query.eq("email", emailOrUserId.toLowerCase());
+    }
+    const { data, error } = await query.maybeSingle();
     if (error || !data) return {};
     return normalizePrefs(data.connector_preferences);
   } catch {

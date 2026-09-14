@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { ensureAppUser } from "@/lib/entitlements-server";
+import { ensureAppUserByAuthId } from "@/lib/auth-helpers";
+import { adminSupabase } from "@/lib/supabase-admin";
+import { safeReturnTo } from "@/lib/http-utils";
+
+const MS_OAUTH_STATE_COOKIE = "ms_oauth_state";
 
 /**
  * Microsoft 365 OAuth Callback Handler
@@ -17,22 +23,40 @@ export async function GET(request: Request) {
   const errorDescription = searchParams.get('error_description');
   const rawState = searchParams.get('state');
 
-  let tenantId = 'personal';
   let returnTo = '/';
+  let authUserId: string | null = null;
 
+  const host = request.headers.get('host') || 'localhost:3000';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const baseUrl = `${protocol}://${host}`;
+
+  // CSRF: the state payload must carry the nonce issued (as a cookie) at
+  // connect time, and the cookie value must match. Without this check an
+  // attacker could forge a callback that links THEIR Microsoft account to the
+  // victim's Prism session (account-linking CSRF).
+  const cookieStore = await cookies();
+  const issuedNonce = cookieStore.get(MS_OAUTH_STATE_COOKIE)?.value || "";
+
+  let stateNonce: string | null = null;
   if (rawState) {
     try {
       const decoded = JSON.parse(Buffer.from(rawState, 'base64').toString('utf-8'));
-      tenantId = decoded.tenantId || tenantId;
-      returnTo = decoded.returnTo || returnTo;
+      returnTo = safeReturnTo(decoded.returnTo, returnTo);
+      authUserId = decoded.authUserId || null;
+      stateNonce = typeof decoded.nonce === 'string' ? decoded.nonce : null;
     } catch {
       // Use defaults if decoding fails
     }
   }
 
-  const host = request.headers.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const baseUrl = `${protocol}://${host}`;
+  const stateValid =
+    Boolean(issuedNonce) &&
+    Boolean(stateNonce) &&
+    issuedNonce.length === stateNonce!.length &&
+    [...issuedNonce].every((ch, i) => ch === stateNonce![i]);
+  if (!stateValid) {
+    return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=state_mismatch`);
+  }
 
   if (searchParams.get('admin_consent') === 'True') {
     return NextResponse.redirect(`${baseUrl}${returnTo}?admin_consent_granted=1`);
@@ -56,9 +80,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${baseUrl}${returnTo}?auth_error=missing_authorization_code`);
   }
 
-  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
+  const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || '';
   const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET || '';
-  const REDIRECT_URI = process.env.AZURE_REDIRECT_URI || `${baseUrl}/api/integrations/microsoft/callback`;
+  const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+  const REDIRECT_URI =
+    isLocal && !process.env.AZURE_REDIRECT_URI?.includes("localhost")
+      ? `http://${host}/api/integrations/microsoft/callback`
+      : process.env.AZURE_REDIRECT_URI || `${baseUrl}/api/integrations/microsoft/callback`;
 
   try {
     let userEmail = '';
@@ -90,7 +118,7 @@ export async function GET(request: Request) {
       }
 
       tokenData = await tokenResponse.json();
-      console.log(`Successfully acquired tokens for tenant: ${tenantId}`);
+      console.log('Successfully acquired tokens for Microsoft account');
 
       if (tokenData.access_token) {
         // Query Microsoft Graph /v1.0/me to get the authenticated user's profile
@@ -133,7 +161,26 @@ export async function GET(request: Request) {
           try {
             await ensureAppUser({ email: userEmail, displayName: userName || null, m365UserId: m365UserId || null });
           } catch (userErr) {
-            console.warn('App user upsert failed:', userErr);
+            console.warn('App user upsert (email-based) failed:', userErr);
+          }
+        }
+
+        // If we have an authenticated Prism user, persist tokens to their encrypted vault
+        if (authUserId && userEmail && tokenData.access_token) {
+          try {
+            const { upsertMicrosoftIntegration } = await import('@/lib/microsoft-vault');
+            await upsertMicrosoftIntegration({
+              authUserId,
+              userEmail,
+              displayName: userName || null,
+              m365UserId: m365UserId || null,
+              accessToken: tokenData.access_token,
+              refreshToken: tokenData.refresh_token || null,
+              expiresIn: tokenData.expires_in || 3600,
+              scopes: tokenData.scope ? tokenData.scope.split(' ') : [],
+            });
+          } catch (authLinkErr) {
+            console.warn('Auth user link failed (non-fatal):', authLinkErr);
           }
         }
       }
@@ -152,37 +199,24 @@ export async function GET(request: Request) {
 
     const response = NextResponse.redirect(redirectUrl.toString());
 
-    // Securely set session cookies with the authenticated user's live tokens
+    // One-time CSRF nonce — consumed.
+    response.cookies.set(MS_OAUTH_STATE_COOKIE, "", { path: "/", maxAge: 0 });
+
+    // Explicitly delete/expire any legacy token cookies so they never leak across users
+    ['ms_access_token', 'ms_refresh_token', 'ms_token_expires_at'].forEach((name) => {
+      response.cookies.set({
+        name,
+        value: '',
+        path: '/',
+        maxAge: 0,
+        expires: new Date(0),
+      });
+    });
+
+    // Set ONLY non-sensitive identity metadata cookies for UI display
     if (tokenData?.access_token) {
       const isProd = process.env.NODE_ENV === 'production';
       const maxAge = 60 * 60 * 24 * 30; // 30 days
-
-      response.cookies.set('ms_access_token', tokenData.access_token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: tokenData.expires_in || 3600
-      });
-
-      if (tokenData.refresh_token) {
-        response.cookies.set('ms_refresh_token', tokenData.refresh_token, {
-          httpOnly: true,
-          secure: isProd,
-          sameSite: 'lax',
-          path: '/',
-          maxAge
-        });
-      }
-
-      const expiresAt = Date.now() + ((tokenData.expires_in || 3600) * 1000);
-      response.cookies.set('ms_token_expires_at', expiresAt.toString(), {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge
-      });
 
       if (userEmail) {
         response.cookies.set('ms_user_email', userEmail, {

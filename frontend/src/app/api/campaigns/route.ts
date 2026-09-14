@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
+import { requireAuth, ensurePersonalOrg } from "@/lib/auth-helpers";
 import { requireConnectorAccess } from "@/lib/entitlements";
 import { getConnectorPreferences, isConnectorPaused } from "@/lib/connector-preferences";
 
@@ -9,11 +10,43 @@ export const dynamic = "force-dynamic";
 const PAUSED_ZOHO_MESSAGE =
   "You have paused the Zoho connection. Please go to the Connections page and turn it on.";
 
-/** Reads the current user's server-side pause map from the session cookie. */
-async function currentUserPausedMap() {
-  const cookieStore = await cookies();
-  const email = cookieStore.get("ms_user_email")?.value || null;
-  return getConnectorPreferences(email);
+const N8N_ZOHO_SYNC_WEBHOOK = process.env.N8N_ZOHO_SYNC_WEBHOOK || "";
+const N8N_ZOHO_DELETE_WEBHOOK = process.env.N8N_ZOHO_DELETE_WEBHOOK || "";
+const N8N_ZOHO_UPDATE_WEBHOOK = process.env.N8N_ZOHO_UPDATE_WEBHOOK || "";
+const N8N_ZOHO_TASK_UPDATE_WEBHOOK = process.env.N8N_ZOHO_TASK_UPDATE_WEBHOOK || "";
+
+/** Reads the current user's server-side pause map (identity: auth user id). */
+async function currentUserPausedMap(userEmailOrId: string | null) {
+  return getConnectorPreferences(userEmailOrId);
+}
+
+/**
+ * Resolves the effective active organization ID for this user.
+ * 1. Checks explicit orgId from x-active-org-id header.
+ * 2. If null, queries the user's first membership in organization_members.
+ * 3. If none exists, lazily provisions their personal workspace.
+ */
+async function resolveEffectiveOrgId(
+  user: { id: string; email?: string | null; user_metadata?: any },
+  headerOrgId: string | null
+): Promise<string | null> {
+  if (headerOrgId) return headerOrgId;
+
+  const { data: memberRows } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (memberRows && memberRows.length > 0) {
+    return memberRows[0].organization_id;
+  }
+
+  return await ensurePersonalOrg(
+    user.id,
+    user.user_metadata?.full_name || user.email?.split("@")[0] || "Personal"
+  );
 }
 
 /**
@@ -27,10 +60,21 @@ async function auditWrite(opts: {
   payloadSummary?: Record<string, unknown>;
   outcome?: "success" | "failure" | "refused";
   metadata?: Record<string, unknown>;
+  orgId?: string | null;
+  userId?: string | null;
 }) {
   try {
-    const cookieStore = await cookies();
-    const actorEmail = cookieStore.get("ms_user_email")?.value || null;
+    // Resolve the actor from the authenticated app_users row, never from the
+    // client-editable ms_user_email cookie (spoofable audit identity).
+    let actorEmail: string | null = null;
+    if (opts.userId) {
+      const { data: profile } = await supabase
+        .from("app_users")
+        .select("email")
+        .eq("auth_user_id", opts.userId)
+        .maybeSingle();
+      actorEmail = profile?.email ?? null;
+    }
     await supabase.from("agent_audit_logs").insert({
       actor_email: actorEmail,
       action: opts.action,
@@ -39,6 +83,8 @@ async function auditWrite(opts: {
       payload_summary: opts.payloadSummary || null,
       outcome: opts.outcome || "success",
       metadata: opts.metadata || null,
+      organization_id: opts.orgId || null,
+      user_id: opts.userId || null,
     });
   } catch (err) {
     console.warn("[audit] Failed to record write action:", err);
@@ -82,28 +128,27 @@ export async function checkZohoBooksContact(client: string): Promise<{
   const normClient = String(client || '').trim().toLowerCase();
 
   // Live lookup via n8n webhook
-  try {
-    const N8N_ZOHO_SYNC_WEBHOOK =
-      process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-      "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
-    const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "check_books_contact", client }),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.exists && data.contact) {
-        return {
-          exists: true,
-          contact: data.contact,
-          suggestedName: data.contact.contactName,
-        };
+  if (N8N_ZOHO_SYNC_WEBHOOK) {
+    try {
+      const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check_books_contact", client }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.exists && data.contact) {
+          return {
+            exists: true,
+            contact: data.contact,
+            suggestedName: data.contact.contactName,
+          };
+        }
       }
+    } catch (e) {
+      console.warn("[checkZohoBooksContact] Live check failed:", e);
     }
-  } catch (e) {
-    console.warn("[checkZohoBooksContact] Live check failed:", e);
   }
 
   return {
@@ -119,13 +164,10 @@ export async function createZohoBooksContact(client: string, companyName?: strin
   companyName?: string;
   error?: string;
 }> {
-  const N8N_ZOHO_SYNC_WEBHOOK =
-    process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-    "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
-
-  try {
-    const contactName = companyName ? `${client} (${companyName})` : `${client} India`;
-    const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
+  if (N8N_ZOHO_SYNC_WEBHOOK) {
+    try {
+      const contactName = companyName ? `${client} (${companyName})` : `${client} India`;
+      const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -149,10 +191,12 @@ export async function createZohoBooksContact(client: string, companyName?: strin
       }
       return { success: false, error: data.message || "Failed to create contact in Zoho Books" };
     }
-    return { success: false, error: `Webhook returned status ${res.status}` };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
   }
+
+  return { success: false, error: "Zoho sync webhook not configured" };
 }
 
 async function syncCampaignToZohoCRM(
@@ -164,9 +208,9 @@ async function syncCampaignToZohoCRM(
   tasks: AspectTask[],
   booksCustomerId?: string | null
 ): Promise<{ dealId: string | null; dealUrl: string | null; invoiceId: string | null; invoiceUrl: string | null; projectId: string | null; projectUrl: string | null; writeStatus: string }> {
-  const N8N_ZOHO_SYNC_WEBHOOK =
-    process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-    "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
+  if (!N8N_ZOHO_SYNC_WEBHOOK) {
+    return { dealId: null, dealUrl: null, invoiceId: null, invoiceUrl: null, projectId: null, projectUrl: null, writeStatus: "NO_WEBHOOK_CONFIGURED" };
+  }
 
   const taskSummary = tasks
     .map((t, i) => `${i + 1}. [${t.aspect.toUpperCase()}] ${t.title}, Owner: ${t.assignee}, TAT: ${t.tat}, Urgency: ${t.urgency}`)
@@ -239,6 +283,7 @@ async function syncCampaignToZohoCRM(
 function rowToCampaign(row: any): Campaign {
   return {
     id: row.id,
+    organizationId: row.organization_id,
     name: row.name,
     client: row.client,
     category: row.category || "FMCG",
@@ -280,16 +325,75 @@ function rowToCampaign(row: any): Campaign {
 // ---------------------------------------------------------------------------
 // Reconcile Zoho CRM with Supabase (Single source of truth)
 // ---------------------------------------------------------------------------
-export async function reconcileZohoCRMWithSupabase(): Promise<{
+export async function reconcileZohoCRMWithSupabase(
+  orgId?: string,
+  userId?: string,
+  userEmail?: string
+): Promise<{
   campaigns: Campaign[];
   validated: number;
   deleted: number;
   updated: number;
   reset: number;
 }> {
-  const N8N_ZOHO_SYNC_WEBHOOK =
-    process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-    "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
+  if (!orgId) {
+    return { campaigns: [], validated: 0, deleted: 0, updated: 0, reset: 0 };
+  }
+
+  // Check if Zoho CRM is connected for this user / org
+  let hasZoho = false;
+  if (userId) {
+    const { data: userInteg } = await supabase
+      .from("user_integrations")
+      .select("id, status")
+      .eq("auth_user_id", userId)
+      .eq("provider", "zoho")
+      .eq("product", "crm")
+      .maybeSingle();
+    hasZoho = userInteg?.status === "active";
+  }
+
+  if (!hasZoho) {
+    const { data: tenantInteg } = await supabase
+      .from("tenant_integrations")
+      .select("id, status")
+      .eq("organization_id", orgId)
+      .eq("provider", "zoho")
+      .maybeSingle();
+    hasZoho = tenantInteg?.status === "active";
+  }
+
+  // If Zoho CRM is NOT connected for this organization, DO NOT sync from external webhook!
+  // Return the organization's existing campaigns from Supabase.
+  if (!hasZoho) {
+    const { data: orgCampaigns } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false });
+    return {
+      campaigns: (orgCampaigns || []).map(rowToCampaign),
+      validated: orgCampaigns?.length || 0,
+      deleted: 0,
+      updated: 0,
+      reset: 0,
+    };
+  }
+
+  if (!N8N_ZOHO_SYNC_WEBHOOK) {
+    const { data: orgCampaigns } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false });
+    return {
+      campaigns: (orgCampaigns || []).map(rowToCampaign),
+      validated: orgCampaigns?.length || 0,
+      deleted: 0,
+      updated: 0,
+      reset: 0,
+    };
+  }
 
   try {
     const listRes = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
@@ -308,7 +412,10 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
       );
       const liveDealMap = new Map(liveDeals.map((d) => [String(d.id), d]));
 
-      const { data: allCampaigns } = await supabase.from("campaigns").select("*");
+      const { data: allCampaigns } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("organization_id", orgId);
       const existing = allCampaigns || [];
 
       let deletedCount = 0;
@@ -316,13 +423,12 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
       const claimedDealIds = new Set<string>();
 
       // Native Zoho CRM Campaign module IDs that must always be preserved
-      const nativeZohoCampaignIds = new Set([
-        "1418411000000549005",
-        "1418411000000549004",
-        "1418411000000549003",
-        "1418411000000549002",
-        "1418411000000549001",
-      ]);
+      const nativeZohoCampaignIds = new Set(
+        (process.env.NATIVE_ZOHO_CAMPAIGN_IDS || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
 
       for (const camp of existing) {
         // Approval gate: drafts were never pushed to Zoho and must never be auto-linked
@@ -341,21 +447,24 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
           if (liveDealIds.size > 0 && !liveDealIds.has(dealIdStr)) {
             // Deal was DELETED in Zoho CRM, cascade cleanup in Projects and Books
             console.log(`[reconcile] Zoho deal ${dealIdStr} was deleted in CRM. Cleaning up Projects, Books & Supabase for ${camp.name} (${camp.id})`);
-            const N8N_ZOHO_DELETE_WEBHOOK =
-              process.env.N8N_ZOHO_DELETE_WEBHOOK ||
-              "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-delete-zoho-resources";
-            await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                dealId: dealIdStr,
-                projectId: camp.zoho_project_id,
-                invoiceId: camp.zoho_books_invoice_id,
-                campaignName: camp.name,
-              }),
-              signal: AbortSignal.timeout(8000),
-            }).catch(() => {});
-            await supabase.from("campaigns").delete().eq("id", camp.id);
+            if (N8N_ZOHO_DELETE_WEBHOOK) {
+              await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  dealId: dealIdStr,
+                  projectId: camp.zoho_project_id,
+                  invoiceId: camp.zoho_books_invoice_id,
+                  campaignName: camp.name,
+                }),
+                signal: AbortSignal.timeout(8000),
+              }).catch(() => {});
+            }
+            await supabase
+              .from("campaigns")
+              .delete()
+              .eq("id", camp.id)
+              .eq("organization_id", orgId);
             deletedCount++;
           } else {
             claimedDealIds.add(dealIdStr);
@@ -376,7 +485,11 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
                 updates.budget = formatted;
               }
             }
-            await supabase.from("campaigns").update(updates).eq("id", camp.id);
+            await supabase
+              .from("campaigns")
+              .update(updates)
+              .eq("id", camp.id)
+              .eq("organization_id", orgId);
             updatedCount++;
           }
         } else {
@@ -395,7 +508,8 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
                 zoho_sync_status: "synced",
                 last_zoho_sync: new Date().toISOString(),
               })
-              .eq("id", camp.id);
+              .eq("id", camp.id)
+              .eq("organization_id", orgId);
             updatedCount++;
           }
         }
@@ -411,6 +525,8 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
             client: "Enterprise Client",
           });
           await supabase.from("campaigns").insert({
+            organization_id: orgId,
+            created_by: userId || null,
             name: liveDeal.name || "Zoho Campaign Deal",
             client: "Enterprise Client",
             category: "FMCG",
@@ -437,6 +553,7 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
       const { data: refreshedRows } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
 
       return {
@@ -454,6 +571,7 @@ export async function reconcileZohoCRMWithSupabase(): Promise<{
   const { data: fallbackRows } = await supabase
     .from("campaigns")
     .select("*")
+    .eq("organization_id", orgId)
     .order("created_at", { ascending: false });
 
   return {
@@ -497,8 +615,17 @@ export async function GET(request: NextRequest) {
   const name = searchParams.get("name");
   const sync = searchParams.get("sync");
 
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+  const { user, orgId, userEmail } = auth;
+
+  const effectiveOrgId = await resolveEffectiveOrgId(user, orgId);
+  if (!effectiveOrgId) {
+    return NextResponse.json({ campaigns: [] });
+  }
+
   if (sync === "true") {
-    const syncResult = await reconcileZohoCRMWithSupabase();
+    const syncResult = await reconcileZohoCRMWithSupabase(effectiveOrgId, user.id, userEmail ?? undefined);
     return NextResponse.json({ campaigns: syncResult.campaigns, validated: syncResult.validated });
   }
 
@@ -506,6 +633,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from("campaigns")
       .select("*")
+      .eq("organization_id", effectiveOrgId)
       .eq("name", name)
       .eq("status", "live")
       .limit(1)
@@ -520,13 +648,23 @@ export async function GET(request: NextRequest) {
   }
 
   if (action === "get_campaign" && id) {
-    const { data } = await supabase.from("campaigns").select("*").eq("id", id).maybeSingle();
+    const { data } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("id", id)
+      .eq("organization_id", effectiveOrgId)
+      .maybeSingle();
     if (!data) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     return NextResponse.json({ campaign: rowToCampaign(data) });
   }
 
   if (action === "read_zoho_tasks" && id) {
-    const { data } = await supabase.from("campaigns").select("*").eq("id", id).maybeSingle();
+    const { data } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("id", id)
+      .eq("organization_id", effectiveOrgId)
+      .maybeSingle();
     if (!data) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     const campaign = rowToCampaign(data);
 
@@ -551,6 +689,7 @@ export async function GET(request: NextRequest) {
   const { data: supabaseRows, error } = await supabase
     .from("campaigns")
     .select("*")
+    .eq("organization_id", effectiveOrgId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -567,6 +706,15 @@ export async function GET(request: NextRequest) {
 // ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const { user, orgId, userEmail } = auth;
+
+    const effectiveOrgId = await resolveEffectiveOrgId(user, orgId);
+    if (!effectiveOrgId) {
+      return NextResponse.json({ error: "No organization found" }, { status: 400 });
+    }
+
     const body = await request.json();
     const { action } = body;
 
@@ -576,7 +724,7 @@ export async function POST(request: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: "Client is required" }, { status: 400 });
       }
-      const prefs = await currentUserPausedMap();
+      const prefs = await currentUserPausedMap(userEmail ?? user.id);
       if (isConnectorPaused(prefs, "zoho.books")) {
         return NextResponse.json({ success: false, paused: true, error: PAUSED_ZOHO_MESSAGE, reason: "connector_paused" }, { status: 403 });
       }
@@ -590,7 +738,7 @@ export async function POST(request: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: "Client is required" }, { status: 400 });
       }
-      const prefs = await currentUserPausedMap();
+      const prefs = await currentUserPausedMap(userEmail ?? user.id);
       if (isConnectorPaused(prefs, "zoho.books")) {
         return NextResponse.json({ success: false, paused: true, error: PAUSED_ZOHO_MESSAGE, reason: "connector_paused" }, { status: 403 });
       }
@@ -620,14 +768,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 1. Update existing row if we have an id or a name match (avoid duplicates)
+      // 1. Update existing row if we have an id or a name match within this organization (avoid duplicates)
       let targetRow: any = null;
       if (body.campaignId) {
-        const { data } = await supabase.from("campaigns").select("*").eq("id", body.campaignId).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("id", body.campaignId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         targetRow = data;
       }
       if (!targetRow && campaignData.name) {
-        const { data } = await supabase.from("campaigns").select("*").ilike("name", campaignData.name.trim()).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .ilike("name", campaignData.name.trim())
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         targetRow = data;
       }
 
@@ -650,11 +808,14 @@ export async function POST(request: NextRequest) {
             zoho_sync_status: "pending",
             books_customer_id: booksCustomerId || targetRow.books_customer_id || null,
           })
-          .eq("id", targetRow.id);
+          .eq("id", targetRow.id)
+          .eq("organization_id", effectiveOrgId);
       } else {
         const { data: insertedRow, error: insertError } = await supabase
           .from("campaigns")
           .insert({
+            organization_id: effectiveOrgId,
+            created_by: user.id,
             name: campaignData.name,
             client: campaignData.client,
             category: campaignData.category || "FMCG",
@@ -704,7 +865,12 @@ export async function POST(request: NextRequest) {
       const { campaignId } = body;
       if (!campaignId) return NextResponse.json({ error: "campaignId required" }, { status: 400 });
 
-      const { data: camp } = await supabase.from("campaigns").select("*").eq("id", campaignId).maybeSingle();
+      const { data: camp } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("id", campaignId)
+        .eq("organization_id", effectiveOrgId)
+        .maybeSingle();
       if (!camp) {
         return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
       }
@@ -720,7 +886,11 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { error: deleteError } = await supabase.from("campaigns").delete().eq("id", campaignId);
+      const { error: deleteError } = await supabase
+        .from("campaigns")
+        .delete()
+        .eq("id", campaignId)
+        .eq("organization_id", effectiveOrgId);
       if (deleteError) {
         console.error("[discard_draft] Supabase delete error:", deleteError);
         return NextResponse.json({ error: "Failed to discard draft" }, { status: 500 });
@@ -779,7 +949,7 @@ export async function POST(request: NextRequest) {
     if (action === "approve_and_push_zoho") {
       // Pause gate first: a paused Zoho connection must never be written to,
       // even when the entitlement itself is fine.
-      const prefs = await currentUserPausedMap();
+      const prefs = await currentUserPausedMap(userEmail ?? user.id);
       const zohoPaused =
         isConnectorPaused(prefs, "zoho.crm") ||
         isConnectorPaused(prefs, "zoho.projects") ||
@@ -820,11 +990,21 @@ export async function POST(request: NextRequest) {
       // (Prevents duplicate Deals / Projects / Invoices when a draft is approved twice.)
       let existingRow: any = null;
       if (body.campaignId) {
-        const { data } = await supabase.from("campaigns").select("*").eq("id", body.campaignId).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("id", body.campaignId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         existingRow = data;
       }
       if (!existingRow && campaignData.name) {
-        const { data } = await supabase.from("campaigns").select("*").ilike("name", campaignData.name.trim()).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .ilike("name", campaignData.name.trim())
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         existingRow = data;
       }
       const isFullyProvisioned = Boolean(
@@ -844,13 +1024,16 @@ export async function POST(request: NextRequest) {
             code_volume: campaignData.codeVolume || existingRow.code_volume,
             status: "live",
           })
-          .eq("id", existingRow.id);
+          .eq("id", existingRow.id)
+          .eq("organization_id", effectiveOrgId);
         const mergedRow = { ...existingRow, tasks: resolvedTasks, status: "live", aspect_summary: buildAspectSummary(resolvedTasks) };
         await auditWrite({
           action: "approve_and_push_zoho",
           targetType: "campaign",
           targetId: existingRow.id,
           payloadSummary: { name: campaignData.name, client: campaignData.client, alreadySynced: true },
+          orgId: effectiveOrgId,
+          userId: user.id,
         });
         return NextResponse.json({
           success: true,
@@ -895,7 +1078,7 @@ export async function POST(request: NextRequest) {
           if (created.success && created.contactId) {
             booksCustomerId = created.contactId;
           } else {
-            booksCustomerId = "4157605000000113019";
+            booksCustomerId = process.env.ZOHO_BOOKS_DEFAULT_CUSTOMER_ID || null;
           }
         }
       }
@@ -903,11 +1086,21 @@ export async function POST(request: NextRequest) {
       // 1. Check if an existing row exists for this campaign (or insert new)
       let targetRow: any = null;
       if (body.campaignId) {
-        const { data } = await supabase.from("campaigns").select("*").eq("id", body.campaignId).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("id", body.campaignId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         targetRow = data;
       }
       if (!targetRow && campaignData.name) {
-        const { data } = await supabase.from("campaigns").select("*").ilike("name", campaignData.name.trim()).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .ilike("name", campaignData.name.trim())
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         targetRow = data;
       }
 
@@ -926,11 +1119,17 @@ export async function POST(request: NextRequest) {
           approved_by: "Rohit Sharma (Admin)",
         };
         if (booksCustomerId) updateExisting.books_customer_id = booksCustomerId;
-        await supabase.from("campaigns").update(updateExisting).eq("id", campaignId);
+        await supabase
+          .from("campaigns")
+          .update(updateExisting)
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId);
       } else {
         const { data: insertedRow, error: insertError } = await supabase
           .from("campaigns")
           .insert({
+            organization_id: effectiveOrgId,
+            created_by: user.id,
             name: campaignData.name,
             client: campaignData.client,
             category: campaignData.category || "FMCG",
@@ -980,33 +1179,31 @@ export async function POST(request: NextRequest) {
 
       if (allResourcesExist) {
         // Record already exists across Zoho CRM, Projects, and Books: Update existing resources
-        const N8N_ZOHO_UPDATE_WEBHOOK =
-          process.env.N8N_ZOHO_UPDATE_WEBHOOK ||
-          "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-update-resources";
+        if (N8N_ZOHO_UPDATE_WEBHOOK) {
+          const numericAmount = parseFloat(String(campaignData.budget || targetRow.budget || "0").replace(/[^0-9.]/g, "")) || 0;
+          const taskSummary = resolvedTasks
+            .map((t: any, i: number) => `${i + 1}. [${(t.aspect || "").toUpperCase()}] ${t.title || t.name}, Owner: ${t.assignee || "TBD"}, TAT: ${t.tat || "2 Days"}, Urgency: ${t.urgency || "HIGH"}`)
+            .join("\n");
 
-        const numericAmount = parseFloat(String(campaignData.budget || targetRow.budget || "0").replace(/[^0-9.]/g, "")) || 0;
-        const taskSummary = resolvedTasks
-          .map((t: any, i: number) => `${i + 1}. [${(t.aspect || "").toUpperCase()}] ${t.title || t.name}, Owner: ${t.assignee || "TBD"}, TAT: ${t.tat || "2 Days"}, Urgency: ${t.urgency || "HIGH"}`)
-          .join("\n");
-
-        await fetch(N8N_ZOHO_UPDATE_WEBHOOK, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dealId,
-            projectId,
-            invoiceId,
-            customerId: booksCustomerId || targetRow.books_customer_id,
-            client: campaignData.client || targetRow.client,
-            campaignName: campaignData.name || targetRow.name,
-            amount: numericAmount,
-            budget: campaignData.budget || targetRow.budget,
-            rewardType: campaignData.rewardType || targetRow.reward_type,
-            tasks: resolvedTasks,
-            taskSummary,
-          }),
-          signal: AbortSignal.timeout(12000),
-        }).catch((err) => console.warn("[approve_and_push_zoho] Update webhook failed:", err));
+          await fetch(N8N_ZOHO_UPDATE_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dealId,
+              projectId,
+              invoiceId,
+              customerId: booksCustomerId || targetRow.books_customer_id,
+              client: campaignData.client || targetRow.client,
+              campaignName: campaignData.name || targetRow.name,
+              amount: numericAmount,
+              budget: campaignData.budget || targetRow.budget,
+              rewardType: campaignData.rewardType || targetRow.reward_type,
+              tasks: resolvedTasks,
+              taskSummary,
+            }),
+            signal: AbortSignal.timeout(12000),
+          }).catch((err) => console.warn("[approve_and_push_zoho] Update webhook failed:", err));
+        }
 
         await supabase
           .from("campaigns")
@@ -1014,31 +1211,29 @@ export async function POST(request: NextRequest) {
             last_zoho_sync: now,
             zoho_sync_status: "synced",
           })
-          .eq("id", campaignId);
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId);
       } else if (dealId && (!projectId || !invoiceId)) {
         // Deal already exists in Zoho CRM, but missing Zoho Projects Project or Zoho Books Invoice!
         // Call sync_missing_products to provision missing resources without duplicate deal:
-        const N8N_ZOHO_SYNC_WEBHOOK =
-          process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-          "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
-
-        try {
-          const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "sync_missing_products",
-              dealId,
-              campaignId,
-              campaignName: campaignData.name || targetRow?.name,
-              client: campaignData.client || targetRow?.client,
-              budget: campaignData.budget || targetRow?.budget,
-              codeVolume: campaignData.codeVolume || targetRow?.code_volume,
-              booksCustomerId: booksCustomerId || targetRow?.books_customer_id || "4157605000000113019",
-              tasks: resolvedTasks,
-            }),
-            signal: AbortSignal.timeout(20000),
-          });
+        if (N8N_ZOHO_SYNC_WEBHOOK) {
+          try {
+            const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "sync_missing_products",
+                dealId,
+                campaignId,
+                campaignName: campaignData.name || targetRow?.name,
+                client: campaignData.client || targetRow?.client,
+                budget: campaignData.budget || targetRow?.budget,
+                codeVolume: campaignData.codeVolume || targetRow?.code_volume,
+                booksCustomerId: booksCustomerId || targetRow?.books_customer_id || process.env.ZOHO_BOOKS_DEFAULT_CUSTOMER_ID || "",
+                tasks: resolvedTasks,
+              }),
+              signal: AbortSignal.timeout(20000),
+            });
 
           if (res.ok) {
             const body = await res.json().catch(() => ({}));
@@ -1049,7 +1244,8 @@ export async function POST(request: NextRequest) {
         } catch (e) {
           console.error("[approve_and_push_zoho] Sync missing products failed:", e);
         }
-      } else {
+      }
+    } else {
         // Missing ANY resource (Deal, Project, or Invoice):
         // Trigger full ingestion to provision missing Zoho CRM deal, Zoho Projects project, and Zoho Books invoice!
         const syncRes = await syncCampaignToZohoCRM(
@@ -1076,6 +1272,7 @@ export async function POST(request: NextRequest) {
             .from("campaigns")
             .select("*")
             .eq("id", campaignId)
+            .eq("organization_id", effectiveOrgId)
             .maybeSingle();
 
           if (refreshedRow) {
@@ -1114,7 +1311,8 @@ export async function POST(request: NextRequest) {
           await supabase
             .from("campaigns")
             .update(updatePayload)
-            .eq("id", campaignId);
+            .eq("id", campaignId)
+            .eq("organization_id", effectiveOrgId);
 
           if (targetRow) {
             Object.assign(targetRow, updatePayload);
@@ -1122,10 +1320,7 @@ export async function POST(request: NextRequest) {
         }
 
       // 4. Fallback: if initial webhook didn't return dealId, fire background re-sync with campaignId
-      if (!dealId && targetRow?.id) {
-        const N8N_ZOHO_SYNC_WEBHOOK =
-          process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-          "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
+      if (!dealId && targetRow?.id && N8N_ZOHO_SYNC_WEBHOOK) {
         fetch(N8N_ZOHO_SYNC_WEBHOOK, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1196,6 +1391,8 @@ export async function POST(request: NextRequest) {
           invoiceId: invoiceId || null,
           writeStatus,
         },
+        orgId: effectiveOrgId,
+        userId: user.id,
       });
 
       return NextResponse.json({
@@ -1244,11 +1441,21 @@ export async function POST(request: NextRequest) {
 
       let campaignRow: any = null;
       if (campaignId) {
-        const { data } = await supabase.from("campaigns").select("id, status, tasks").eq("id", campaignId).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("id, status, tasks")
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         campaignRow = data;
       }
       if (!campaignRow && campaignName) {
-        const { data } = await supabase.from("campaigns").select("id, status, tasks").eq("name", campaignName).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("id, status, tasks")
+          .eq("name", campaignName)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         campaignRow = data;
       }
 
@@ -1280,19 +1487,21 @@ export async function POST(request: NextRequest) {
       await supabase
         .from("campaigns")
         .update(updatePayload)
-        .eq("id", campaignRow.id);
+        .eq("id", campaignRow.id)
+        .eq("organization_id", effectiveOrgId);
 
       await auditWrite({
         action: "update_zoho_task",
         targetType: "campaign_task",
         targetId: taskId,
         payloadSummary: { campaignId: campaignRow.id, newStatus, isDraft },
+        orgId: effectiveOrgId,
+        userId: user.id,
       });
 
       // Approval gate: DRAFT tasks have no Zoho CRM record, skip webhook entirely.
-      if (!isDraft && task.zohoCrmTaskId) {
+      if (!isDraft && task.zohoCrmTaskId && N8N_ZOHO_TASK_UPDATE_WEBHOOK) {
         try {
-          const N8N_ZOHO_TASK_UPDATE_WEBHOOK = process.env.N8N_ZOHO_TASK_UPDATE_WEBHOOK || "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-update";
           await fetch(N8N_ZOHO_TASK_UPDATE_WEBHOOK, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1338,7 +1547,7 @@ export async function POST(request: NextRequest) {
       // Pause gate: this action re-fires the Zoho sync webhook for live
       // campaigns. Local (draft) saves stay allowed; live Zoho writes don't.
       {
-        const prefs = await currentUserPausedMap();
+        const prefs = await currentUserPausedMap(userEmail ?? user.id);
         if (isConnectorPaused(prefs, "zoho.crm")) {
           return NextResponse.json(
             { success: false, paused: true, error: PAUSED_ZOHO_MESSAGE, reason: "connector_paused" },
@@ -1355,7 +1564,12 @@ export async function POST(request: NextRequest) {
 
       let resolvedStatus: string | null = null;
       if (campaignId) {
-        const { data: row } = await supabase.from("campaigns").select("*").eq("id", campaignId).maybeSingle();
+        const { data: row } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         if (row) {
           resolvedCampaignName = row.name;
           resolvedClient = row.client || "";
@@ -1370,9 +1584,18 @@ export async function POST(request: NextRequest) {
         if (resolvedStatus !== "draft") {
           updatePayload.last_zoho_sync = now;
         }
-        await supabase.from("campaigns").update(updatePayload).eq("id", campaignId);
+        await supabase
+          .from("campaigns")
+          .update(updatePayload)
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId);
       } else if (campaignName) {
-        const { data: row } = await supabase.from("campaigns").select("*").eq("name", campaignName).maybeSingle();
+        const { data: row } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("name", campaignName)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         if (row) {
           resolvedCampaignId = row.id;
           resolvedCampaignName = row.name;
@@ -1388,7 +1611,11 @@ export async function POST(request: NextRequest) {
         if (resolvedStatus !== "draft") {
           updatePayload.last_zoho_sync = now;
         }
-        await supabase.from("campaigns").update(updatePayload).eq("name", campaignName);
+        await supabase
+          .from("campaigns")
+          .update(updatePayload)
+          .eq("name", campaignName)
+          .eq("organization_id", effectiveOrgId);
       }
 
       // If campaign is pending Zoho sync, re-fire the n8n webhook with campaignId
@@ -1398,73 +1625,73 @@ export async function POST(request: NextRequest) {
           // Check if campaign still has no deal ID
           const { data: checkRow } = await supabase
             .from("campaigns")
-            .select("zoho_crm_deal_id")
+            .select("zoho_crm_deal_id, zoho_project_id")
             .eq("id", resolvedCampaignId)
+            .eq("organization_id", effectiveOrgId)
             .maybeSingle();
 
           if (!checkRow?.zoho_crm_deal_id) {
-            const N8N_ZOHO_SYNC_WEBHOOK =
-              process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-              "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
-            try {
-              const syncRes = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  action: "approve_and_sync",
-                  campaignId: resolvedCampaignId,
-                  campaignName: resolvedCampaignName,
-                  client: resolvedClient,
-                  budget: resolvedBudget,
-                  codeVolume: resolvedCodeVolume,
-                  is_approved_by_manager: true,
-                  tasks: tasks || [],
-                }),
-                signal: AbortSignal.timeout(15000),
-              });
-              if (syncRes.ok) {
-                const syncData = (await syncRes.json().catch(() => ({}))) as Record<string, any>;
-                const dealId = syncData?.id || syncData?.deal_id;
-                if (dealId) {
-                  await supabase
-                    .from("campaigns")
-                    .update({
-                      zoho_crm_deal_id: String(dealId),
-                      zoho_crm_deal_url: `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}`,
-                      zoho_crm_deal_stage: "Qualification",
-                      zoho_books_invoice_id: syncData.invoice_id || null,
-                      zoho_books_invoice_url: syncData.invoice_id ? `https://books.zoho.in/app#/invoices/${syncData.invoice_id}` : null,
-                      zoho_project_id: syncData.project_id || null,
-                      zoho_project_url: syncData.project_id ? `https://projects.zoho.in/portal/enlightlabdotcom#project/${syncData.project_id}` : null,
-                      zoho_sync_status: "synced",
-                      last_zoho_sync: new Date().toISOString(),
-                    })
-                    .eq("id", resolvedCampaignId);
+            if (N8N_ZOHO_SYNC_WEBHOOK) {
+              try {
+                const syncRes = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action: "approve_and_sync",
+                    campaignId: resolvedCampaignId,
+                    campaignName: resolvedCampaignName,
+                    client: resolvedClient,
+                    budget: resolvedBudget,
+                    codeVolume: resolvedCodeVolume,
+                    is_approved_by_manager: true,
+                    tasks: tasks || [],
+                  }),
+                  signal: AbortSignal.timeout(15000),
+                });
+                if (syncRes.ok) {
+                  const syncData = (await syncRes.json().catch(() => ({}))) as Record<string, any>;
+                  const dealId = syncData?.id || syncData?.deal_id;
+                  if (dealId) {
+                    await supabase
+                      .from("campaigns")
+                      .update({
+                        zoho_crm_deal_id: String(dealId),
+                        zoho_crm_deal_url: `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}`,
+                        zoho_crm_deal_stage: "Qualification",
+                        zoho_books_invoice_id: syncData.invoice_id || null,
+                        zoho_books_invoice_url: syncData.invoice_id ? `https://books.zoho.in/app#/invoices/${syncData.invoice_id}` : null,
+                        zoho_project_id: syncData.project_id || null,
+                        zoho_project_url: syncData.project_id ? `https://projects.zoho.in/portal/enlightlabdotcom#project/${syncData.project_id}` : null,
+                        zoho_sync_status: "synced",
+                        last_zoho_sync: new Date().toISOString(),
+                      })
+                      .eq("id", resolvedCampaignId)
+                      .eq("organization_id", effectiveOrgId);
+                  }
                 }
+              } catch (err) {
+                console.warn("[update_campaign_tasks] Zoho re-sync failed:", err);
               }
-            } catch (err) {
-              console.warn("[update_campaign_tasks] Zoho re-sync failed:", err);
             }
           } else {
             // Already synced to Zoho, push updated tasks to Zoho Projects via n8n webhook
-            const N8N_ZOHO_SYNC_WEBHOOK =
-              process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-              "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
-            try {
-              await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  action: "update_campaign_tasks",
-                  campaignId: resolvedCampaignId,
-                  projectId: (checkRow as any)?.zoho_project_id || null,
-                  campaignName: resolvedCampaignName,
-                  tasks: tasks || [],
-                }),
-                signal: AbortSignal.timeout(10000),
-              }).catch((e) => console.warn("[update_campaign_tasks] Push to Zoho webhook warning:", e));
-            } catch (err) {
-              console.warn("[update_campaign_tasks] Post-approval task push failed:", err);
+            if (N8N_ZOHO_SYNC_WEBHOOK) {
+              try {
+                await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action: "update_campaign_tasks",
+                    campaignId: resolvedCampaignId,
+                    projectId: (checkRow as any)?.zoho_project_id || null,
+                    campaignName: resolvedCampaignName,
+                    tasks: tasks || [],
+                  }),
+                  signal: AbortSignal.timeout(10000),
+                }).catch((e) => console.warn("[update_campaign_tasks] Push to Zoho webhook warning:", e));
+              } catch (err) {
+                console.warn("[update_campaign_tasks] Post-approval task push failed:", err);
+              }
             }
           }
         } catch (err) {
@@ -1478,7 +1705,7 @@ export async function POST(request: NextRequest) {
 
     // ── Action 5: Validate Zoho deal IDs exist and sync ──
     if (action === "validate_and_sync") {
-      const syncResult = await reconcileZohoCRMWithSupabase();
+      const syncResult = await reconcileZohoCRMWithSupabase(effectiveOrgId, user.id, userEmail ?? undefined);
       return NextResponse.json(syncResult);
     }
 
@@ -1487,19 +1714,28 @@ export async function POST(request: NextRequest) {
       const { campaignId } = body;
       if (!campaignId) return NextResponse.json({ error: "campaignId required" }, { status: 400 });
 
-      const { data: camp } = await supabase.from("campaigns").select("*").eq("id", campaignId).maybeSingle();
-      if (camp) {
-        // Approval gate: a never-synced draft has no Zoho resources to wipe, // skip the delete webhook entirely so we never send null/empty payloads.
-        if (camp.status === "draft" && !camp.zoho_crm_deal_id && !camp.zoho_project_id && !camp.zoho_books_invoice_id) {
-          await supabase.from("campaigns").delete().eq("id", campaignId);
-          return NextResponse.json({ success: true, deletedName: camp.name, note: "Draft deleted. There are no Zoho resources to clean up." });
-        }
+      const { data: camp } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("id", campaignId)
+        .eq("organization_id", effectiveOrgId)
+        .maybeSingle();
+      if (!camp) {
+        return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+      }
 
-        const N8N_ZOHO_DELETE_WEBHOOK =
-          process.env.N8N_ZOHO_DELETE_WEBHOOK ||
-          "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-delete-zoho-resources";
+      // Approval gate: a never-synced draft has no Zoho resources to wipe, skip the delete webhook entirely
+      if (camp.status === "draft" && !camp.zoho_crm_deal_id && !camp.zoho_project_id && !camp.zoho_books_invoice_id) {
+        await supabase
+          .from("campaigns")
+          .delete()
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId);
+        return NextResponse.json({ success: true, deletedName: camp.name, note: "Draft deleted. There are no Zoho resources to clean up." });
+      }
 
-        console.log(`[delete_campaign] Wiping Zoho resources for ${camp.name}: deal=${camp.zoho_crm_deal_id}, project=${camp.zoho_project_id}, invoice=${camp.zoho_books_invoice_id}`);
+      console.log(`[delete_campaign] Wiping Zoho resources for ${camp.name}: deal=${camp.zoho_crm_deal_id}, project=${camp.zoho_project_id}, invoice=${camp.zoho_books_invoice_id}`);
+      if (N8N_ZOHO_DELETE_WEBHOOK) {
         await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1511,12 +1747,14 @@ export async function POST(request: NextRequest) {
           }),
           signal: AbortSignal.timeout(10000),
         }).catch((err) => console.error("Error in delete webhook:", err));
-
-        await supabase.from("campaigns").delete().eq("id", campaignId);
-        return NextResponse.json({ success: true, deletedName: camp.name });
       }
 
-      return NextResponse.json({ success: true });
+      await supabase
+        .from("campaigns")
+        .delete()
+        .eq("id", campaignId)
+        .eq("organization_id", effectiveOrgId);
+      return NextResponse.json({ success: true, deletedName: camp.name });
     }
 
     // ── Action 5: Update Live Campaign across Zoho CRM, Books, Projects & Supabase ──
@@ -1525,25 +1763,50 @@ export async function POST(request: NextRequest) {
 
       let campRow: any = null;
       if (campaignId) {
-        const { data } = await supabase.from("campaigns").select("*").eq("id", campaignId).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("id", campaignId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         campRow = data;
       }
       if (!campRow && dealId) {
-        const { data } = await supabase.from("campaigns").select("*").eq("zoho_crm_deal_id", dealId).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("zoho_crm_deal_id", dealId)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         campRow = data;
       }
       if (!campRow && newName) {
-        const { data } = await supabase.from("campaigns").select("*").ilike("name", `%${newName}%`).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .ilike("name", `%${newName}%`)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         campRow = data;
       }
       if (!campRow && body.client) {
-        const { data } = await supabase.from("campaigns").select("*").ilike("client", `%${body.client}%`).maybeSingle();
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .ilike("client", `%${body.client}%`)
+          .eq("organization_id", effectiveOrgId)
+          .maybeSingle();
         campRow = data;
       }
       if (!campRow && newName) {
         const firstToken = newName.split(" ")[0];
         if (firstToken && firstToken.length > 2) {
-          const { data } = await supabase.from("campaigns").select("*").ilike("name", `%${firstToken}%`).maybeSingle();
+          const { data } = await supabase
+            .from("campaigns")
+            .select("*")
+            .ilike("name", `%${firstToken}%`)
+            .eq("organization_id", effectiveOrgId)
+            .maybeSingle();
           campRow = data;
         }
       }
@@ -1560,7 +1823,7 @@ export async function POST(request: NextRequest) {
       // Pause gate: the live-campaign path fires the Zoho update webhook.
       // Drafts still persist to Supabase below; live Zoho writes refuse.
       {
-        const prefs = await currentUserPausedMap();
+        const prefs = await currentUserPausedMap(userEmail ?? user.id);
         if (isConnectorPaused(prefs, "zoho.crm")) {
           return NextResponse.json(
             { success: false, paused: true, error: PAUSED_ZOHO_MESSAGE, reason: "connector_paused" },
@@ -1586,7 +1849,11 @@ export async function POST(request: NextRequest) {
             updates.aspect_summary = buildAspectSummary(resolvedTasks);
           }
           if (Object.keys(updates).length > 0) {
-            await supabase.from("campaigns").update(updates).eq("id", targetDraftId);
+            await supabase
+              .from("campaigns")
+              .update(updates)
+              .eq("id", targetDraftId)
+              .eq("organization_id", effectiveOrgId);
           }
         }
         return NextResponse.json({
@@ -1603,31 +1870,29 @@ export async function POST(request: NextRequest) {
         .map((t: any, i: number) => `${i + 1}. [${(t.aspect || "").toUpperCase()}] ${t.title || t.name}, Owner: ${t.assignee || "TBD"}, TAT: ${t.tat || "2 Days"}, Urgency: ${t.urgency || "HIGH"}`)
         .join("\n");
 
-      const N8N_ZOHO_UPDATE_WEBHOOK =
-        process.env.N8N_ZOHO_UPDATE_WEBHOOK ||
-        "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-update-resources";
-
-      const updateRes = await fetch(N8N_ZOHO_UPDATE_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dealId: resolvedDealId,
-          projectId: resolvedProjectId,
-          invoiceId: resolvedInvoiceId,
-          customerId: campRow?.books_customer_id,
-          client: campRow?.client,
-          campaignName: resolvedName,
-          amount: numericAmount,
-          budget: resolvedBudget,
-          rewardType: resolvedRewardType,
-          tasks: resolvedTasks,
-          taskSummary,
-        }),
-        signal: AbortSignal.timeout(12000),
-      }).catch((err) => {
-        console.warn("[update_live_campaign] Webhook call failed:", err);
-        return null;
-      });
+      const updateRes = N8N_ZOHO_UPDATE_WEBHOOK
+        ? await fetch(N8N_ZOHO_UPDATE_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              dealId: resolvedDealId,
+              projectId: resolvedProjectId,
+              invoiceId: resolvedInvoiceId,
+              customerId: campRow?.books_customer_id,
+              client: campRow?.client,
+              campaignName: resolvedName,
+              amount: numericAmount,
+              budget: resolvedBudget,
+              rewardType: resolvedRewardType,
+              tasks: resolvedTasks,
+              taskSummary,
+            }),
+            signal: AbortSignal.timeout(12000),
+          }).catch((err) => {
+            console.warn("[update_live_campaign] Webhook call failed:", err);
+            return null;
+          })
+        : null;
 
       const updateData = updateRes && updateRes.ok ? await updateRes.json().catch(() => ({})) : null;
 
@@ -1654,7 +1919,11 @@ export async function POST(request: NextRequest) {
           };
         }
 
-        await supabase.from("campaigns").update(updates).eq("id", targetCampaignId);
+        await supabase
+          .from("campaigns")
+          .update(updates)
+          .eq("id", targetCampaignId)
+          .eq("organization_id", effectiveOrgId);
       }
 
       return NextResponse.json({

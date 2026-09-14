@@ -41,9 +41,9 @@ export default function EnlightLogo({
   wordmarkClassName = '',
   subtextClassName = '',
   showWordmark = true,
-  wordmark = 'BCP ASSIST',
+  wordmark = 'PRISM',
   subtext,
-  ariaLabel = 'BCP Assist, by Enlight Lab',
+  ariaLabel = 'Prism, by Enlight Lab',
   priority = false,
 }: EnlightLogoProps) {
   const s = SIZES[size];

@@ -22,6 +22,7 @@ import {
   Dot,
 } from "@phosphor-icons/react";
 import { type Campaign, type AspectTask } from "@/types/campaign";
+import { useOrganization } from "@/hooks/useOrganization";
 
 interface ZohoProjectsDrawerProps {
   campaign: Campaign;
@@ -77,6 +78,7 @@ export default function ZohoProjectsDrawer({
   onClose,
   onTaskUpdated,
 }: ZohoProjectsDrawerProps) {
+  const { activeOrg } = useOrganization();
   const [activeTab, setActiveTab] = useState<TabId>("tasks");
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
@@ -91,9 +93,11 @@ export default function ZohoProjectsDrawer({
     setUpdatingTaskId(task.id);
     const newStatus = task.status === "COMPLETED" ? "IN_PROGRESS" : "COMPLETED";
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
       const res = await fetch("/api/campaigns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           action: "update_zoho_task",
           campaignId: campaign.id,
@@ -117,7 +121,9 @@ export default function ZohoProjectsDrawer({
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
-      await fetch(`/api/campaigns?action=read_zoho_tasks&id=${campaign.id}`);
+      const headers: Record<string, string> = {};
+      if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
+      await fetch(`/api/campaigns?action=read_zoho_tasks&id=${campaign.id}`, { headers });
       setSyncNotice("Synced with Zoho · Tasks up to date");
       setTimeout(() => setSyncNotice(null), 3000);
     } catch (err) {
@@ -544,7 +550,7 @@ export default function ZohoProjectsDrawer({
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950 border border-emerald-900 px-1.5 py-px rounded">GET</span>
                       <span className="text-[10px] font-mono text-stone-400 truncate">
-                        /restapi/portal/bigcity/projects/{campaign.zohoProjectId || "881290"}/tasks
+                        /restapi/portal/{campaign.organizationId || "workspace"}/projects/{campaign.zohoProjectId || "ZP-PROJECT"}/tasks
                       </span>
                     </div>
                     <span className="text-[10px] font-mono font-bold text-emerald-400 flex-shrink-0">200 · 32ms</span>
@@ -552,13 +558,13 @@ export default function ZohoProjectsDrawer({
                   <pre className="text-[10.5px] text-emerald-300 font-mono p-4 overflow-x-auto leading-relaxed">
 {JSON.stringify({
   project: {
-    id: campaign.zohoProjectId || "ZP-881290",
+    id: campaign.zohoProjectId || "ZP-PROJECT",
     name: campaign.name,
     client: campaign.client,
     status: "active",
     task_count: campaign.tasks.length,
     completion_pct: completionPct,
-    portal_id: "81293",
+    portal_id: campaign.organizationId || "—",
   },
   milestones: [
     { id: "MLS-01", name: "Legal Clearances", status: "Active" },
@@ -576,14 +582,14 @@ export default function ZohoProjectsDrawer({
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-950 border border-amber-900 px-1.5 py-px rounded">POST</span>
                       <span className="text-[10px] font-mono text-stone-400 truncate">
-                        /restapi/portal/bigcity/projects/{campaign.zohoProjectId || "881290"}/tasks
+                        /restapi/portal/{campaign.organizationId || "workspace"}/projects/{campaign.zohoProjectId || "ZP-PROJECT"}/tasks
                       </span>
                     </div>
                     <span className="text-[10px] font-mono font-bold text-amber-400 flex-shrink-0">201 CREATED</span>
                   </div>
                   <pre className="text-[10.5px] text-amber-300 font-mono p-4 overflow-x-auto leading-relaxed">
 {JSON.stringify({
-  action: "TASK_CREATED_BATCH",   source: "BCP Assist AI Agent",
+  action: "TASK_CREATED_BATCH",   source: "Prism AI Agent",
   aspects_pushed: ["legal", "compliance", "accounting", "implementation"],
   tasks_injected: campaign.tasks.length,
   timestamp: new Date().toISOString(),

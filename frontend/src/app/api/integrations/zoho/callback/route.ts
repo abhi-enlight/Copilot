@@ -9,6 +9,9 @@ import {
   zohoDataCenter,
   type ZohoProduct,
 } from "@/lib/zoho";
+import { adminSupabase } from "@/lib/supabase-admin";
+import { createClient } from "@/lib/supabase-server";
+import { safeReturnTo } from "@/lib/http-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +32,13 @@ export async function GET(request: Request) {
 
   let returnTo = "/";
   let products: ZohoProduct[] = [...ZOHO_PRODUCTS];
+  let authUserId: string | null = null;
 
   if (rawState) {
     try {
       const decoded = JSON.parse(Buffer.from(rawState, "base64").toString("utf-8"));
-      returnTo = decoded.returnTo || returnTo;
+      returnTo = safeReturnTo(decoded.returnTo, returnTo);
+      authUserId = decoded.authUserId || null;
       if (Array.isArray(decoded.products) && decoded.products.length) {
         products = decoded.products.filter((p: string) => ZOHO_PRODUCTS.includes(p as ZohoProduct));
       }
@@ -52,10 +57,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${baseUrl}${returnTo}?zoho_error=missing_code`);
   }
 
-  // CSRF: state must match the cookie issued at connect time
+  // CSRF: state must match the cookie issued at connect time. The check is
+  // mandatory — a missing cookie means the flow wasn't initiated by this app.
   const cookieStore = await cookies();
   const issuedState = cookieStore.get("zoho_oauth_state")?.value || "";
-  if (issuedState && rawState && issuedState !== rawState) {
+  if (!issuedState || !rawState || issuedState !== rawState) {
     return NextResponse.redirect(`${baseUrl}${returnTo}?zoho_error=state_mismatch`);
   }
 
@@ -99,6 +105,22 @@ export async function GET(request: Request) {
   }) as ZohoProduct[];
 
   const results: Record<string, { ok: boolean; detail: string }> = {};
+
+  // Resolve identity STRICTLY from authenticated sources:
+  // 1. the Supabase session user, 2. the Zoho user's own email via the CRM
+  // Users API. The ms_user_email cookie is client-editable and must never
+  // decide whose vault receives OAuth tokens.
+  const session = await (async () => {
+    try {
+      const sb = await createClient();
+      const { data } = await sb.auth.getUser();
+      return data.user ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const effectiveEmail = session?.email || zohoEmail || (session ? `auth:${session.id}` : null);
+
   for (const product of effectiveProducts) {
     const probe =
       product === "crm" && crmProbe.ok
@@ -106,8 +128,11 @@ export async function GET(request: Request) {
         : await probeZohoProduct(product, tokenSet.accessToken, dc);
     results[product] = { ok: probe.ok, detail: probe.detail };
 
-    const msUserEmail = cookieStore.get("ms_user_email")?.value || null;
-    const effectiveEmail = msUserEmail || zohoEmail || "default_user";
+    if (!effectiveEmail) {
+      console.error("[zoho-callback] no identity available, skipping token store for", product);
+      results[product] = { ok: false, detail: "no_identity" };
+      continue;
+    }
 
     const stored = await upsertZohoIntegration({
       userEmail: effectiveEmail,
@@ -116,12 +141,23 @@ export async function GET(request: Request) {
       refreshToken: tokenSet.refreshToken,
       scopes: ZOHO_PRODUCT_SCOPES[product],
       probe,
-      // Drives the proactive refresh in resolveZohoAccessToken and the
-      // background token-refresh job.
       expiresAt: tokenSet.expiresIn ? Date.now() + tokenSet.expiresIn * 1000 : null,
     });
     if (!stored.ok) {
       results[product] = { ok: false, detail: stored.error || "token store failed" };
+    }
+
+    // Link the vault row to the authenticated Supabase user id (never the
+    // client-decoded state value alone — session identity is authoritative).
+    const linkUserId = session?.id || authUserId;
+    if (linkUserId && stored.ok) {
+      await adminSupabase
+        .from("user_integrations")
+        .update({ auth_user_id: linkUserId })
+        .eq("user_email", effectiveEmail)
+        .eq("provider", "zoho")
+        .eq("product", product)
+        .is("auth_user_id", null);
     }
   }
 
@@ -132,7 +168,7 @@ export async function GET(request: Request) {
   }
   const response = NextResponse.redirect(redirectUrl.toString());
   response.cookies.set("zoho_oauth_state", "", { path: "/", maxAge: 0 });
-  const finalEmail = cookieStore.get("ms_user_email")?.value || zohoEmail || "default_user";
+  const finalEmail = session?.email || zohoEmail || "default_user";
   response.cookies.set("zoho_user_email", finalEmail, {
     path: "/",
     maxAge: 60 * 60 * 24 * 30,

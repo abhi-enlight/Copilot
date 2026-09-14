@@ -27,6 +27,7 @@ export interface AspectTask {
 
 export interface Campaign {
   id: string;
+  organizationId?: string;
   name: string;
   client: string;
   category: "FMCG" | "Beverages" | "Retail" | "Electronics" | "BFSI" | "QSR";

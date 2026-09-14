@@ -1,93 +1,204 @@
+/**
+ * GET  /api/users — list members of the active org
+ * POST /api/users — change a member's org role (owner/admin only)
+ */
+
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { supabase } from "@/lib/supabase";
-import { resolveAppUser } from "@/lib/entitlements";
+import { requireAuth } from "@/lib/auth-helpers";
+import { adminSupabase } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
-}
-
-async function currentUser(): Promise<{ email: string; role: string } | null> {
-  const cookieStore = await cookies();
-  const email = cookieStore.get("ms_user_email")?.value || null;
-  if (!email) return null;
-  const user = await resolveAppUser(email);
-  return { email, role: user?.role || "member" };
-}
-
 const VALID_ROLES = ["owner", "admin", "member"] as const;
 
-/**
- * App Users & Roles API
- *
- * GET  → list users with their app role (any authenticated user).
- * POST → change a user's role. Only owners/admins may mutate; granting
- *        Admin instantly unlocks the CRM connection on that user's next
- *        entitlement re-check (the "given the admin privilege" path).
- */
-export async function GET() {
-  const me = await currentUser();
-  if (!me) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+  const { user } = auth;
+  let orgId = auth.orgId;
 
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ users: [], configured: false, me });
+  // If no active org header was sent, fallback to the user's personal org
+  if (!orgId) {
+    const { data: membership } = await adminSupabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    orgId = membership?.organization_id ?? null;
   }
 
-  const { data, error } = await supabase
-    .from("app_users")
-    .select("email, display_name, role, created_at, updated_at")
-    .order("created_at", { ascending: true });
+  if (!orgId) {
+    return NextResponse.json({ users: [], me: null });
+  }
+
+  const { data: memberRows, error } = await adminSupabase
+    .from("organization_members")
+    .select("id, role, joined_at, user_id")
+    .eq("organization_id", orgId)
+    .order("joined_at", { ascending: true });
 
   if (error) {
     console.error("[users] list failed:", error.message);
-    return NextResponse.json({ users: [], configured: true, me, error: error.message });
+    return NextResponse.json({ users: [], error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({
-    users: (data || []).map((u) => ({
-      email: u.email,
-      displayName: u.display_name,
-      role: u.role,
-      createdAt: u.created_at,
-      updatedAt: u.updated_at,
-    })),
-    configured: true,
-    me,
+  const userIds = (memberRows ?? []).map((m: any) => m.user_id).filter(Boolean);
+  const { data: userProfiles } = userIds.length > 0
+    ? await adminSupabase
+        .from("app_users")
+        .select("auth_user_id, email, display_name, role, created_at, updated_at")
+        .in("auth_user_id", userIds)
+    : { data: [] };
+
+  const userMap = new Map((userProfiles ?? []).map((u: any) => [u.auth_user_id, u]));
+
+  const users = (memberRows ?? []).map((m: any) => {
+    const profile = userMap.get(m.user_id);
+    return {
+      userId: m.user_id,
+      email: profile?.email ?? "",
+      displayName: profile?.display_name ?? null,
+      orgRole: m.role,
+      appRole: profile?.role ?? "member",
+      joinedAt: m.joined_at,
+      isMe: m.user_id === user.id,
+    };
   });
+
+  // Determine caller's org role
+  const me = users.find((u: any) => u.isMe) || null;
+
+  return NextResponse.json({ users, me, configured: true });
 }
 
 export async function POST(request: Request) {
-  const me = await currentUser();
-  if (!me) return NextResponse.json({ error: "not_authenticated" }, { status: 401 });
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+  const { user } = auth;
+  let orgId = auth.orgId;
 
-  const elevated = me.role === "owner" || me.role === "admin";
-  if (!elevated) {
-    return NextResponse.json({ error: "forbidden", detail: "Only owners and admins can change roles" }, { status: 403 });
+  if (!orgId) {
+    const { data: membership } = await adminSupabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    orgId = membership?.organization_id ?? null;
   }
 
-  const body = (await request.json().catch(() => ({}))) as { email?: string; role?: string };
-  const email = (body.email || "").trim().toLowerCase();
+  if (!orgId) {
+    return NextResponse.json(
+      { error: "bad_request", detail: "Active organization required" },
+      { status: 400 }
+    );
+  }
+
+  // Check caller's role
+  const { data: myMembership } = await adminSupabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", orgId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const myRole = myMembership?.role ?? "member";
+  if (myRole === "member") {
+    return NextResponse.json(
+      { error: "forbidden", detail: "Only owners and admins can change roles" },
+      { status: 403 }
+    );
+  }
+
+  const body = (await request.json().catch(() => ({}))) as {
+    userId?: string;
+    email?: string;
+    role?: string;
+  };
+
+  let targetUserId = (body.userId || "").trim();
   const role = (body.role || "").trim().toLowerCase();
 
-  if (!email || !VALID_ROLES.includes(role as (typeof VALID_ROLES)[number])) {
-    return NextResponse.json({ error: "bad_request", detail: "email and role (owner|admin|member) required" }, { status: 400 });
+  // Only owners may grant the owner role.
+  if (role === "owner" && myRole !== "owner") {
+    return NextResponse.json(
+      { error: "forbidden", detail: "Only owners can grant the owner role" },
+      { status: 403 }
+    );
   }
 
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "not_configured", detail: "Supabase not configured" }, { status: 503 });
+  // Admins may never change an owner's role.
+  if (myRole === "admin") {
+    const { data: targetRow } = await adminSupabase
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", orgId)
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    if (targetRow?.role === "owner") {
+      return NextResponse.json(
+        { error: "forbidden", detail: "Admins cannot change an owner's role" },
+        { status: 403 }
+      );
+    }
   }
 
-  // Upsert: create the user row if they haven't logged in yet
-  const { error } = await supabase
-    .from("app_users")
-    .upsert({ email, role, updated_at: new Date().toISOString() }, { onConflict: "email" });
+  // Demoting an owner requires another owner to remain.
+  if (role !== "owner") {
+    const { data: targetRow } = await adminSupabase
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", orgId)
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    if (targetRow?.role === "owner") {
+      const { count } = await adminSupabase
+        .from("organization_members")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("role", "owner");
+      if ((count ?? 0) <= 1) {
+        return NextResponse.json(
+          { error: "last_owner", detail: "Cannot demote the last owner. Transfer ownership first." },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
+  // If email was passed instead of userId, resolve targetUserId
+  if (!targetUserId && body.email) {
+    const { data: appUser } = await adminSupabase
+      .from("app_users")
+      .select("auth_user_id")
+      .eq("email", body.email.trim().toLowerCase())
+      .maybeSingle();
+    targetUserId = appUser?.auth_user_id || "";
+  }
+
+  if (!targetUserId || !VALID_ROLES.includes(role as (typeof VALID_ROLES)[number])) {
+    return NextResponse.json(
+      { error: "bad_request", detail: "Valid user identifier and role (owner|admin|member) required" },
+      { status: 400 }
+    );
+  }
+
+  const { error } = await adminSupabase
+    .from("organization_members")
+    .update({ role })
+    .eq("organization_id", orgId)
+    .eq("user_id", targetUserId);
 
   if (error) {
     console.error("[users] role change failed:", error.message);
-    return NextResponse.json({ error: "update_failed", detail: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "update_failed", detail: error.message },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ success: true, email, role });
+  return NextResponse.json({ ok: true, userId: targetUserId, role });
 }

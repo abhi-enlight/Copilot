@@ -23,8 +23,7 @@ export function AdminConsentModal({
   onClose
 }: AdminConsentModalProps) {
   const handleCopy = async () => {
-    const clientId =
-      process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || '9b9717eb-8dbf-41b1-b788-d7a3ae6f4269';
+    const clientId = process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || '';
     const consentUrl = `https://login.microsoftonline.com/common/adminconsent?client_id=${clientId}&redirect_uri=https://${activeTenant.slug}.yourapp.com/auth/callback`;
     const success = await copyToClipboard(consentUrl);
     if (success) {

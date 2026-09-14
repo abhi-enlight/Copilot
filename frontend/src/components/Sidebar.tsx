@@ -13,7 +13,7 @@ import {
   User,
 } from "@phosphor-icons/react";
 
-import BigCityLogo from "./BigCityLogo";
+import PrismLogo from "./brand/PrismLogo";
 import EnlightLogo from "./brand/EnlightLogo";
 
 export type NavView = "copilot" | "campaigns" | "connections" | "users";
@@ -92,22 +92,22 @@ export default function Sidebar({
           {!isCollapsed ? (
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex items-center justify-center flex-shrink-0">
-                <BigCityLogo size={32} className="shadow-xs rounded-lg" />
+                <PrismLogo size={32} variant="tile" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[13.5px] font-bold tracking-tight text-stone-900 truncate">
-                    BCP Assist
+                    Prism
                   </span>
                 </div>
                 <div className="flex items-center gap-1 mt-px">
-                  <span className="text-[11px] text-stone-400 truncate font-medium">BigCity Promotions</span>
+                  <span className="text-[11px] text-stone-400 truncate font-medium">by <span className="text-blue-600 font-semibold">Enlight Lab</span></span>
                 </div>
               </div>
             </div>
           ) : (
             <div className="flex items-center justify-center">
-              <BigCityLogo size={30} className="shadow-xs rounded-lg" />
+              <PrismLogo size={30} variant="tile" />
             </div>
           )}
 

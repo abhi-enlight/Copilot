@@ -6,6 +6,8 @@ import {
   zohoRedirectUri,
   type ZohoProduct,
 } from "@/lib/zoho";
+import { createClient } from "@/lib/supabase-server";
+import { safeReturnTo } from "@/lib/http-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const host = request.headers.get("host") || "localhost:3000";
-  const returnTo = searchParams.get("returnTo") || "/";
+  // Only same-origin paths are accepted as the post-auth redirect target.
+  const returnTo = safeReturnTo(searchParams.get("returnTo"), "/");
 
   if (!process.env.ZOHO_CLIENT_ID) {
     return NextResponse.redirect(
@@ -38,8 +41,13 @@ export async function GET(request: Request) {
     ? Array.from(new Set(requestedScopes.split(" ").filter(Boolean)))
     : Array.from(new Set(products.flatMap((p) => ZOHO_PRODUCT_SCOPES[p])));
 
+  // Get authenticated user ID to embed in OAuth state
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const authUserId = user?.id || null;
+
   const state = Buffer.from(
-    JSON.stringify({ returnTo, products, nonce: Math.random().toString(36).slice(2) })
+    JSON.stringify({ returnTo, products, authUserId, nonce: Math.random().toString(36).slice(2) })
   ).toString("base64");
 
   // Bind the state to this browser session (basic CSRF protection)

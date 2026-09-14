@@ -32,8 +32,8 @@ import ZohoProjectsDrawer from "./ZohoProjectsDrawer";
 import ApprovalModal from "./ApprovalModal";
 import ChatMessage, { type Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
-import ThinkingProcess from "@/components/ThinkingProcess";
 import { AnimatedErrorBanner } from "@/components/ui/ErrorInlineBanner";
+import { useOrganization } from "@/hooks/useOrganization";
 
 
 const ASPECT_META = {
@@ -145,6 +145,19 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
   const [deleteConfirmCamp, setDeleteConfirmCamp] = useState<Campaign | null>(null);
   const [discardConfirmCamp, setDiscardConfirmCamp] = useState<Campaign | null>(null);
 
+  const { activeOrg } = useOrganization();
+
+  const apiFetch = useCallback(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers || {});
+      if (activeOrg?.id) {
+        headers.set("x-active-org-id", activeOrg.id);
+      }
+      return fetch(input, { ...init, headers });
+    },
+    [activeOrg?.id]
+  );
+
   const showToast = useCallback(
     (text: string, icon: "check" | "sparkle" | "info" = "check") => {
       setToastNotice({ id: `toast-${Date.now()}`, text, icon });
@@ -159,7 +172,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     if (isManualRefresh) setIsRefreshing(true);
     else setIsLoading(true);
     try {
-      const res = await fetch("/api/campaigns?sync=true");
+      const res = await apiFetch("/api/campaigns?sync=true");
       if (res.ok) {
         const data = await res.json();
         setCampaigns(data.campaigns || []);
@@ -180,13 +193,13 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [showToast]);
+  }, [showToast, apiFetch]);
 
   const handleRetrySync = useCallback(
     async (camp: Campaign) => {
       setRetryingCampaignId(camp.id);
       try {
-        const res = await fetch("/api/campaigns", {
+        const res = await apiFetch("/api/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -201,7 +214,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
           // Poll Supabase for deal ID writeback
           for (let i = 0; i < 5; i++) {
             await new Promise((r) => setTimeout(r, 3000));
-            const check = await fetch(`/api/campaigns?action=get_campaign&id=${camp.id}`);
+            const check = await apiFetch(`/api/campaigns?action=get_campaign&id=${camp.id}`);
             if (check.ok) {
               const json = await check.json();
               if (json.campaign?.zohoCrmDealId) {
@@ -241,7 +254,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       setDeletingCampaignId(camp.id);
       showToast(`Deleting "${camp.name}" across Zoho CRM, Projects & Books...`, "info");
       try {
-        const res = await fetch("/api/campaigns", {
+        const res = await apiFetch("/api/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -279,7 +292,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       setDiscardConfirmCamp(null);
       setDeletingCampaignId(camp.id);
       try {
-        const res = await fetch("/api/campaigns", {
+        const res = await apiFetch("/api/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -328,7 +341,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       "info"
     );
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -384,48 +397,13 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     fetchCampaigns();
   }, [fetchCampaigns]);
 
-  const demoPresets = [
-    {
-      label: "Cadbury Silk Valentine Pool",
-      name: "Mondelez Cadbury Silk Valentine's ₹100 Assured Cashback",
-      client: "Mondelez India Foods Pvt Ltd",
-      category: "FMCG",
-      rewardType: "Cashback",
-      budget: "₹35,00,000",
-      codeVolume: "350,000 packs",
-      brief: "Valentine season on-pack campaign with unique QR code inside pack. Users scan, verify mobile via OTP, and receive instant ₹100 UPI transfer.",
-    },
-    {
-      label: "Pepsi UEFA Zomato Pass",
-      name: "Pepsi UEFA Champions League ₹200 Zomato Dining Pass",
-      client: "PepsiCo India Holdings",
-      category: "Beverages",
-      rewardType: "EGV",
-      budget: "₹50,00,000",
-      codeVolume: "500,000 cans",
-      brief: "Co-branded soccer tournament promotion offering ₹200 Zomato Dineout voucher with purchase of 2 Pepsi Max cans.",
-    },
-    {
-      label: "Tata Tea Gold Amazon EGV",
-      name: "Tata Tea Gold ₹50 Amazon Pay Assured Reward",
-      client: "Tata Consumer Products",
-      category: "FMCG",
-      rewardType: "EGV",
-      budget: "₹20,00,000",
-      codeVolume: "200,000 packs",
-      brief: "Festive morning tea reward with instant Amazon Pay gift card code delivered via SMS post verification.",
-    },
-  ];
 
-  const handleApplyPreset = (preset: typeof demoPresets[0]) => {
-    setFormData({ ...formData, ...preset });
-  };
 
   const handleRegisterBooksInWizard = async () => {
     if (!formData.client) return;
     setIsRegisteringBooks(true);
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -468,7 +446,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     }, 300);
 
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "generate_plan", campaignInput: formData }),
@@ -585,7 +563,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     setWizardStep("zoho_pushing");
     // Approval modal stays open with a syncing spinner while the push runs
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -625,7 +603,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     if (!generatedPlan) return;
     setIsSavingDraft(true);
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -656,7 +634,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     if (!draftToApprove) return;
     setApprovingDraftId(draftToApprove.id);
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -818,7 +796,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
             onClick={async () => {
               setIsRefreshing(true);
               try {
-                const res = await fetch("/api/campaigns", {
+                const res = await apiFetch("/api/campaigns", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ action: "validate_and_sync" }),
@@ -1097,7 +1075,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
                               });
                             } else {
                               setDraftBooksContact(null);
-                              fetch("/api/campaigns", {
+                              apiFetch("/api/campaigns", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ action: "check_books_contact", client: camp.client }),
@@ -1261,29 +1239,6 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
                 {/* STEP 1: INPUT */}
                 {wizardStep === "input" && (
                   <div className="space-y-4">
-                    {/* Demo Presets */}
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200/80 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
-                          <Lightning size={12} weight="fill" className="text-amber-600" />
-                          Quick Demo Presets
-                        </span>
-                        <span className="text-[10px] text-amber-600 font-medium">Click to auto-fill</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {demoPresets.map((preset) => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => handleApplyPreset(preset)}
-                            className="px-2.5 py-1 rounded-lg bg-white hover:bg-amber-100 text-amber-900 text-[11px] font-semibold border border-amber-200 transition-all cursor-pointer shadow-sm"
-                          >
-                            + {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     {/* Form Fields */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -1292,7 +1247,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
                           type="text"
                           value={formData.name}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                          placeholder="e.g. Cadbury Silk Valentine's ₹100 Cashback"
+                          placeholder="e.g. Summer Loyalty Promotion"
                           className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
                         />
                       </div>

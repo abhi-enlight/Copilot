@@ -35,7 +35,7 @@ import ChatMessage, { type Message } from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import ThinkingProcess from "@/components/ThinkingProcess";
 import EmptyState from "@/components/EmptyState";
-import BigCityLogo from "@/components/BigCityLogo";
+import PrismLogo from "@/components/brand/PrismLogo";
 import EnlightLogo from "@/components/brand/EnlightLogo";
 import { useConnectors, PAUSED_PILL_LABELS } from "@/hooks/useConnectors";
 import { type PlanContextForCopilot } from "@/app/page";
@@ -46,6 +46,14 @@ import {
   type TeamMember,
 } from "@/utils/planModifier";
 import { AnimatedErrorBanner } from "@/components/ui/ErrorInlineBanner";
+import { useAuth } from "@/components/providers/AuthProvider";
+import {
+  getCopilotSessionKey,
+  getCopilotWorkingPlanKey,
+  getCopilotPanelOpenKey,
+  getDraftKey,
+  getPendingPromptKey,
+} from "@/lib/copilot-storage";
 
 interface Session {
   id: string;
@@ -87,16 +95,17 @@ interface CopilotViewProps {
   onClearPlanContext?: () => void;
   onViewCampaigns?: () => void;
   onNavigateToConnections?: () => void;
+  activeSessionId?: string | null;
+  onSessionSelect?: (sessionId: string) => void;
 }
 
-const COPILOT_SESSION_KEY = "prism_copilot_session_v1";
-const COPILOT_WORKING_PLAN_KEY = "prism_copilot_working_plan_v1";
-const COPILOT_PANEL_OPEN_KEY = "prism_copilot_panel_open";
+// Key builders live in @/lib/copilot-storage (single source of truth, shared
+// with HomeView and ChatInput so writers and readers never drift apart).
 
-function loadSavedSession(): Session | null {
+function loadSavedSession(userId?: string | null): Session | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(COPILOT_SESSION_KEY);
+    const raw = localStorage.getItem(getCopilotSessionKey(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || !parsed.id || !Array.isArray(parsed.messages)) return null;
@@ -115,10 +124,10 @@ function loadSavedSession(): Session | null {
   }
 }
 
-function loadSavedWorkingPlan(): WorkingPlanState | null {
+function loadSavedWorkingPlan(userId?: string | null): WorkingPlanState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(COPILOT_WORKING_PLAN_KEY);
+    const raw = localStorage.getItem(getCopilotWorkingPlanKey(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && (parsed.tasks || parsed.campaignData)) {
@@ -194,11 +203,64 @@ export default function CopilotView({
   onClearPlanContext,
   onViewCampaigns,
   onNavigateToConnections,
+  activeSessionId,
+  onSessionSelect,
 }: CopilotViewProps) {
+  const { user, activeOrg } = useAuth();
+  const userSessionKey = getCopilotSessionKey(user?.id);
+  const userPlanKey = getCopilotWorkingPlanKey(user?.id);
+  const userPanelKey = getCopilotPanelOpenKey(user?.id);
+
+  const apiFetch = useCallback(
+    (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers || {});
+      if (activeOrg?.id) {
+        headers.set("x-active-org-id", activeOrg.id);
+      }
+      return fetch(input, { ...init, headers });
+    },
+    [activeOrg?.id]
+  );
+
   const [session, setSession] = useState<Session>(() => {
-    return loadSavedSession() || createSession();
+    return loadSavedSession(user?.id) || createSession();
   });
   const { activeConnectors, hasPausedAny, pausedConnectorIds } = useConnectors();
+
+  // Load session from server when activeSessionId changes
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+    const loadSessionMessages = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
+        const res = await fetch(`/api/chat/sessions/${activeSessionId}/messages`, { headers });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          const msgs: Message[] = (data.messages ?? []).map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            sourceBadges: m.source_badges ?? [],
+            timestamp: new Date(m.created_at),
+          }));
+          setSession({
+            id: activeSessionId,
+            title: deriveTitle(msgs),
+            messages: msgs,
+            createdAt: msgs[0]?.timestamp || new Date(),
+          });
+        }
+      } catch (err) {
+        console.warn("[CopilotView] Failed to load session messages:", err);
+      }
+    };
+    loadSessionMessages();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, activeOrg?.id]);
 
   // Dismissed pause-set for the paused-connections banner. Keyed by the exact
   // set of paused connector ids, so un-pausing one and pausing another (or
@@ -206,7 +268,7 @@ export default function CopilotView({
   const [dismissedPauseKey, setDismissedPauseKey] = useState<string | null>(null);
   const pausedKey = pausedConnectorIds.length > 0 ? pausedConnectorIds.slice().sort().join("|") : "";
   const [workingPlan, setWorkingPlan] = useState<WorkingPlanState | null>(() => {
-    return loadSavedWorkingPlan();
+    return loadSavedWorkingPlan(user?.id);
   });
   const activeWorkingPlanRef = useRef<WorkingPlanState | null>(workingPlan);
 
@@ -214,31 +276,39 @@ export default function CopilotView({
     activeWorkingPlanRef.current = workingPlan;
   }, [workingPlan]);
 
-  // Persist session to localStorage across refreshes
+  // When user changes, reload session and working plan for that user
+  useEffect(() => {
+    if (!activeSessionId) {
+      setSession(loadSavedSession(user?.id) || createSession());
+      setWorkingPlan(loadSavedWorkingPlan(user?.id));
+    }
+  }, [user?.id, activeSessionId]);
+
+  // Persist session to localStorage across refreshes (scoped per user)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       if (session && session.id) {
-        localStorage.setItem(COPILOT_SESSION_KEY, JSON.stringify(session));
+        localStorage.setItem(userSessionKey, JSON.stringify(session));
       }
     } catch (err) {
       console.warn("[CopilotView] Failed to persist session:", err);
     }
-  }, [session]);
+  }, [session, userSessionKey]);
 
-  // Persist working plan to localStorage across refreshes
+  // Persist working plan to localStorage across refreshes (scoped per user)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       if (workingPlan) {
-        localStorage.setItem(COPILOT_WORKING_PLAN_KEY, JSON.stringify(workingPlan));
+        localStorage.setItem(userPlanKey, JSON.stringify(workingPlan));
       } else {
-        localStorage.removeItem(COPILOT_WORKING_PLAN_KEY);
+        localStorage.removeItem(userPlanKey);
       }
     } catch (err) {
       console.warn("[CopilotView] Failed to persist working plan:", err);
     }
-  }, [workingPlan]);
+  }, [workingPlan, userPlanKey]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
@@ -285,9 +355,9 @@ export default function CopilotView({
 
   const [isPlanPanelOpen, setIsPlanPanelOpen] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(COPILOT_PANEL_OPEN_KEY);
+      const saved = localStorage.getItem(userPanelKey);
       if (saved !== null) return saved === "true";
-      const savedPlan = loadSavedWorkingPlan();
+      const savedPlan = loadSavedWorkingPlan(user?.id);
       if (savedPlan) return true;
     }
     return false;
@@ -296,9 +366,9 @@ export default function CopilotView({
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(COPILOT_PANEL_OPEN_KEY, String(isPlanPanelOpen));
+      localStorage.setItem(userPanelKey, String(isPlanPanelOpen));
     } catch {}
-  }, [isPlanPanelOpen]);
+  }, [isPlanPanelOpen, userPanelKey]);
 
   const [riskDigest, setRiskDigest] = useState<any>(null);
 
@@ -491,7 +561,7 @@ export default function CopilotView({
   useEffect(() => {
     const fetchRiskDigest = async () => {
       try {
-        const res = await fetch("/api/risk-digest");
+        const res = await apiFetch("/api/risk-digest");
         if (res.ok) {
           const data = await res.json();
           setRiskDigest(data);
@@ -501,7 +571,7 @@ export default function CopilotView({
       }
     };
     fetchRiskDigest();
-  }, []);
+  }, [apiFetch]);
 
   // Proactive Zoho Books customer verification
   const checkAndPromptBooksContact = useCallback(
@@ -512,7 +582,7 @@ export default function CopilotView({
       booksCheckedRef.current.add(key);
 
       try {
-        const res = await fetch("/api/campaigns", {
+        const res = await apiFetch("/api/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "check_books_contact", client: clientName }),
@@ -569,7 +639,7 @@ export default function CopilotView({
     showToast(`Registering ${clientName} in Zoho Books…`, "sparkle");
 
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -654,7 +724,7 @@ export default function CopilotView({
     // This prevents the "Approve" button from reappearing on page refresh.
     const checkExistingApproval = async (): Promise<boolean> => {
       try {
-        const res = await fetch(
+        const res = await apiFetch(
           `/api/campaigns?action=check_approved&name=${encodeURIComponent(initialPlanContext.campaignData.name)}`
         );
         if (res.ok) {
@@ -711,10 +781,10 @@ export default function CopilotView({
         checkAndPromptBooksContact(initialPlanContext.campaignData.client);
       }
       const newSess = createSession(`Plan: ${initialPlanContext.campaignData.name}`);
-      const legalCount = initialPlanContext.plan.tasks.filter((t) => t.aspect === "legal").length;
-      const compCount = initialPlanContext.plan.tasks.filter((t) => t.aspect === "compliance").length;
-      const accCount = initialPlanContext.plan.tasks.filter((t) => t.aspect === "accounting").length;
-      const impCount = initialPlanContext.plan.tasks.filter((t) => t.aspect === "implementation").length;
+      const legalCount = initialPlanContext.plan.tasks.filter((t: any) => t.aspect === "legal").length;
+      const compCount = initialPlanContext.plan.tasks.filter((t: any) => t.aspect === "compliance").length;
+      const accCount = initialPlanContext.plan.tasks.filter((t: any) => t.aspect === "accounting").length;
+      const impCount = initialPlanContext.plan.tasks.filter((t: any) => t.aspect === "implementation").length;
       const initialGreeting: Message = {
         id: `msg-${Date.now()}-assistant`,
         role: "assistant",
@@ -770,7 +840,7 @@ export default function CopilotView({
     // Fallback: If no working plan is active in state, fetch the latest campaign from Supabase API
     if (!targetPlanState) {
       try {
-        const campRes = await fetch("/api/campaigns");
+        const campRes = await apiFetch("/api/campaigns");
         if (campRes.ok) {
           const campData = await campRes.json();
           const campaigns: Campaign[] = campData.campaigns || [];
@@ -862,7 +932,7 @@ export default function CopilotView({
     setWorkingPlan((prev) => (prev ? { ...prev, status: "syncing" } : { ...targetPlanState!, status: "syncing" }));
 
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -982,7 +1052,7 @@ export default function CopilotView({
       showToast(
         isOffline
           ? "You appear to be offline. Your campaign plan is safe. Reconnect and try approving again."
-          : "Couldn't reach BCP Assist. Check your internet connection. Your campaign plan is unchanged.",
+          : "Couldn't reach Prism. Check your internet connection. Your campaign plan is unchanged.",
         "error"
       );
       setWorkingPlan((prev) => (prev ? { ...prev, status: "draft" } : null));
@@ -1001,7 +1071,7 @@ export default function CopilotView({
     if (!workingPlan) return;
     setIsSavingDraft(true);
     try {
-      const res = await fetch("/api/campaigns", {
+      const res = await apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1058,7 +1128,7 @@ export default function CopilotView({
     setTimeout(() => setHighlightedTaskIds([]), 3500);
 
     if (workingPlan.status === "live") {
-      fetch("/api/campaigns", {
+      apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1097,7 +1167,7 @@ export default function CopilotView({
     });
 
     if (workingPlan.status === "live") {
-      fetch("/api/campaigns", {
+      apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1151,7 +1221,7 @@ export default function CopilotView({
     });
 
     if (workingPlan.status === "live") {
-      fetch("/api/campaigns", {
+      apiFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1209,7 +1279,7 @@ export default function CopilotView({
       // ⚡ Set loading and thinking IMMEDIATELY so loader animation shows instantly
       setIsLoading(true);
       setIsThinking(true);
-      setToolCallLabel("Analyzing prompt & SOP requirements…");
+      setToolCallLabel(null);
 
       // Check conversational Zoho Books customer registration confirmation
       const lower = content.toLowerCase().trim();
@@ -1354,7 +1424,7 @@ export default function CopilotView({
             // Approval gate: live campaigns sync across Zoho; saved drafts persist
             // to Supabase only (server returns skipped: "draft_not_synced" with zero Zoho calls).
             if (updatedPlan.campaignId) {
-              fetch("/api/campaigns", {
+              apiFetch("/api/campaigns", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1453,16 +1523,61 @@ export default function CopilotView({
       setToolCallLabel(null);
       const thinkingStartTime = Date.now();
 
+      let currentSessionId = session.id;
+      if (user) {
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentSessionId);
+        if (!isUUID) {
+          try {
+            const sRes = await fetch("/api/chat/sessions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(activeOrg?.id ? { "x-active-org-id": activeOrg.id } : {}),
+              },
+              body: JSON.stringify({
+                title: content.slice(0, 50),
+                organizationId: activeOrg?.id,
+              }),
+            });
+            if (sRes.ok) {
+              const { session: newDbSession } = await sRes.json();
+              if (newDbSession?.id) {
+                currentSessionId = newDbSession.id;
+                setSession((prev) => ({ ...prev, id: currentSessionId }));
+                window.dispatchEvent(new CustomEvent("prism:session-updated"));
+              }
+            }
+          } catch {}
+        }
+
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentSessionId)) {
+          fetch(`/api/chat/sessions/${currentSessionId}/messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(activeOrg?.id ? { "x-active-org-id": activeOrg.id } : {}),
+            },
+            body: JSON.stringify({ role: "user", content }),
+          }).catch(() => {});
+        }
+      }
+
+      let accumulatedContent = "";
+      let outputText = "";
+
       try {
         const controller = new AbortController();
         abortRef.current = controller;
 
         const response = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(activeOrg?.id ? { "x-active-org-id": activeOrg.id } : {}),
+          },
           body: JSON.stringify({
             message: promptToSend,
-            sessionId: session.id,
+            sessionId: currentSessionId,
             campaignContext: campaignContextStr,
             conversationHistory,
             intent,
@@ -1484,7 +1599,6 @@ export default function CopilotView({
           const reader = response.body?.getReader();
           if (!reader) throw new Error("No stream available");
 
-          let accumulatedContent = "";
           let firstChunkReceived = false;
           let toolCallReceived = false; // tracks whether n8n sent a begin frame (tool was invoked but may have returned no content)
           const decoder = new TextDecoder();
@@ -1541,21 +1655,21 @@ export default function CopilotView({
                     if (parsed.toolCall) {
                       toolCallReceived = true;
                       const labelMap: Record<string, string> = {
-                        "Zoho CRM Deals & Campaigns": "Querying Zoho CRM deals...",
-                        "Zoho CRM Invoices": "Querying Zoho CRM invoices...",
-                        "Zoho CRM Client Accounts": "Querying Zoho CRM accounts...",
-                        "Campaign Knowledge Base": "Querying Zoho Knowledge Base...",
-                        "Supabase Vector Store": "Querying Zoho Knowledge Base...",
-                        "Supabase Vector Retriever": "Querying Zoho Knowledge Base...",
-                        "Pending Tasks & SOP Action Items": "Loading pending tasks...",
+                        "Zoho CRM Deals & Campaigns": "Accessing Zoho CRM…",
+                        "Zoho CRM Invoices": "Accessing Zoho Books…",
+                        "Zoho CRM Client Accounts": "Accessing Zoho CRM…",
+                        "Campaign Knowledge Base": "Searching Knowledge Base…",
+                        "Supabase Vector Store": "Searching Knowledge Base…",
+                        "Supabase Vector Retriever": "Searching Knowledge Base…",
+                        "Pending Tasks & SOP Action Items": "Accessing tasks…",
                       };
                       let displayLabel =
                         labelMap[parsed.toolCall as string] ||
-                        `Processing: ${parsed.toolCall}...`;
+                        `Accessing ${parsed.toolCall}…`;
                       displayLabel = displayLabel
-                        .replace(/supabase/gi, "Zoho Knowledge Base")
-                        .replace(/pgvector/gi, "SOP Index")
-                        .replace(/vector store/gi, "Zoho Knowledge Base");
+                        .replace(/supabase/gi, "Knowledge Base")
+                        .replace(/pgvector/gi, "Knowledge Base")
+                        .replace(/vector store/gi, "Knowledge Base");
                       setToolCallLabel(displayLabel);
                       continue;
                     }
@@ -1581,21 +1695,21 @@ export default function CopilotView({
                       // Keepalive ping, ignore
                     } else if (parsed.toolCall) {
                       const labelMap: Record<string, string> = {
-                        "Zoho CRM Deals & Campaigns": "Querying Zoho CRM deals...",
-                        "Zoho CRM Invoices": "Querying Zoho CRM invoices...",
-                        "Zoho CRM Client Accounts": "Querying Zoho CRM accounts...",
-                        "Campaign Knowledge Base": "Querying Zoho Knowledge Base...",
-                        "Supabase Vector Store": "Querying Zoho Knowledge Base...",
-                        "Supabase Vector Retriever": "Querying Zoho Knowledge Base...",
-                        "Pending Tasks & SOP Action Items": "Loading pending tasks...",
+                        "Zoho CRM Deals & Campaigns": "Accessing Zoho CRM…",
+                        "Zoho CRM Invoices": "Accessing Zoho Books…",
+                        "Zoho CRM Client Accounts": "Accessing Zoho CRM…",
+                        "Campaign Knowledge Base": "Searching Knowledge Base…",
+                        "Supabase Vector Store": "Searching Knowledge Base…",
+                        "Supabase Vector Retriever": "Searching Knowledge Base…",
+                        "Pending Tasks & SOP Action Items": "Accessing tasks…",
                       };
                       let displayLabel =
                         labelMap[parsed.toolCall as string] ||
-                        `Processing: ${parsed.toolCall}...`;
+                        `Accessing ${parsed.toolCall}…`;
                       displayLabel = displayLabel
-                        .replace(/supabase/gi, "Zoho Knowledge Base")
-                        .replace(/pgvector/gi, "SOP Index")
-                        .replace(/vector store/gi, "Zoho Knowledge Base");
+                        .replace(/supabase/gi, "Knowledge Base")
+                        .replace(/pgvector/gi, "Knowledge Base")
+                        .replace(/vector store/gi, "Knowledge Base");
                       setToolCallLabel(displayLabel);
                       continue;
                     } else {
@@ -1607,21 +1721,37 @@ export default function CopilotView({
                 }
 
                 if (token) {
+                  // Catch any tool calling status leaking into text
+                  const toolCallingMatch = token.match(/^Calling tools?:\s*([^\n\r]+)([\s\S]*)$/i);
+                  if (toolCallingMatch) {
+                    const tools = toolCallingMatch[1].trim();
+                    const remainder = toolCallingMatch[2].trim();
+                    const firstTool = tools.split(/,\s*/)[0] || tools;
+                    const labelMap: Record<string, string> = {
+                      "Dynamics 365 CRM": "Accessing Dynamics 365 CRM…",
+                      "Zoho CRM": "Accessing Zoho CRM…",
+                      "Zoho Books": "Accessing Zoho Books…",
+                      "Zoho Projects": "Accessing Zoho Projects…",
+                      "Knowledge Base": "Searching Knowledge Base…",
+                      "Microsoft Outlook Mail": "Accessing Microsoft Outlook…",
+                      "SharePoint": "Accessing SharePoint…",
+                    };
+                    const display = labelMap[firstTool] || `Accessing ${firstTool}…`;
+                    setToolCallLabel(display);
+                    setIsThinking(true);
+                    token = remainder;
+                  } else if (/Calling tools?:/i.test(token)) {
+                    token = token.replace(/Calling tools?:[^\n\r]+(\r?\n)?/gi, "").trim();
+                  }
+
+                  if (!token) continue;
+
                   accumulatedContent += token;
 
                   if (!firstChunkReceived) {
                     firstChunkReceived = true;
-                    const elapsed = Date.now() - thinkingStartTime;
-                    const minThinkingDuration = 1200;
-                    const remainingDelay = Math.max(0, minThinkingDuration - elapsed);
-
-                    if (remainingDelay > 0) {
-                      setTimeout(() => {
-                        setIsThinking(false);
-                      }, remainingDelay);
-                    } else {
-                      setIsThinking(false);
-                    }
+                    setIsThinking(false);
+                    setToolCallLabel(null);
 
                     const initialMsg: Message = {
                       id: `msg-${Date.now()}-assistant`,
@@ -1712,7 +1842,7 @@ export default function CopilotView({
           setIsThinking(false);
           setIsLoading(false);
 
-          let outputText = data.text || data.output || data.content || data.error || "";
+          outputText = data.text || data.output || data.content || data.error || "";
           if (planModified && modificationSummary) {
             outputText = `${modificationSummary}\n\n---\n${outputText}`;
           }
@@ -1767,6 +1897,21 @@ export default function CopilotView({
         setIsThinking(false);
         setToolCallLabel(null);
         abortRef.current = null;
+
+        const finalAssistantText = accumulatedContent || outputText;
+        if (user && finalAssistantText && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentSessionId)) {
+          fetch(`/api/chat/sessions/${currentSessionId}/messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(activeOrg?.id ? { "x-active-org-id": activeOrg.id } : {}),
+            },
+            body: JSON.stringify({
+              role: "assistant",
+              content: finalAssistantText,
+            }),
+          }).catch(() => {});
+        }
       }
     },
     [session.id, session.messages, workingPlan, showToast]
@@ -1778,14 +1923,46 @@ export default function CopilotView({
     setIsThinking(false);
   }, []);
 
+  // Keep a stable ref to sendMessage so the pending-prompt effect below can
+  // auto-run a staged Home-template prompt without re-firing on every render
+  // or depending on sendMessage's changing identity.
+  const sendMessageRef = useRef(sendMessage);
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
+
+  // Auto-run a prompt staged by a Home template card (getPendingPromptKey).
+  // The key is consumed (removed) immediately and the prompt sent right away,
+  // so clicking a template *runs* it rather than opening a blank Copilot.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = getPendingPromptKey(user?.id);
+    let staged: string | null = null;
+    try {
+      staged = localStorage.getItem(key);
+      if (staged) localStorage.removeItem(key);
+    } catch {}
+    const prompt = staged?.trim();
+    if (!prompt) return;
+    // Defer one tick so the mount-time session restore settles first.
+    const t = setTimeout(() => {
+      if (!isLoading) sendMessageRef.current(prompt);
+    }, 50);
+    return () => clearTimeout(t);
+    // Run once per mount / user change only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const handleNewChat = useCallback(() => {
     if (typeof window !== "undefined") {
       try {
-        localStorage.removeItem(COPILOT_SESSION_KEY);
-        localStorage.removeItem(COPILOT_WORKING_PLAN_KEY);
-        localStorage.removeItem(COPILOT_PANEL_OPEN_KEY);
-        localStorage.removeItem("prism_copilot_draft_input");
-        localStorage.removeItem("prism_active_plan_context");
+        localStorage.removeItem(userSessionKey);
+        localStorage.removeItem(userPlanKey);
+        localStorage.removeItem(userPanelKey);
+        localStorage.removeItem(getDraftKey(user?.id));
+        localStorage.removeItem(getPendingPromptKey(user?.id));
+        const planContextKey = user ? `prism_active_plan_context_${user.id}` : "prism_active_plan_context";
+        localStorage.removeItem(planContextKey);
       } catch {}
     }
     setSession(createSession());
@@ -1800,7 +1977,7 @@ export default function CopilotView({
 
   const handleExport = useCallback(() => {
     if (messages.length === 0) return;
-    let md = `# BCP Assist, Copilot Session\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
+    let md = `# Prism, Copilot Session\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
     messages.forEach((m) => {
       const timeStr = m.timestamp instanceof Date ? m.timestamp.toLocaleTimeString() : new Date(m.timestamp).toLocaleTimeString();
       md += `### ${m.role.toUpperCase()} (${timeStr}):\n\n${m.content}\n\n---\n\n`;
@@ -1809,11 +1986,43 @@ export default function CopilotView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `BCP_Assist_Copilot_${Date.now()}.md`;
+    a.download = `Prism_Copilot_${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
     showToast("Exported chat session to Markdown", "check");
   }, [messages, showToast]);
+
+  const handleDeleteCurrentChat = useCallback(async () => {
+    const currentId = session.id;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentId);
+    if (isUUID) {
+      try {
+        const headers: Record<string, string> = {};
+        if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
+        await fetch(`/api/chat/sessions/${currentId}`, {
+          method: "DELETE",
+          headers,
+        });
+        window.dispatchEvent(new CustomEvent("prism:session-deleted", { detail: { sessionId: currentId } }));
+      } catch (err) {
+        console.warn("[CopilotView] Delete chat error:", err);
+      }
+    }
+    handleNewChat();
+    showToast("Chat deleted", "trash");
+  }, [session.id, activeOrg?.id, handleNewChat, showToast]);
+
+  // Sync if current active session was deleted from sidebar
+  useEffect(() => {
+    const handleSessionDeleted = (e: Event) => {
+      const custom = e as CustomEvent<{ sessionId: string }>;
+      if (custom.detail?.sessionId && custom.detail.sessionId === session.id) {
+        handleNewChat();
+      }
+    };
+    window.addEventListener("prism:session-deleted", handleSessionDeleted);
+    return () => window.removeEventListener("prism:session-deleted", handleSessionDeleted);
+  }, [session.id, handleNewChat]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#FAFAF9] overflow-hidden relative">
@@ -1849,15 +2058,15 @@ export default function CopilotView({
       </AnimatePresence>
 
       {/* Header */}
-      <header className="h-14 border-b border-stone-200/70 bg-white/90 backdrop-blur-md px-6 flex items-center justify-between flex-shrink-0 z-20">
+      <header className="h-12 border-b border-stone-100 bg-white px-5 flex items-center justify-between flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <BigCityLogo size={22} variant="tile" className="rounded-md border border-stone-200/80 shadow-2xs p-0.5 shrink-0" />
-            <h1 className="text-[14.5px] font-bold text-stone-900 tracking-tight">
-              {workingPlan ? "Plan Copilot Studio" : "BCP Assist"}
+            <PrismLogo size={20} variant="tile" className="rounded-md shrink-0" />
+            <h1 className="text-[13.5px] font-bold text-stone-900 tracking-tight">
+              {workingPlan ? "Plan Copilot" : "Prism"}
             </h1>
-            <span className="text-[11px] text-stone-400 font-medium hidden sm:inline">
-              by <span className="text-blue-600 font-semibold">Enlight Lab</span>
+            <span className="text-[10.5px] text-stone-400 font-medium hidden sm:inline">
+              by <span className="text-violet-600 font-semibold">Enlight Lab</span>
             </span>
           </div>
           {workingPlan && !isPlanPanelOpen && (
@@ -1886,29 +2095,41 @@ export default function CopilotView({
           {workingPlan && isPlanPanelOpen && (
             <button
               onClick={() => setIsPlanPanelOpen(false)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-stone-50 text-stone-600 hover:text-stone-900 transition-colors border border-stone-200 shadow-xs text-xs font-semibold cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-stone-50 text-stone-600 hover:text-stone-900 transition-colors border border-stone-200 text-xs font-medium cursor-pointer"
             >
               <span>Hide Plan</span>
             </button>
           )}
 
           {messages.length > 0 && (
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-stone-50 text-stone-600 hover:text-stone-900 transition-colors border border-stone-200 shadow-xs text-xs font-semibold cursor-pointer"
-              title="Export session to Markdown"
-            >
-              <DownloadSimple size={14} weight="bold" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleDeleteCurrentChat}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-stone-500 hover:text-rose-600 transition-colors border border-stone-200 hover:border-rose-200 text-xs font-medium cursor-pointer"
+                title="Delete this chat"
+              >
+                <Trash size={13} weight="bold" />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-stone-50 text-stone-500 hover:text-stone-800 transition-colors border border-stone-200 text-xs font-medium cursor-pointer"
+                title="Export session to Markdown"
+              >
+                <DownloadSimple size={13} weight="bold" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+            </>
           )}
 
           <button
             onClick={handleNewChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-amber-700 text-white text-xs font-semibold transition-all shadow-xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition-all cursor-pointer"
           >
-            <Plus size={14} weight="bold" />
-            <span>New Chat</span>
+            <Plus size={13} weight="bold" />
+            <span>New</span>
           </button>
         </div>
       </header>
@@ -1931,7 +2152,7 @@ export default function CopilotView({
             : undefined
         }
         onDismiss={() => setDismissedPauseKey(pausedKey)}
-        className="border-b border-amber-200 rounded-none px-6 py-2.5"
+        className="mx-4 sm:mx-6 mt-2.5 mb-1 rounded-xl shadow-xs"
       />
 
       {/* Proactive Risk Nudge Banner */}
@@ -1974,7 +2195,7 @@ export default function CopilotView({
             onWheel={handleWheel}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
-            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 flex flex-col items-center space-y-4 w-full min-w-0"
+            className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 flex flex-col items-center space-y-5 w-full min-w-0 bg-[#FAFAF9]"
           >
             {messages.length === 0 ? (
               <EmptyState onSelectPrompt={sendMessage} activeConnectors={activeConnectors ?? undefined} />
@@ -2075,39 +2296,34 @@ export default function CopilotView({
           </div>
 
           {/* Chat Input Bar */}
-          <div className="p-3.5 bg-white border-t border-stone-200/80 flex-shrink-0 shadow-xs">
+          <div className="px-4 pb-4 pt-2 bg-[#FAFAF9] flex-shrink-0">
             <div className="max-w-2xl mx-auto flex flex-col gap-2">
-              {/* Contextual Suggestion Chips */}
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                {messages.length === 0 ? (
-                  <>
-                    <button onClick={() => sendMessage("Create a plan for a Nestlé campaign")} className="text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-600 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-stone-200">Create a plan for a Nestlé campaign</button>
-                    <button onClick={() => sendMessage("What is a scratch & win campaign?")} className="text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-600 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-stone-200">What is a scratch & win campaign?</button>
-                  </>
-                ) : workingPlan && workingPlan.status === "draft" ? (
+              {/* Contextual Plan Workflow Chips (plan gates, not prompt suggestions) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {workingPlan && workingPlan.status === "draft" ? (
                   <>
                     {workingPlan.booksContact && !workingPlan.booksContact.exists && !workingPlan.booksCustomerId && (
                       <button
                         onClick={() => handleCreateBooksContact()}
                         disabled={isCreatingBooksContact}
-                        className="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-900 px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer border border-amber-300 flex items-center gap-1 shadow-2xs animate-pulse"
+                        className="text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-900 px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer border border-amber-300 flex items-center gap-1 animate-pulse"
                       >
                         {isCreatingBooksContact ? (
-                          <ArrowsClockwise size={12} className="animate-spin text-amber-600" />
+                          <ArrowsClockwise size={11} className="animate-spin text-amber-600" />
                         ) : (
-                          <Sparkle size={12} weight="fill" className="text-amber-500" />
+                          <Sparkle size={11} weight="fill" className="text-amber-500" />
                         )}
-                        Register &quot;{workingPlan.campaignData.client}&quot; in Zoho Books
+                        Register &quot;{workingPlan.campaignData.client}&quot; in Books
                       </button>
                     )}
-                    <button onClick={() => sendMessage("Assign all legal tasks to Akash Verma")} className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-indigo-200">Assign all legal tasks to Akash</button>
-                    <button onClick={() => sendMessage("Suggest improvements")} className="text-[10px] bg-sky-50 hover:bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-sky-200">Suggest improvements</button>
-                    <button onClick={() => sendMessage("Approve")} className="text-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-emerald-200 flex items-center gap-1"><CheckCircle size={12} weight="fill" /> Approve</button>
-                    <button onClick={handleSaveWorkingPlanAsDraft} disabled={isSavingDraft} className="text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-stone-200 flex items-center gap-1 disabled:opacity-50"><FloppyDisk size={12} weight="bold" /> {isSavingDraft ? "Saving…" : "Save as Draft"}</button>
+                    <button onClick={() => sendMessage("Assign all legal tasks to Akash Verma")} className="text-[11px] bg-white hover:bg-stone-50 text-stone-500 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer border border-stone-200/80">Assign legal tasks</button>
+                    <button onClick={() => sendMessage("Suggest improvements")} className="text-[11px] bg-white hover:bg-stone-50 text-stone-500 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer border border-stone-200/80">Suggest improvements</button>
+                    <button onClick={() => sendMessage("Approve")} className="text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer border border-emerald-200 flex items-center gap-1"><CheckCircle size={11} weight="fill" /> Approve</button>
+                    <button onClick={handleSaveWorkingPlanAsDraft} disabled={isSavingDraft} className="text-[11px] bg-white hover:bg-stone-50 text-stone-500 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer border border-stone-200/80 flex items-center gap-1 disabled:opacity-50"><FloppyDisk size={11} weight="bold" /> {isSavingDraft ? "Saving…" : "Save draft"}</button>
                   </>
                 ) : workingPlan && workingPlan.status === "live" ? (
                   <>
-                    <button onClick={handleNewChat} className="text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-600 px-2.5 py-1 rounded-full font-medium transition-colors cursor-pointer border border-stone-200">Start new plan</button>
+                    <button onClick={handleNewChat} className="text-[11px] bg-white hover:bg-stone-50 text-stone-500 px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer border border-stone-200/80">Start new plan</button>
                   </>
                 ) : null}
               </div>
@@ -2117,11 +2333,12 @@ export default function CopilotView({
                 isLoading={isLoading || isPushingToZoho}
                 onStop={handleStop}
               />
-              <div className="flex items-center justify-between text-[11px] text-stone-400 px-1 mt-1">
+              <div className="flex items-center justify-between text-[10.5px] text-stone-400 px-1">
                 <span>
-                  Press <kbd className="px-1.5 py-0.5 rounded bg-stone-50 border border-stone-200 text-[10px] text-stone-600 font-mono shadow-xs">Enter ↵</kbd> to send
+                  <kbd className="px-1 py-0.5 rounded bg-white border border-stone-200 text-[10px] text-stone-500 font-mono">↵</kbd>{" "}
+                  to send · Shift+↵ for newline
                 </span>
-                <span className="font-medium text-stone-500">Powered by live connectors</span>
+                <span className="text-stone-400">Powered by live connectors</span>
               </div>
             </div>
           </div>

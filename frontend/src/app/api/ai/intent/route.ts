@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth-helpers";
 import { BIGCITY_TEAM } from "@/utils/planModifier";
 import { getConnectorPreferences, isConnectorPaused } from "@/lib/connector-preferences";
 import {
@@ -13,9 +14,7 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const N8N_WEBHOOK_URL =
-  process.env.N8N_WEBHOOK_URL ||
-  "https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat";
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || "";
 
 /**
  * AI Plan Modifier: Calls Gemini 3.7 Flash via n8n to modify campaigns & tasks
@@ -244,6 +243,23 @@ Output ONLY a valid JSON object matching this schema (no markdown fences, pure J
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const { user, orgId } = auth;
+
+    let effectiveOrgId = orgId;
+    if (!effectiveOrgId) {
+      const { data: memberRows } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (memberRows && memberRows.length > 0) {
+        effectiveOrgId = memberRows[0].organization_id;
+      }
+    }
+
     const body = await request.json();
     const { message, activePlan, sessionId } = body;
 
@@ -453,12 +469,18 @@ Return ONLY a valid JSON object matching this schema (no markdown fences, pure J
           books_customer_id: activePlan.booksCustomerId,
         };
       } else {
-        // Find existing campaign in Supabase by brand or name
+        // Find existing campaign in Supabase by brand or name within this organization
         try {
-          const { data: dbCampaigns } = await supabase
+          let query = supabase
             .from("campaigns")
             .select("*")
             .order("created_at", { ascending: false });
+
+          if (effectiveOrgId) {
+            query = query.eq("organization_id", effectiveOrgId);
+          }
+
+          const { data: dbCampaigns } = await query;
 
           if (dbCampaigns && dbCampaigns.length > 0) {
             if (targetBrand) {

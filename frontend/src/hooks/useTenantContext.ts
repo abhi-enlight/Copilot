@@ -1,11 +1,49 @@
+/**
+ * useTenantContext — refactored to use real Supabase Auth
+ *
+ * Previously relied on sessionStorage + MS OAuth cookies for identity.
+ * Now derives auth state from AuthProvider (Supabase Auth) and keeps
+ * backward compatibility with legacy consumers that used this hook's
+ * return values (activeTenant, isAuthenticated, handleLogout, etc.).
+ */
+
 import { useState, useRef, useEffect } from 'react';
-import { Tenant } from '@/types';
-import { DEFAULT_WORKSPACE } from '@/lib/constants';
-import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/components/providers/AuthProvider';
+import type { Tenant } from '@/types';
+
+function buildTenantFromStatus(data: any, base: Tenant): Tenant {
+  const isPersonal = /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(data.userEmail || '');
+  const name = data.userName
+    ? `${data.userName}'s Workspace`
+    : `${(data.userEmail || '').split('@')[0]}'s Workspace`;
+
+  return {
+    ...base,
+    userEmail: data.userEmail,
+    userName: data.userName || undefined,
+    name,
+    sharepointDrive: data.sharepointDrive || (isPersonal ? 'OneDrive (/me/drive)' : '/sites/root/drive'),
+    m365Connected: true,
+    crmConnected: Boolean(data.crmConnected),
+  };
+}
+
+const DEFAULT_TENANT: Tenant = {
+  id: 'personal',
+  name: 'Personal Workspace',
+  slug: 'personal',
+  role: 'Owner',
+  userEmail: undefined,
+  userName: undefined,
+  m365Connected: false,
+  crmConnected: false,
+};
 
 export function useTenantContext() {
-  const [activeTenant, setActiveTenant] = useState<Tenant>(DEFAULT_WORKSPACE);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const { user, profile, activeOrg, signOut } = useAuth();
+
+  // Derive a Tenant shape from the Supabase auth context
+  const [activeTenant, setActiveTenant] = useState<Tenant>(DEFAULT_TENANT);
   const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showConsentSuccess, setShowConsentSuccess] = useState(false);
@@ -13,48 +51,23 @@ export function useTenantContext() {
 
   const tenantDropdownRef = useRef<HTMLDivElement>(null);
 
+  // isAuthenticated = has a Supabase auth user
+  const isAuthenticated = !!user;
+
+  // Sync tenant state from server status (for legacy MS connection info)
   const syncServerStatus = async () => {
     try {
       const res = await fetch('/api/tenant/status');
       if (res.ok) {
         const data = await res.json();
         if (data.m365Connected && data.userEmail) {
-          setIsAuthenticated(true);
-          setActiveTenant((prev) => {
-            const isPersonal = /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(data.userEmail);
-            const name = data.userName 
-              ? `${data.userName}'s Workspace` 
-              : `${data.userEmail.split('@')[0]}'s Workspace`;
-
-            const updated: Tenant = {
-              ...prev,
-              userEmail: data.userEmail,
-              userName: data.userName || undefined,
-              name,
-              sharepointDrive: data.sharepointDrive || (isPersonal ? 'OneDrive (/me/drive)' : '/sites/root/drive'),
-              m365Connected: true,
-              crmConnected: Boolean(data.crmConnected)
-            };
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
-            }
-            return updated;
-          });
+          setActiveTenant((prev) => buildTenantFromStatus(data, prev));
         } else {
-          // Disconnected on server: ensure client strictly shows disconnected
-          setActiveTenant((prev) => {
-            const updated: Tenant = {
-              ...prev,
-              userEmail: undefined,
-              userName: undefined,
-              m365Connected: false,
-              crmConnected: false
-            };
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('copilot_tenant', JSON.stringify(updated));
-            }
-            return updated;
-          });
+          setActiveTenant((prev) => ({
+            ...prev,
+            m365Connected: false,
+            crmConnected: false,
+          }));
         }
       }
     } catch (err) {
@@ -62,10 +75,25 @@ export function useTenantContext() {
     }
   };
 
-  // Restore authenticated session and sync with live server state
+  // Update activeTenant when the org context changes
   useEffect(() => {
-    syncServerStatus();
-  }, []);
+    if (activeOrg) {
+      setActiveTenant((prev) => ({
+        ...prev,
+        id: activeOrg.id,
+        name: activeOrg.name,
+        slug: activeOrg.slug,
+        userName: profile?.displayName ?? undefined,
+        userEmail: profile?.email ?? undefined,
+      }));
+    }
+  }, [activeOrg, profile]);
+
+  // Sync MS connection status on mount
+  useEffect(() => {
+    if (user) syncServerStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -80,33 +108,21 @@ export function useTenantContext() {
 
   const handleLogout = async () => {
     try {
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('copilot_auth');
-        sessionStorage.removeItem('copilot_tenant');
-        localStorage.removeItem('copilot_auth');
-        localStorage.removeItem('copilot_tenant');
-      }
-      await apiClient.logout();
+      await signOut(); // Supabase signOut + clears legacy cookies
     } catch (e) {
       console.error('Logout error:', e);
     }
-    setIsAuthenticated(false);
-    setActiveTenant(DEFAULT_WORKSPACE);
+    setActiveTenant(DEFAULT_TENANT);
     setIsTenantDropdownOpen(false);
   };
 
+  // Legacy shim: kept for backward compat with pages that call handleLogin
   const handleLogin = () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('copilot_auth', 'true');
-    }
-    setIsAuthenticated(true);
+    // no-op: login is now driven by /auth/login page + Supabase
   };
 
   const handleSelectTenant = (tenant: Tenant) => {
     setActiveTenant(tenant);
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('copilot_tenant', JSON.stringify(tenant));
-    }
   };
 
   return {
@@ -114,7 +130,7 @@ export function useTenantContext() {
     setActiveTenant,
     handleSelectTenant,
     isAuthenticated,
-    setIsAuthenticated,
+    setIsAuthenticated: () => {}, // no-op: state comes from Supabase
     isTenantDropdownOpen,
     setIsTenantDropdownOpen,
     showConsentModal,
@@ -125,6 +141,6 @@ export function useTenantContext() {
     setShowIntegrationsModal,
     tenantDropdownRef,
     handleLogout,
-    handleLogin
+    handleLogin,
   };
 }

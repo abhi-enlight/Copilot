@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 import { buildEntitlementSnapshot, CONNECTOR_IDS } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,9 @@ export const dynamic = "force-dynamic";
  * re-probe the provider right now.
  */
 export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   const { searchParams } = new URL(request.url);
   const recheck = searchParams.get("recheck") === "1" || searchParams.get("recheck") === "true";
 
@@ -34,7 +38,10 @@ export async function GET(request: Request) {
 }
 
 /** Explicit re-check action (used by the "Re-check access" UI button). */
-export async function POST() {
+export async function POST(request: Request) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const snapshot = await buildEntitlementSnapshot({ forceReprobe: true });
     const crm = snapshot.connectors["microsoft.dynamics"];

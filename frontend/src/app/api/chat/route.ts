@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import {
-  fetchUserEmails,
-  fetchUserDriveFiles,
-  refreshMicrosoftToken,
-  MicrosoftEmail,
-  MicrosoftDriveItem
-} from '@/lib/microsoft-graph';
 import { buildEntitlementSnapshot } from '@/lib/entitlements';
 import { resolveZohoAccessToken, isZohoOrgSharedEnabled, legacyOrgConfig } from '@/lib/zoho';
+import { resolveMicrosoftVaultTokens } from '@/lib/microsoft-vault';
 import { getConnectorPreferences, isConnectorPaused } from '@/lib/connector-preferences';
+import { requireAuth } from '@/lib/auth-helpers';
+import { adminSupabase } from '@/lib/supabase-admin';
 
 // =============================================================================
 // Unified /api/chat (Phase 1 consolidation)
@@ -30,9 +26,7 @@ import { getConnectorPreferences, isConnectorPaused } from '@/lib/connector-pref
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const N8N_WEBHOOK_URL =
-  process.env.N8N_WEBHOOK_URL ||
-  'https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat';
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || '';
 
 const SSE_HEADERS = {
   'Content-Type': 'text/event-stream; charset=utf-8',
@@ -42,9 +36,13 @@ const SSE_HEADERS = {
 };
 
 // -----------------------------------------------------------------------------
-// GET /api/chat, Health check (n8n reachability)
+// GET /api/chat, Health check (n8n reachability). Authenticated to prevent
+// unauthenticated probing of backend infrastructure reachability/latency.
 // -----------------------------------------------------------------------------
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   const start = Date.now();
   try {
     const res = await fetch(N8N_WEBHOOK_URL, {
@@ -77,6 +75,10 @@ export async function GET() {
 // POST /api/chat, dispatcher
 // -----------------------------------------------------------------------------
 export async function POST(request: Request) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+  const { user, orgId, userEmail: authEmail } = auth;
+
   let body: Record<string, unknown> = {};
   try {
     body = await request.json();
@@ -84,51 +86,115 @@ export async function POST(request: Request) {
     body = {};
   }
 
-  // BCP-style payload (n8n SSE stream)
-  if (typeof body.message === 'string') {
-    return streamN8nChat(body as any);
+  const rawMessage =
+    typeof body.message === 'string'
+      ? body.message
+      : typeof body.chatInput === 'string'
+      ? body.chatInput
+      : '';
+
+  if (!rawMessage || !rawMessage.trim()) {
+    return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
 
-  // Legacy cockpit payload (live Microsoft Graph JSON)
-  return legacyCockpitChat(body);
+  body.message = rawMessage.trim();
+  return streamN8nChat(body as any, user.id, orgId, authEmail || user.email || null);
+}
+
+/**
+ * Loads the user's live active campaigns with real task completion metrics and pending approval gates.
+ * Injected as campaignContext for n8n when general chat queries campaign status.
+ */
+async function buildActiveCampaignsContext(userId: string, orgId: string | null): Promise<string | null> {
+  try {
+    let query = adminSupabase
+      .from("campaigns")
+      .select("id, name, client, status, budget, start_date, end_date, zoho_crm_deal_id, zoho_crm_deal_stage, zoho_project_id, tasks, aspect_summary")
+      .eq("status", "live");
+
+    if (orgId) {
+      query = query.or(`organization_id.eq.${orgId},created_by.eq.${userId}`);
+    } else {
+      query = query.eq("created_by", userId);
+    }
+
+    const { data: rows, error } = await query.order("created_at", { ascending: false }).limit(10);
+    if (error || !rows || rows.length === 0) return null;
+
+    const sections: string[] = ["[ACTIVE MARKETING PROMOTION CAMPAIGNS (PRISM & ZOHO CRM)]"];
+    for (const c of rows) {
+      const tasks: any[] = Array.isArray(c.tasks) ? c.tasks : [];
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter((t) => t.status === "COMPLETED").length;
+      const inProgressTasks = tasks.filter((t) => t.status === "IN_PROGRESS").length;
+      const pendingApprovalTasks = tasks.filter((t) => typeof t.status === "string" && t.status.includes("PENDING"));
+
+      let campaignStr = `Campaign: ${c.name}\n` +
+        `Client: ${c.client || "N/A"} | Status: ${c.status.toUpperCase()} | Budget: ${c.budget || "N/A"}\n` +
+        `Zoho CRM Deal ID: ${c.zoho_crm_deal_id || "N/A"} (Stage: ${c.zoho_crm_deal_stage || "Qualification"})\n` +
+        `Tasks Completion: ${completedTasks}/${totalTasks} completed, ${inProgressTasks} in progress, ${pendingApprovalTasks.length} pending approval`;
+
+      if (pendingApprovalTasks.length > 0) {
+        campaignStr += `\nPending Approvals (${pendingApprovalTasks.length}):\n` +
+          pendingApprovalTasks
+            .map((t) => `  - [${t.aspect?.toUpperCase() || "GATE"}] ${t.title} (Status: ${t.status}, Assignee: ${t.assignee || "Unassigned"}, Urgency: ${t.urgency || "NORMAL"})`)
+            .join("\n");
+      }
+
+      sections.push(campaignStr);
+    }
+
+    return sections.join("\n\n");
+  } catch (err) {
+    console.warn("[chat] Failed to load active campaigns context:", err);
+    return null;
+  }
 }
 
 // -----------------------------------------------------------------------------
 // Path 1, n8n SSE stream proxy (BCP / Prism shell)
 // Pure live proxy: no cache, no fallback. Streams tool frames + text chunks.
 // -----------------------------------------------------------------------------
-async function streamN8nChat(body: {
-  message: string;
-  sessionId?: string;
-  campaignContext?: string;
-  conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
-  intent?: string;
-  activeConnectors?: Record<string, boolean>;
-}) {
-  const { message, sessionId, campaignContext, conversationHistory, intent, activeConnectors } = body;
+async function streamN8nChat(
+  body: {
+    message: string;
+    sessionId?: string;
+    campaignContext?: string;
+    conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
+    intent?: string;
+    activeConnectors?: Record<string, boolean>;
+  },
+  userId: string,
+  orgId: string | null,
+  authUserEmail: string | null
+) {
+  // campaignContext & intent from the client are deliberately ignored —
+  // context is built server-side (see below) to prevent prompt injection.
+  let { message, sessionId, conversationHistory, activeConnectors } = body;
 
   if (!message || typeof message !== 'string') {
     return NextResponse.json({ error: 'Message is required' }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  let msAccessToken = cookieStore.get('ms_access_token')?.value || '';
-  const msRefreshToken = cookieStore.get('ms_refresh_token')?.value || '';
-  const msExpiresAtStr = cookieStore.get('ms_token_expires_at')?.value || '';
-  const msExpiresAt = msExpiresAtStr ? parseInt(msExpiresAtStr, 10) : 0;
-  const userEmail = cookieStore.get('ms_user_email')?.value || null;
+  // Strictly verify sessionId belongs to this user
+  if (sessionId) {
+    const { data: sessionRow } = await adminSupabase
+      .from("chat_sessions")
+      .select("id, organization_id")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  // Proactively refresh expired Microsoft token if refresh token is available
-  if ((!msAccessToken || (msExpiresAt > 0 && Date.now() >= msExpiresAt - 60000)) && msRefreshToken) {
-    try {
-      const refreshed = await refreshMicrosoftToken(msRefreshToken);
-      if (refreshed.accessToken) {
-        msAccessToken = refreshed.accessToken;
-      }
-    } catch (refErr) {
-      console.warn('Silent token refresh in chat proxy failed:', refErr);
+    if (!sessionRow) {
+      sessionId = undefined;
     }
   }
+
+  // Resolve Microsoft tokens strictly from the authenticated user's vault in user_integrations.
+  // Never read tokens from cookies to prevent cross-user token leaks.
+  const msVault = await resolveMicrosoftVaultTokens(userId, authUserEmail);
+  const msAccessToken = msVault.accessToken || '';
+  const userEmail = authUserEmail || msVault.userEmail || null;
 
   // -------------------------------------------------------------------
   // Server-side entitlement engine, the client's toggles can never grant
@@ -159,9 +225,9 @@ async function streamN8nChat(body: {
 
   // Per-user Zoho tokens (multi-tenant: the user's OWN Zoho, not a shared org)
   const [zohoCrmToken, zohoProjectsToken, zohoBooksToken] = await Promise.all([
-    resolveZohoAccessToken(userEmail, 'crm'),
-    resolveZohoAccessToken(userEmail, 'projects'),
-    resolveZohoAccessToken(userEmail, 'books'),
+    resolveZohoAccessToken(userEmail, 'crm', userId),
+    resolveZohoAccessToken(userEmail, 'projects', userId),
+    resolveZohoAccessToken(userEmail, 'books', userId),
   ]);
 
   const connectorContext = {
@@ -245,16 +311,32 @@ async function streamN8nChat(body: {
         // Send initial tool indicator for the UI loader
         sendSSE({ toolCall: 'AI Copilot Agent' });
 
+        // SECURITY: campaign context is ALWAYS built server-side from the
+        // caller's own campaigns. The client-supplied campaignContext/intent
+        // are ignored — a malicious client could otherwise inject forged
+        // "Campaign: ... CRM Deal ID: ..." context (LLM prompt injection that
+        // steers which Zoho records the agent reads/writes).
+        const serverCampaignContext = await buildActiveCampaignsContext(userId, orgId);
+
+        // conversationHistory is client-supplied but is sanitized: roles are
+        // clamped to user/assistant and the window is capped to keep a
+        // malicious payload from bloating the n8n request.
+        const sanitizedHistory = (conversationHistory || [])
+          .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+          .slice(-20)
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 8000) }));
+
         const n8nPayload: Record<string, unknown> = {
           action: 'sendMessage',
           chatInput: message,
           sessionId: sessionId || `web-${Date.now()}`,
+          userId,
+          organizationId: orgId,
           connectorContext,
           orgConfig,
         };
-        if (campaignContext) n8nPayload.campaignContext = campaignContext;
-        if (conversationHistory && conversationHistory.length > 0) n8nPayload.conversationHistory = conversationHistory;
-        if (intent) n8nPayload.intent = intent;
+        if (serverCampaignContext) n8nPayload.campaignContext = serverCampaignContext;
+        if (sanitizedHistory.length > 0) n8nPayload.conversationHistory = sanitizedHistory;
 
         const n8nRes = await fetch(N8N_WEBHOOK_URL, {
           method: 'POST',
@@ -295,6 +377,36 @@ async function streamN8nChat(body: {
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
 
+          // Filter tool-calling log strings and convert them into clean toolCall SSE frames
+          const forwardText = (raw: string) => {
+            if (!raw) return;
+            const callingMatch = raw.match(/^Calling tools?:\s*([^\n\r]+)([\s\S]*)$/i);
+            if (callingMatch) {
+              const tools = callingMatch[1].trim();
+              const remainder = callingMatch[2].trim();
+              const firstTool = tools.split(/,\s*/)[0] || tools;
+              sendSSE({ toolCall: firstTool });
+              if (remainder) sendSSE({ text: remainder });
+              return;
+            }
+            if (/Calling tools?:/i.test(raw)) {
+              const parts = raw.split(/Calling tools?:/i);
+              if (parts[0].trim()) sendSSE({ text: parts[0].trim() });
+              const after = parts[1] || "";
+              const afterMatch = after.match(/^([^\n\r\.\!]+)([\.\!\n\r][\s\S]*)$/);
+              if (afterMatch) {
+                const tools = afterMatch[1].trim();
+                sendSSE({ toolCall: tools.split(/,\s*/)[0] || tools });
+                const rest = afterMatch[2].trim();
+                if (rest) sendSSE({ text: rest });
+              } else {
+                sendSSE({ toolCall: after.trim().split(/,\s*/)[0] || after.trim() });
+              }
+              return;
+            }
+            sendSSE({ text: raw });
+          };
+
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
@@ -306,9 +418,9 @@ async function streamN8nChat(body: {
               try {
                 const parsed = JSON.parse(data);
                 const text = parsed.content || parsed.output || parsed.text || '';
-                if (text) sendSSE({ text });
+                if (text) forwardText(text);
               } catch {
-                if (data) sendSSE({ text: data });
+                if (data) forwardText(data);
               }
             } else {
               // Direct NDJSON format from n8n
@@ -321,16 +433,16 @@ async function streamN8nChat(body: {
                   }
                   sendSSE({ toolCall: nodeName });
                 } else if (parsed.type === 'item' && parsed.content) {
-                  sendSSE({ text: parsed.content });
+                  forwardText(parsed.content);
                 } else if (parsed.type === 'end') {
                   // Tool finished; main agent continues streaming
                 } else if (parsed.output || parsed.text || parsed.content) {
                   const t = parsed.output || parsed.text || parsed.content;
-                  if (t) sendSSE({ text: t });
+                  if (t) forwardText(t);
                 }
               } catch {
                 if (trimmed && !trimmed.startsWith('{')) {
-                  sendSSE({ text: trimmed });
+                  forwardText(trimmed);
                 }
               }
             }
@@ -342,9 +454,16 @@ async function streamN8nChat(body: {
           try {
             const parsed = JSON.parse(buffer.trim());
             const text = parsed.content || parsed.output || parsed.text || '';
-            if (text) sendSSE({ text });
+            if (text) {
+              const callingMatch = text.match(/^Calling tools?:\s*([^\n\r]+)([\s\S]*)$/i);
+              if (callingMatch && callingMatch[2].trim()) {
+                sendSSE({ text: callingMatch[2].trim() });
+              } else if (!callingMatch) {
+                sendSSE({ text });
+              }
+            }
           } catch {
-            if (buffer.trim() && !buffer.includes('[DONE]')) {
+            if (buffer.trim() && !buffer.includes('[DONE]') && !buffer.includes('Calling tools:')) {
               sendSSE({ text: buffer.trim() });
             }
           }
@@ -371,207 +490,4 @@ async function streamN8nChat(body: {
   });
 
   return new Response(stream, { headers: SSE_HEADERS });
-}
-
-// -----------------------------------------------------------------------------
-// Path 2, Legacy cockpit chat (live Microsoft Graph, JSON)
-// Executes real-time queries against the authenticated user's live endpoints.
-// Strictly zero fake, demo, or cross-tenant data. Replaced in Phase 4.
-// -----------------------------------------------------------------------------
-async function legacyCockpitChat(body: Record<string, unknown>) {
-  try {
-    const chatInput = (body.chatInput as string) || '';
-    const tenantSlug = (body.tenantSlug as string) || 'personal';
-    const query = chatInput.trim().toLowerCase();
-
-    const cookieStore = await cookies();
-    let accessToken = cookieStore.get('ms_access_token')?.value || null;
-    const refreshToken = cookieStore.get('ms_refresh_token')?.value || null;
-    const expiresAtStr = cookieStore.get('ms_token_expires_at')?.value || null;
-    const sessionEmail = cookieStore.get('ms_user_email')?.value || (body.userEmail as string) || null;
-
-    // Check if token is expired or about to expire in next 60 seconds
-    const expiresAt = expiresAtStr ? parseInt(expiresAtStr, 10) : 0;
-    const now = Date.now();
-    let isRefreshed = false;
-    let newAccessToken: string | null = null;
-    let newRefreshToken: string | null = null;
-    let newExpiresIn = 3600;
-
-    if ((!accessToken || (expiresAt > 0 && now >= expiresAt - 60000)) && refreshToken) {
-      const refreshed = await refreshMicrosoftToken(refreshToken);
-      if (refreshed.accessToken) {
-        accessToken = refreshed.accessToken;
-        newAccessToken = refreshed.accessToken;
-        newRefreshToken = refreshed.refreshToken || refreshToken;
-        newExpiresIn = refreshed.expiresIn || 3600;
-        isRefreshed = true;
-      }
-    }
-
-    let replyText = '';
-
-    // 1. EMAIL / OUTLOOK INTENT
-    const isEmailQuery =
-      query.includes('mail') ||
-      query.includes('email') ||
-      query.includes('inbox') ||
-      query.includes('message') ||
-      query.includes('outlook') ||
-      query.includes('unread') ||
-      query.includes('communication');
-
-    // 2. FILES / SHAREPOINT / ONEDRIVE INTENT
-    const isFilesQuery =
-      query.includes('file') ||
-      query.includes('document') ||
-      query.includes('sharepoint') ||
-      query.includes('onedrive') ||
-      query.includes('drive') ||
-      query.includes('contract') ||
-      query.includes('sop') ||
-      query.includes('pdf') ||
-      query.includes('folder');
-
-    // 3. CRM / DYNAMICS 365 INTENT
-    const isCrmQuery =
-      query.includes('crm') ||
-      query.includes('dynamics') ||
-      query.includes('deal') ||
-      query.includes('pipeline') ||
-      query.includes('opportunity') ||
-      query.includes('opportunities') ||
-      query.includes('revenue') ||
-      query.includes('account');
-
-    if (isEmailQuery) {
-      if (!accessToken) {
-        replyText = `### Microsoft Outlook Not Connected\n\nYour **Outlook & Calendar** endpoint is currently disconnected. \n\nTo view your live emails:\n1. Open the **Live Endpoints** panel on the left or click the settings menu.\n2. Select **Connect Data Sources** and authenticate with your Microsoft 365 account.\n\n*Zero fake, simulated, or external mailbox data is returned.*`;
-      } else {
-        const { emails, error } = await fetchUserEmails(accessToken, 10);
-
-        if (error) {
-          replyText = `### Error Querying Microsoft Outlook\n\nUnable to retrieve live emails from Microsoft Graph API:\n\`${error}\`\n\nPlease verify your account permissions or re-connect your Microsoft account in the Live Endpoints sidebar.`;
-        } else if (!emails || emails.length === 0) {
-          replyText = `### Microsoft Outlook Inbox\n\nConnected Account: **${sessionEmail || 'Authenticated User'}**\n\nNo recent emails were found in your inbox.`;
-        } else {
-          const rows = emails.map((mail: MicrosoftEmail) => {
-            const sender = mail.from?.emailAddress?.name || mail.from?.emailAddress?.address || 'Unknown';
-            const senderAddr = mail.from?.emailAddress?.address ? `<br/><span style="color:#64748b;font-size:11px;">${mail.from.emailAddress.address}</span>` : '';
-            const subject = (mail.subject || '(No Subject)').replace(/\|/g, '-');
-            const preview = (mail.bodyPreview || '')
-              .slice(0, 90)
-              .replace(/[\r\n]+/g, ' ')
-              .replace(/\|/g, '-') + (mail.bodyPreview && mail.bodyPreview.length > 90 ? '...' : '');
-
-            const dateStr = mail.receivedDateTime
-              ? new Date(mail.receivedDateTime).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              : 'Recent';
-
-            const attachments = mail.hasAttachments ? '📎 Yes' : 'No';
-
-            return `| ${sender}${senderAddr} | **${subject}** | ${dateStr} | ${preview} | ${attachments} |`;
-          });
-
-          replyText = `### Recent Live Emails from Microsoft Outlook\n\nAccount: **${sessionEmail || 'Authenticated User'}** (Live Microsoft Graph)\n\n| From | Subject | Received | Preview | Attachments |\n| :--- | :--- | :--- | :--- | :--- |\n${rows.join('\n')}\n\n*Total live messages retrieved: ${emails.length} directly from your authenticated mailbox.*`;
-        }
-      }
-    } else if (isFilesQuery) {
-      if (!accessToken) {
-        replyText = `### Microsoft SharePoint & OneDrive Not Connected\n\nYour **SharePoint & OneDrive** endpoint is currently disconnected. \n\nTo view your live documents and files:\n1. Open the **Live Endpoints** panel on the left.\n2. Connect your Microsoft 365 account to authorize file reading.\n\n*Zero fake or simulated files are returned.*`;
-      } else {
-        const { items, error } = await fetchUserDriveFiles(accessToken, 15);
-
-        if (error) {
-          replyText = `### Error Querying OneDrive / SharePoint\n\nUnable to retrieve live files from Microsoft Graph API:\n\`${error}\`\n\nPlease check your Microsoft 365 file access permissions.`;
-        } else if (!items || items.length === 0) {
-          replyText = `### OneDrive / SharePoint Files\n\nConnected Account: **${sessionEmail || 'Authenticated User'}**\n\nNo files or folders were found in your root drive directory.`;
-        } else {
-          const rows = items.map((item: MicrosoftDriveItem) => {
-            const isFolder = Boolean(item.folder);
-            const icon = isFolder ? '📁' : '📄';
-            const type = isFolder ? `Folder (${item.folder?.childCount || 0} items)` : (item.file?.mimeType?.split('/')[1] || 'File');
-            const sizeStr = item.size ? `${(item.size / 1024).toFixed(1)} KB` : '--';
-            const modDate = item.lastModifiedDateTime
-              ? new Date(item.lastModifiedDateTime).toLocaleDateString()
-              : '--';
-
-            return `| ${icon} ${item.name} | ${type} | ${sizeStr} | ${modDate} |`;
-          });
-
-          replyText = `### Live Drive Files (OneDrive / SharePoint)\n\nAccount: **${sessionEmail || 'Authenticated User'}**\n\n| Name | Type | Size | Last Modified |\n| :--- | :--- | :--- | :--- |\n${rows.join('\n')}\n\n*Retrieved ${items.length} items from your active Microsoft 365 drive.*`;
-        }
-      }
-    } else if (isCrmQuery) {
-      const isZohoMentioned = query.includes('zoho');
-      const crmConnected = Boolean(body.crmConnected);
-      const dynamicsOrg = (body.dynamicsOrg as string) || process.env.DYNAMICS_CRM_ORG_URL || '';
-
-      if (isZohoMentioned || !dynamicsOrg) {
-        replyText = `### Zoho CRM Organization Pipeline\n\n* **Connected Organization**: \`Enlight (zoho.in)\`\n* **Status**: Connected & Live Synced via OAuth 2.0\n* **Active Deals & Campaigns**: **11 active records**\n  * **Tata Tea Gold ₹50 Amazon Pay Assured Reward**: ₹25,00,000\n  * **Pepsi UEFA Champions League ₹200 Zomato Pass**: ₹50,00,000\n  * **Mondelez Cadbury Silk Valentine's Cashback**: ₹35,00,000\n  * **Jaguar Scratch & Win Campaign**: ₹3,00,00,000\n  * **Zara Dining Pass Promotion**: ₹30,00,000\n  * **Zudio UPI Cashback Campaign**: ₹15,00,000\n  * **Cadbury Celebrations Rakhi Gifting 2026**: ₹40,00,000\n  * **Coca-Cola Summer Scratch & Win 2026**: ₹70,00,000\n  * **Nestle Festive Cashback 2026**: ₹30,00,000\n  * **Samsung Galaxy Diwali Mega Draw**: ₹22,00,000\n  * **Puma Footwear Sneakerhead Voucher 2026**: ₹12,00,000\n* **CRM Accounts**: 39 corporate accounts (Audi, Sony, Swiggy, Zara, HUL, Titan, ITC, Puma, Amul)\n* **Contacts**: 20 verified brand SPOCs`;
-      } else {
-        replyText = `### Dynamics 365 CRM Pipeline Status\n\n* **Organization Endpoint**: \`${dynamicsOrg || 'https://org98ee0c24.crm8.dynamics.com'}\`\n* **Status**: Connected & Synchronized\n* **Zoho CRM Deals & Campaigns**: 11 active records live\n* **Security Model**: Role-based access control enforced via Microsoft Entra ID.\n\n*All queries execute directly against your configured CRM environments.*`;
-      }
-    } else {
-      // General assistant query
-      const emailStatus = accessToken ? `Connected (\`${sessionEmail || 'Active User'}\`)` : 'Not Connected';
-      const filesStatus = accessToken ? 'Connected (`/me/drive/root`)' : 'Not Connected';
-      const crmStatus = body.crmConnected ? `Connected (\`${body.dynamicsOrg}\`)` : 'Not Connected';
-
-      replyText = `### Operations Copilot Active\n\nWorkspace: **${tenantSlug}**\n\n**Live Connected Endpoints:**\n* **Microsoft Outlook & Calendar**: ${emailStatus}\n* **Microsoft SharePoint & OneDrive**: ${filesStatus}\n* **Dynamics 365 CRM**: ${crmStatus}\n\n**Available Live Queries:**\n* **Emails**: *"Fetch my mails"*, *"Show unread messages"*, *"Check recent communications"*\n* **Documents**: *"List my SharePoint files"*, *"Search OneDrive documents"*\n* **CRM**: *"Show open CRM pipeline"*, *"Check Dynamics 365 opportunities"*\n\n*All responses are generated exclusively from your live authenticated Microsoft & CRM services.*`;
-    }
-
-    const response = NextResponse.json({
-      output: replyText,
-      status: 'success',
-      timestamp: new Date().toISOString()
-    });
-
-    // Update refreshed cookies if token was refreshed
-    if (isRefreshed && newAccessToken) {
-      const isProd = process.env.NODE_ENV === 'production';
-      response.cookies.set('ms_access_token', newAccessToken, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: newExpiresIn
-      });
-
-      if (newRefreshToken) {
-        response.cookies.set('ms_refresh_token', newRefreshToken, {
-          httpOnly: true,
-          secure: isProd,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 30
-        });
-      }
-
-      const expiresAtMs = Date.now() + (newExpiresIn * 1000);
-      response.cookies.set('ms_token_expires_at', expiresAtMs.toString(), {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 30
-      });
-    }
-
-    return response;
-  } catch (err: any) {
-    console.error('Chat API Error:', err);
-    return NextResponse.json(
-      {
-        output: `### Error Processing Query\n\nAn unexpected error occurred while processing your request: \`${err.message || 'Internal Server Error'}\`.\n\nPlease check your endpoint connectivity.`,
-        error: err.message
-      },
-      { status: 500 }
-    );
-  }
 }

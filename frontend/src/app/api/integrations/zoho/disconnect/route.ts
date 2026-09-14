@@ -24,14 +24,18 @@ export async function POST(request: Request) {
     // no body, disconnect everything
   }
 
-  // Target all candidate emails for this session
-  const targetEmails = Array.from(
-    new Set([msUserEmail, zohoUserEmail, bodyUserEmail, "unknown@zoho", "default_user"].filter(Boolean) as string[])
+  const { requireAuth } = await import("@/lib/auth-helpers");
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
+  const { user } = auth;
+  const targetKeys = Array.from(
+    new Set([user.id, `auth:${user.id}`, user.email].filter(Boolean) as string[])
   );
 
   try {
-    for (const email of targetEmails) {
-      await deleteZohoIntegration(email, product);
+    for (const key of targetKeys) {
+      await deleteZohoIntegration(key, product);
     }
 
     const response = NextResponse.json({ success: true, product: product || "all" });

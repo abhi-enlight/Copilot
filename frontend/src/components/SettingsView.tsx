@@ -16,17 +16,17 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState<"workspace" | "zoho" | "guardrails" | "team">("workspace");
 
   const [settings, setSettings] = useState({
-    orgName: "BigCity Promotions Pvt Ltd",
-    orgDomain: "bigcity.in",
-    portalId: "81293",
-    timezone: "Asia/Kolkata (IST)",
-    zohoClientId: "1000.QGDY8ZROICOLZXB8M0QK3Q41KZ562H",
+    orgName: "",
+    orgDomain: "",
+    portalId: "",
+    timezone: "UTC",
+    zohoClientId: "",
     zohoDataCenter: "India (.in)",
     autoPushToZoho: false,
     requireAdvancePaymentSignOff: true,
     requirePartnerLogoSignOff: true,
     uatLeadTimeHours: "72",
-    n8nWebhookUrl: "https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat",
+    n8nWebhookUrl: "",
     geminiModel: "gemini-3.7-flash",
     temperature: "0.3",
   });
@@ -53,7 +53,7 @@ export default function SettingsView() {
         <div className="flex items-center gap-3">
           <h1 className="text-[15px] font-bold text-stone-900 tracking-tight">Settings</h1>
           <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-500 border border-stone-200">
-            BigCity Workspace
+            Workspace Settings
           </span>
         </div>
 

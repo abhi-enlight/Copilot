@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,11 @@ interface DebugRequestBody {
 
 export async function POST(request: NextRequest) {
   try {
+    // This endpoint echoes internal payload construction (including the n8n
+    // webhook URL) — it must never be reachable unauthenticated.
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body: DebugRequestBody = await request.json();
     const { message, sessionId, campaignContext, conversationHistory, intent } = body;
 
@@ -79,7 +85,7 @@ export async function POST(request: NextRequest) {
             }
           : null,
       },
-      n8nEndpoint: process.env.N8N_WEBHOOK_URL || "https://indigo-pelican-266513.hostingersite.com/webhook/7a7d4575-950e-4090-84b4-f5bc3a5c6017/chat",
+      n8nEndpoint: process.env.N8N_WEBHOOK_URL ? "(configured)" : "(not configured)",
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";

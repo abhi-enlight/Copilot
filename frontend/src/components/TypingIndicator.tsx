@@ -25,7 +25,7 @@ export default function TypingIndicator() {
           </div>
         </div>
         <span className="text-[11px] text-text-tertiary px-1 mt-1">
-          BCP Assist is thinking...
+          Prism is thinking...
         </span>
       </div>
     </motion.div>
