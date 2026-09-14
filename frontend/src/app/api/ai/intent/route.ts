@@ -409,7 +409,7 @@ Return ONLY a valid JSON object matching this schema (no markdown fences, pure J
       const pausePrefs = await getConnectorPreferences(sessionEmail);
       const booksContact = isConnectorPaused(pausePrefs, "zoho.books")
         ? { exists: true, contact: undefined, suggestedName: `${fullPlan.client} India` }
-        : await checkZohoBooksContact(fullPlan.client);
+        : await checkZohoBooksContact(fullPlan.client, effectiveOrgId);
 
       return NextResponse.json({
         success: true,

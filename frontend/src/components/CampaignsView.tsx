@@ -264,7 +264,21 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
         });
         if (res.ok) {
           setCampaigns((prev) => prev.filter((c) => c.id !== camp.id));
-          showToast(`Deleted "${camp.name}" from Prism & Zoho`, "check");
+          // Report the actual Zoho cleanup outcome instead of always claiming
+          // "Deleted from Prism & Zoho":
+          //   confirmed  = n8n verified ≥1 Zoho resource deleted
+          //   not_found  = n8n looked up by name/ID and matched nothing
+          //   failed/*   = cleanup unconfirmed (webhook error/timeout/etc.)
+          const body = await res.json().catch(() => ({}));
+          if (body?.zohoCleanup === "not_found") {
+            showToast(`Deleted "${camp.name}" locally. No matching Zoho records were found to clean up.`, "info");
+          } else if (body?.zohoCleanup === "confirmed") {
+            showToast(`Deleted "${camp.name}" from Prism & Zoho`, "check");
+          } else if (body?.warning) {
+            showToast(`Deleted "${camp.name}" locally. ${body.warning}`, "info");
+          } else {
+            showToast(`Deleted "${camp.name}" from Prism`, "check");
+          }
         } else {
           showToast("Couldn't delete this campaign. Try again or remove it directly in Zoho.", "info");
         }
