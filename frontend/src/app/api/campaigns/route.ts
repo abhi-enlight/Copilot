@@ -609,25 +609,46 @@ export async function reconcileZohoCRMWithSupabase(
           if (liveDealIds.size > 0 && !liveDealIds.has(dealIdStr)) {
             // Deal was DELETED in Zoho CRM, cascade cleanup in Projects and Books
             console.log(`[reconcile] Zoho deal ${dealIdStr} was deleted in CRM. Cleaning up Projects, Books & Supabase for ${camp.name} (${camp.id})`);
-            if (N8N_ZOHO_DELETE_WEBHOOK) {
-              await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  dealId: dealIdStr,
-                  projectId: camp.zoho_project_id,
-                  invoiceId: camp.zoho_books_invoice_id,
-                  campaignName: camp.name,
-                }),
-                signal: AbortSignal.timeout(8000),
-              }).catch(() => {});
+            let cleanupOk = true;
+            if (N8N_ZOHO_DELETE_WEBHOOK && (camp.zoho_project_id || camp.zoho_books_invoice_id)) {
+              try {
+                const res = await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    dealId: dealIdStr,
+                    projectId: camp.zoho_project_id,
+                    invoiceId: camp.zoho_books_invoice_id,
+                    campaignName: camp.name,
+                    client: camp.client,
+                  }),
+                  signal: AbortSignal.timeout(20000),
+                });
+                if (!res.ok) {
+                  cleanupOk = false;
+                  console.warn(`[reconcile] Zoho delete webhook returned HTTP ${res.status} for ${camp.name}`);
+                } else {
+                  const deleteRes = (await res.json().catch(() => null)) as {
+                    anyFailed?: boolean;
+                    outcomes?: Record<string, any>;
+                  } | null;
+                  if (deleteRes?.anyFailed) {
+                    console.warn(`[reconcile] Some Zoho resources failed to delete for ${camp.name}:`, deleteRes.outcomes);
+                  }
+                }
+              } catch (err: unknown) {
+                cleanupOk = false;
+                console.warn(`[reconcile] Zoho delete webhook error for ${camp.name}:`, (err as Error)?.message);
+              }
             }
-            await supabase
-              .from("campaigns")
-              .delete()
-              .eq("id", camp.id)
-              .eq("organization_id", orgId);
-            deletedCount++;
+            if (cleanupOk) {
+              await supabase
+                .from("campaigns")
+                .delete()
+                .eq("id", camp.id)
+                .eq("organization_id", orgId);
+              deletedCount++;
+            }
           } else {
             claimedDealIds.add(dealIdStr);
             const live = liveDealMap.get(dealIdStr);
@@ -1926,7 +1947,8 @@ export async function POST(request: NextRequest) {
       }
 
       console.log(`[delete_campaign] Wiping Zoho resources for ${camp.name}: deal=${camp.zoho_crm_deal_id}, project=${camp.zoho_project_id}, invoice=${camp.zoho_books_invoice_id}`);
-      let zohoDelete: { ok: boolean; detail: string } = { ok: true, detail: "no_webhook_configured" };
+      const hasZohoResources = Boolean(camp.zoho_crm_deal_id || camp.zoho_project_id || camp.zoho_books_invoice_id);
+      let zohoDelete: { ok: boolean; detail: string } = { ok: !hasZohoResources, detail: hasZohoResources ? "no_webhook_configured" : "skipped" };
       let zohoDeletedIds: { dealId: string | null; projectId: string | null; projectIds: string[]; invoiceId: string | null } | null = null;
       if (N8N_ZOHO_DELETE_WEBHOOK) {
         try {
@@ -1946,9 +1968,8 @@ export async function POST(request: NextRequest) {
             signal: AbortSignal.timeout(20000),
           });
           if (res.ok) {
-            // Classify by actual outcome, not just HTTP status: n8n returns
-            // success:true with null IDs when the name/client lookup matched
-            // nothing in Zoho — that is honest "not_found", not a failure.
+            // Classify by actual outcome: n8n returns outcomes per resource
+            // (deleted, failed, skipped) and anyDeleted / anyFailed flags.
             const body = (await res.json().catch(() => null)) as {
               success?: boolean;
               deleted?: {
@@ -1957,31 +1978,48 @@ export async function POST(request: NextRequest) {
                 projectIds?: string[] | null;
                 invoiceId?: string | null;
               } | null;
+              outcomes?: {
+                deal?: string;
+                projects?: string[];
+                invoice?: string;
+              };
               lookupPerformed?: boolean;
+              anyDeleted?: boolean;
+              anyFailed?: boolean;
             } | null;
             const d = body?.deleted || {};
-            const deletedAny = Boolean(d.dealId || d.projectId || (Array.isArray(d.projectIds) && d.projectIds.length > 0) || d.invoiceId);
+            const deletedAny = Boolean(
+              body?.anyDeleted ||
+              d.dealId ||
+              d.projectId ||
+              (Array.isArray(d.projectIds) && d.projectIds.length > 0) ||
+              d.invoiceId
+            );
             zohoDeletedIds = {
               dealId: d.dealId || null,
               projectId: d.projectId || null,
               projectIds: Array.isArray(d.projectIds) ? d.projectIds : [],
               invoiceId: d.invoiceId || null,
             };
-            zohoDelete = deletedAny
-              ? { ok: true, detail: "confirmed" }
-              : body?.lookupPerformed
-                ? { ok: true, detail: "not_found" }
-                : { ok: true, detail: "requested" };
+
+            if (body?.anyFailed) {
+              zohoDelete = { ok: false, detail: "zoho_delete_failed" };
+            } else if (deletedAny) {
+              zohoDelete = { ok: true, detail: "confirmed" };
+            } else if (body?.lookupPerformed) {
+              zohoDelete = { ok: !hasZohoResources, detail: hasZohoResources ? "resources_not_found" : "not_found" };
+            } else {
+              zohoDelete = { ok: !hasZohoResources, detail: hasZohoResources ? "unconfirmed" : "requested" };
+            }
           } else {
             zohoDelete = { ok: false, detail: `webhook_http_${res.status}` };
           }
-        } catch (err: any) {
-          console.error("[delete_campaign] Zoho delete webhook failed:", err?.message);
-          zohoDelete = { ok: false, detail: err?.name === "TimeoutError" ? "webhook_timeout" : "webhook_error" };
+        } catch (err: unknown) {
+          const errObj = err as Error;
+          console.error("[delete_campaign] Zoho delete webhook failed:", errObj?.message);
+          zohoDelete = { ok: false, detail: errObj?.name === "TimeoutError" ? "webhook_timeout" : "webhook_error" };
         }
       }
-
-      const hasZohoResources = Boolean(camp.zoho_crm_deal_id || camp.zoho_project_id || camp.zoho_books_invoice_id);
 
       if (hasZohoResources && !zohoDelete.ok && !N8N_ZOHO_DELETE_WEBHOOK) {
         // Nothing configured to clean Zoho with — keep the row so state stays
@@ -2031,8 +2069,12 @@ export async function POST(request: NextRequest) {
           zohoDelete.detail === "confirmed" || zohoDelete.detail === "not_found"
             ? undefined
             : zohoDelete.ok
-              ? "Zoho cleanup was requested but not confirmed. Check Zoho for leftovers."
-              : "Local record deleted, but Zoho cleanup could not be confirmed. Check Zoho for leftovers.",
+              ? "Zoho cleanup was requested. Check Zoho for leftovers."
+              : zohoDelete.detail === "resources_not_found"
+                ? "Campaign had Zoho IDs recorded, but none were found in Zoho during deletion. Cleaned locally."
+                : zohoDelete.detail === "zoho_delete_failed"
+                  ? "Failed to delete some Zoho resources. Check Zoho CRM, Projects, or Books for leftovers."
+                  : "Local record deleted, but Zoho cleanup could not be confirmed. Check Zoho for leftovers.",
       });
     }
 
