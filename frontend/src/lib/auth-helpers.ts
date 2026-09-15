@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { adminSupabase } from "@/lib/supabase-admin";
+import { tenantRateLimiter, RateLimitExceededError } from "@/lib/resilience";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 export interface AuthContext {
@@ -64,10 +65,32 @@ export async function requireAuth(
     );
   }
 
-  // Extract active org from header (set by the client on every request)
-  const orgId = request
+  // ── Plan edge case #4: per-tenant rate limiting ──────────────────────────
+  // Attribute each request to its tenant (active org, else user id) and
+  // enforce a token bucket before the route does any work. External provider
+  // fan-out is additionally limited per provider in lib/resilience.ts.
+  const orgIdHeader = request
     ? (request.headers.get("x-active-org-id") || null)
     : null;
+  const tenantKey = orgIdHeader || user.id;
+  try {
+    tenantRateLimiter.consume(tenantKey, "app-api");
+  } catch (err) {
+    if (err instanceof RateLimitExceededError) {
+      return NextResponse.json(
+        {
+          error: "rate_limited",
+          detail: "Too many requests from this workspace. Please retry shortly.",
+          retryAfterSeconds: err.retryAfterSeconds,
+        },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+      );
+    }
+    throw err;
+  }
+
+  // Extract active org from header (set by the client on every request)
+  const orgId = orgIdHeader;
 
   // If orgId is provided, verify the user is actually a member
   if (orgId) {

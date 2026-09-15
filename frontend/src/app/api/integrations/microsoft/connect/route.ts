@@ -145,7 +145,12 @@ export async function GET(request: Request) {
   authUrl.searchParams.set("response_mode", "query");
   authUrl.searchParams.set("scope", scopes);
   authUrl.searchParams.set("state", statePayload);
-  authUrl.searchParams.set("prompt", "select_account");
+  const loginHint = searchParams.get("login_hint");
+  if (loginHint) {
+    authUrl.searchParams.set("login_hint", loginHint);
+  } else {
+    authUrl.searchParams.set("prompt", "select_account");
+  }
 
   const response = NextResponse.redirect(authUrl.toString());
   response.cookies.set(MS_OAUTH_STATE_COOKIE, nonce, {

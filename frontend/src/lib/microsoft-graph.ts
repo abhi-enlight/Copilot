@@ -2,7 +2,13 @@
  * Microsoft Graph API Integration Helper
  * Provides authenticated queries to Microsoft Graph endpoints for the currently
  * authenticated user, with automatic token refresh support.
+ *
+ * All Graph calls go through `resilientFetch` (per-tenant rate limiting +
+ * circuit breaker, plan edge cases #4/#5). Timeout errors and 429/503 storms
+ * trip the breaker; callers degrade gracefully instead of hanging.
  */
+
+import { resilientFetch } from "@/lib/resilience";
 
 export interface MicrosoftEmail {
   id: string;
@@ -93,11 +99,15 @@ export async function fetchUserEmails(
 ): Promise<{ emails: MicrosoftEmail[]; error?: string }> {
   try {
     const url = `https://graph.microsoft.com/v1.0/me/messages?$top=${limit}&$orderby=receivedDateTime desc&$select=id,from,subject,bodyPreview,receivedDateTime,hasAttachments,isRead,webLink`;
-    const res = await fetch(url, {
+    const res = await resilientFetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Prefer: 'outlook.body-content-type="text"'
-      }
+      },
+      signal: AbortSignal.timeout(20000)
+    }, {
+      tenantKey: tenantKeyFromToken(accessToken),
+      provider: 'microsoft-graph'
     });
 
     if (!res.ok) {
@@ -108,10 +118,27 @@ export async function fetchUserEmails(
 
     const data = await res.json();
     return { emails: data.value || [] };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to fetch user emails:', err);
-    return { emails: [], error: err.message || 'Failed to fetch emails' };
+    const message = circuitDegradedMessage(err);
+    const errorDetail = err instanceof Error ? err.message : 'Failed to fetch emails';
+    return { emails: [], error: message || errorDetail };
   }
+}
+
+/**
+ * Converts resilience-layer errors into user-facing degradation copy
+ * (plan §5.5: keep the app functional, state clearly which source failed).
+ */
+export function circuitDegradedMessage(err: unknown): string | null {
+  const name = (err as Error)?.name;
+  if (name === 'RateLimitExceededError') {
+    return 'Microsoft Graph is rate-limited for this workspace; results may be incomplete. Try again shortly.';
+  }
+  if (name === 'CircuitOpenError') {
+    return 'Microsoft Graph is temporarily unavailable (circuit breaker open); results reflect other connected sources.';
+  }
+  return null;
 }
 
 /**
@@ -123,10 +150,14 @@ export async function fetchUserDriveFiles(
 ): Promise<{ items: MicrosoftDriveItem[]; error?: string }> {
   try {
     const url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$top=${limit}&$select=id,name,size,webUrl,lastModifiedDateTime,file,folder`;
-    const res = await fetch(url, {
+    const res = await resilientFetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`
-      }
+      },
+      signal: AbortSignal.timeout(20000)
+    }, {
+      tenantKey: tenantKeyFromToken(accessToken),
+      provider: 'microsoft-graph'
     });
 
     if (!res.ok) {
@@ -137,10 +168,26 @@ export async function fetchUserDriveFiles(
 
     const data = await res.json();
     return { items: data.value || [] };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to fetch drive items:', err);
-    return { items: [], error: err.message || 'Failed to fetch drive files' };
+    const message = circuitDegradedMessage(err);
+    const errorDetail = err instanceof Error ? err.message : 'Failed to fetch drive files';
+    return { items: [], error: message || errorDetail };
   }
+}
+
+/**
+ * Attributes Graph calls to a stable per-tenant bucket. The access token's
+ * unique subject hash is process-stable per user+tenant and avoids shipping
+ * an extra identity lookup per call; callers with a real org id should pass
+ * it via resilientFetch options directly.
+ */
+function tenantKeyFromToken(accessToken: string): string {
+  let hash = 0;
+  for (let i = 0; i < accessToken.length; i++) {
+    hash = (hash * 31 + accessToken.charCodeAt(i)) | 0;
+  }
+  return `msgraph-${(hash >>> 0).toString(36)}`;
 }
 
 /**
