@@ -134,29 +134,43 @@ export function decryptToken(payload: string | null | undefined): string | null 
 // OAuth: authorize URL + code exchange + refresh
 // ---------------------------------------------------------------------------
 
+export function parseDataCenterFromApiDomain(apiDomain?: string): string | null {
+  if (!apiDomain) return null;
+  // Examples: https://www.zohoapis.com -> com, https://www.zohoapis.in -> in, https://www.zohoapis.eu -> eu
+  const match = apiDomain.match(/zohoapis\.([a-z.]+)/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
 export function buildZohoAuthorizeUrl(opts: {
   products: ZohoProduct[];
   requestHost: string;
   state: string;
+  dc?: string;
   prompt?: string;
 }): string {
   const scopes = Array.from(
     new Set(opts.products.flatMap((p) => ZOHO_PRODUCT_SCOPES[p]))
   ).join(" ");
-  const url = new URL(`${zohoAccountsBase()}/oauth/v2/auth`);
+  const baseDc = opts.dc || zohoDataCenter();
+  const url = new URL(`${zohoAccountsBase(baseDc)}/oauth/v2/auth`);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", process.env.ZOHO_CLIENT_ID || "");
   url.searchParams.set("scope", scopes);
   url.searchParams.set("redirect_uri", zohoRedirectUri(opts.requestHost));
   url.searchParams.set("state", opts.state);
   url.searchParams.set("access_type", "offline");
-  if (opts.prompt) url.searchParams.set("prompt", opts.prompt);
+  url.searchParams.set("prompt", opts.prompt || "consent");
   return url.toString();
 }
 
-export async function exchangeZohoCode(code: string, requestHost: string): Promise<ZohoTokenSet> {
+export async function exchangeZohoCode(
+  code: string,
+  requestHost: string,
+  dc?: string
+): Promise<ZohoTokenSet & { detectedDc?: string }> {
   try {
-    const res = await fetch(`${zohoAccountsBase()}/oauth/v2/token`, {
+    const targetDc = dc || zohoDataCenter();
+    const res = await fetch(`${zohoAccountsBase(targetDc)}/oauth/v2/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -172,20 +186,23 @@ export async function exchangeZohoCode(code: string, requestHost: string): Promi
     if (!res.ok || data.error || !data.access_token) {
       return { accessToken: null, refreshToken: null, expiresIn: 0, error: String(data.error || `HTTP ${res.status}`) };
     }
+    const apiDomain = data.api_domain ? String(data.api_domain) : undefined;
+    const detectedDc = parseDataCenterFromApiDomain(apiDomain) || targetDc;
     return {
       accessToken: String(data.access_token),
       refreshToken: data.refresh_token ? String(data.refresh_token) : null,
       expiresIn: Number(data.expires_in) || 3600,
-      apiDomain: data.api_domain ? String(data.api_domain) : undefined,
+      apiDomain,
+      detectedDc,
     };
   } catch (err: unknown) {
     return { accessToken: null, refreshToken: null, expiresIn: 0, error: (err as Error)?.message || "token exchange failed" };
   }
 }
 
-export async function refreshZohoToken(refreshToken: string): Promise<ZohoTokenSet> {
+export async function refreshZohoToken(refreshToken: string, dc = zohoDataCenter()): Promise<ZohoTokenSet> {
   try {
-    const res = await fetch(`${zohoAccountsBase()}/oauth/v2/token`, {
+    const res = await fetch(`${zohoAccountsBase(dc)}/oauth/v2/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -204,6 +221,7 @@ export async function refreshZohoToken(refreshToken: string): Promise<ZohoTokenS
       accessToken: String(data.access_token),
       refreshToken: data.refresh_token ? String(data.refresh_token) : refreshToken,
       expiresIn: Number(data.expires_in) || 3600,
+      apiDomain: data.api_domain ? String(data.api_domain) : undefined,
     };
   } catch (err: unknown) {
     return { accessToken: null, refreshToken: null, expiresIn: 0, error: (err as Error)?.message || "token refresh failed" };
@@ -401,7 +419,8 @@ export async function rotateZohoAccessToken(
   if (!current.record?.refreshToken) {
     return { ok: false, record: current.record, error: current.error || "no_refresh_token" };
   }
-  const refreshed = await refreshZohoToken(current.record.refreshToken);
+  const dc = current.record.dataCenter || zohoDataCenter();
+  const refreshed = await refreshZohoToken(current.record.refreshToken, dc);
   if (!refreshed.accessToken) {
     // Refresh token rejected → user must reconnect
     if (vaultEnabled()) {
@@ -553,6 +572,7 @@ export interface VaultTokenDueForRefresh {
   userEmail: string;
   product: ZohoProduct;
   refreshToken: string;
+  dataCenter?: string | null;
   expiresAt: number | null;
 }
 
@@ -571,7 +591,7 @@ export async function getVaultTokensNeedingRefresh(opts?: {
 
   const { data, error } = await supabase
     .from("user_integrations")
-    .select("user_email, product, refresh_token_encrypted, access_token_expires_at, updated_at")
+    .select("user_email, product, refresh_token_encrypted, access_token_expires_at, updated_at, zoho_data_center")
     .eq("provider", "zoho")
     .eq("status", "active")
     .limit(opts?.maxRows ?? 200);
@@ -594,7 +614,7 @@ export async function getVaultTokensNeedingRefresh(opts?: {
         ? new Date(row.updated_at).getTime() < staleThreshold // legacy row without expiry
         : expiresAt <= cutoff; // expired or inside the freshness window
     if (needsRefresh) {
-      due.push({ userEmail: row.user_email, product, refreshToken, expiresAt });
+      due.push({ userEmail: row.user_email, product, refreshToken, dataCenter: row.zoho_data_center, expiresAt });
     }
   }
   return due;

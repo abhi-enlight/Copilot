@@ -77,7 +77,7 @@ export async function runTokenRefreshCycle(opts?: { maxRows?: number }): Promise
         continue;
       }
 
-      const outcome = await refreshOne(entry.userEmail, entry.product, entry.refreshToken, cycleId);
+      const outcome = await refreshOne(entry.userEmail, entry.product, entry.refreshToken, cycleId, entry.dataCenter);
       if (outcome === "refreshed") result.refreshed++;
       else if (outcome === "reauth_required") result.reauthRequired++;
       else result.failed++;
@@ -95,9 +95,11 @@ async function refreshOne(
   userEmail: string,
   product: ZohoProduct,
   refreshToken: string,
-  cycleId: string
+  cycleId: string,
+  dataCenter?: string | null
 ): Promise<RefreshOutcome> {
-  const refreshed = await refreshZohoToken(refreshToken);
+  const dc = dataCenter || undefined;
+  const refreshed = await refreshZohoToken(refreshToken, dc);
   if (!refreshed.accessToken) {
     const error = refreshed.error || "refresh_failed";
     // Invalid/expired/revoked refresh tokens can never succeed again, the

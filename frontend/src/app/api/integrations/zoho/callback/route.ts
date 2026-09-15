@@ -33,12 +33,16 @@ export async function GET(request: Request) {
   let returnTo = "/";
   let products: ZohoProduct[] = [...ZOHO_PRODUCTS];
   let authUserId: string | null = null;
+  let stateDc: string | undefined = undefined;
 
   if (rawState) {
     try {
       const decoded = JSON.parse(Buffer.from(rawState, "base64").toString("utf-8"));
       returnTo = safeReturnTo(decoded.returnTo, returnTo);
       authUserId = decoded.authUserId || null;
+      if (decoded.dc && typeof decoded.dc === "string") {
+        stateDc = decoded.dc.trim().toLowerCase();
+      }
       if (Array.isArray(decoded.products) && decoded.products.length) {
         products = decoded.products.filter((p: string) => ZOHO_PRODUCTS.includes(p as ZohoProduct));
       }
@@ -69,7 +73,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${baseUrl}${returnTo}?zoho_error=zoho_not_configured`);
   }
 
-  const tokenSet = await exchangeZohoCode(code, host);
+  const tokenSet = await exchangeZohoCode(code, host, stateDc);
   if (!tokenSet.accessToken) {
     console.error("[zoho-callback] token exchange failed:", tokenSet.error);
     return NextResponse.redirect(`${baseUrl}${returnTo}?zoho_error=token_exchange_failed`);
@@ -78,7 +82,7 @@ export async function GET(request: Request) {
   // Identify the Zoho user (email) via the CRM Users API when CRM scope was
   // granted; fall back to the OAuth state marker otherwise.
   let zohoEmail: string | null = null;
-  const dc = zohoDataCenter();
+  const dc = tokenSet.detectedDc || stateDc || zohoDataCenter();
   const crmProbe = products.includes("crm")
     ? await probeZohoProduct("crm", tokenSet.accessToken, dc)
     : { ok: false, detail: "not requested" };

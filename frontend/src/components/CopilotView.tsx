@@ -2921,7 +2921,7 @@ export default function CopilotView({
                   Zoho Books Customer Required
                 </h3>
                 <p className="text-xs text-stone-600 leading-relaxed mb-4">
-                  Client <strong className="text-stone-900">{workingPlan.campaignData.client}</strong> is not registered as an active contact in Zoho Books (Org <code className="font-mono text-stone-700 bg-stone-100 px-1 py-0.5 rounded text-[11px]">60085935698</code>).
+                  Client <strong className="text-stone-900">{workingPlan.campaignData.client}</strong> is not registered as an active contact in your connected Zoho Books organization.
                 </p>
                 <div className="bg-amber-50/80 rounded-xl p-3 border border-amber-200/80 text-[11.5px] text-amber-900 flex items-start gap-2.5 mb-5">
                   <Info size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />

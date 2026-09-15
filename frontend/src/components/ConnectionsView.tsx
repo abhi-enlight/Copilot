@@ -60,6 +60,7 @@ export default function ConnectionsView() {
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<{ title: string; description: string } | null>(null);
   const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
+  const [zohoDc, setZohoDc] = useState<string>("in");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -93,10 +94,15 @@ export default function ConnectionsView() {
             title: "Zoho OAuth Not Configured",
             description: "ZOHO_CLIENT_SECRET is missing in .env.local. Please copy your Client Secret from Zoho API Console into .env.local to enable connecting.",
           });
+        } else if (zohoErr === "token_exchange_failed" || zohoErr === "access_denied") {
+          setOauthError({
+            title: "Zoho Authorization Failed",
+            description: `Zoho error: ${zohoErr.replace(/_/g, " ")}. If you switched accounts or your account is in a different region (e.g. zoho.com vs zoho.in), select your region from the dropdown below or ensure Multi-DC is enabled in your Zoho API Console.`,
+          });
         } else {
           setOauthError({
             title: "Zoho Connection Failed",
-            description: `Zoho error: ${zohoErr.replace(/_/g, " ")}. Please verify your credentials in Zoho API Console.`,
+            description: `Zoho error: ${zohoErr.replace(/_/g, " ")}. Please verify your credentials and selected region.`,
           });
         }
       }
@@ -216,7 +222,7 @@ export default function ConnectionsView() {
       zohoReauth.push({
         product: `zoho.${key}` as "zoho.crm" | "zoho.projects" | "zoho.books",
         label: key === "crm" ? "Zoho CRM" : key === "projects" ? "Zoho Projects" : "Zoho Books",
-        href: `/api/integrations/zoho/connect?product=${key}&returnTo=/`,
+        href: `/api/integrations/zoho/connect?product=${key}&dc=${zohoDc}&returnTo=/`,
       });
     }
   });
@@ -431,7 +437,7 @@ export default function ConnectionsView() {
 
         {/* SECTION 2: Organization & Enterprise Connections */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <Buildings size={16} weight="bold" className="text-emerald-600" />
@@ -440,8 +446,23 @@ export default function ConnectionsView() {
                 </h2>
               </div>
               <p className="text-[11.5px] text-stone-400 mt-0.5">
-                Gated by real provider permissions: Dynamics license + CRM role, or your own connected Zoho account.
+                Connect any Zoho or Microsoft account with real provider permissions.
               </p>
+            </div>
+            <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/80 rounded-xl px-3 py-1.5 self-start sm:self-auto">
+              <span className="text-[11px] font-semibold text-stone-600">Zoho Region:</span>
+              <select
+                value={zohoDc}
+                onChange={(e) => setZohoDc(e.target.value)}
+                className="bg-white border border-stone-200 text-stone-700 text-xs font-medium rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                title="Select your Zoho account data center (domain where your Zoho account is hosted)"
+              >
+                <option value="in">India (zoho.in)</option>
+                <option value="com">Global / US (zoho.com)</option>
+                <option value="eu">Europe (zoho.eu)</option>
+                <option value="com.au">Australia (zoho.com.au)</option>
+                <option value="jp">Japan (zoho.jp)</option>
+              </select>
             </div>
           </div>
 
@@ -460,7 +481,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("zoho.crm")}
               accessState={zohoAccess("zoho.crm")}
               onToggle={() => guardToggle("zoho.crm")}
-              connectHref="/api/integrations/zoho/connect?product=crm&returnTo=/"
+              connectHref={`/api/integrations/zoho/connect?product=crm&dc=${zohoDc}&returnTo=/`}
               onConnectClick={() => guardConnect("zoho.crm")}
               onDisconnect={() => handleDisconnectZoho("crm")}
               requiresAdminNotice={
@@ -485,7 +506,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("zoho.projects")}
               accessState={zohoAccess("zoho.projects")}
               onToggle={() => guardToggle("zoho.projects")}
-              connectHref="/api/integrations/zoho/connect?product=projects&returnTo=/"
+              connectHref={`/api/integrations/zoho/connect?product=projects&dc=${zohoDc}&returnTo=/`}
               onConnectClick={() => guardConnect("zoho.projects")}
               onDisconnect={() => handleDisconnectZoho("projects")}
             />
@@ -504,7 +525,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("zoho.books")}
               accessState={zohoAccess("zoho.books")}
               onToggle={() => guardToggle("zoho.books")}
-              connectHref="/api/integrations/zoho/connect?product=books&returnTo=/"
+              connectHref={`/api/integrations/zoho/connect?product=books&dc=${zohoDc}&returnTo=/`}
               onConnectClick={() => guardConnect("zoho.books")}
               onDisconnect={() => handleDisconnectZoho("books")}
             />

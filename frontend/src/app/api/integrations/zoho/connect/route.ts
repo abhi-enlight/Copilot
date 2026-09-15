@@ -41,17 +41,22 @@ export async function GET(request: Request) {
     ? Array.from(new Set(requestedScopes.split(" ").filter(Boolean)))
     : Array.from(new Set(products.flatMap((p) => ZOHO_PRODUCT_SCOPES[p])));
 
+  // Allow explicit DC parameter from request, e.g. "in", "com", "eu", "com.au", "jp"
+  const reqDc = (searchParams.get("dc") || "").trim().toLowerCase() || undefined;
+
   // Get authenticated user ID to embed in OAuth state
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const authUserId = user?.id || null;
 
   const state = Buffer.from(
-    JSON.stringify({ returnTo, products, authUserId, nonce: Math.random().toString(36).slice(2) })
+    JSON.stringify({ returnTo, products, authUserId, dc: reqDc, nonce: Math.random().toString(36).slice(2) })
   ).toString("base64");
 
   // Bind the state to this browser session (basic CSRF protection)
-  const response = NextResponse.redirect(buildZohoAuthorizeUrl({ products, requestHost: host, state }));
+  const response = NextResponse.redirect(
+    buildZohoAuthorizeUrl({ products, requestHost: host, state, dc: reqDc, prompt: "consent" })
+  );
   response.cookies.set("zoho_oauth_state", state, {
     httpOnly: true,
     secure: !host.includes("localhost"),
