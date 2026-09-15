@@ -988,38 +988,33 @@ export async function GET(request: NextRequest) {
 
   // ── Diagnostics: Lightweight Zoho & n8n Health Probe ──
   if (action === "zoho_health") {
-    const pingWebhook = async (url: string, payload: Record<string, any> = { action: "check_books_contact", client: "health_check" }) => {
-      if (!url) return { configured: false, reachable: false, status: null, latencyMs: 0 };
+    let syncPing = { configured: false, reachable: false, status: null as number | null, latencyMs: 0, error: undefined as string | undefined };
+    if (N8N_ZOHO_SYNC_WEBHOOK) {
       const start = Date.now();
       try {
-        const res = await fetch(url, {
+        const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(8000),
+          body: JSON.stringify({ action: "check_books_contact", client: "health_check" }),
+          signal: AbortSignal.timeout(10000),
         });
-        return {
+        syncPing = {
           configured: true,
           reachable: res.ok || res.status < 500,
           status: res.status,
           latencyMs: Date.now() - start,
+          error: undefined,
         };
       } catch (err: any) {
-        return {
+        syncPing = {
           configured: true,
           reachable: false,
           status: null,
-          error: err.name === "TimeoutError" ? "Timeout (8s)" : (err.message || "Connection failed"),
           latencyMs: Date.now() - start,
+          error: err.name === "TimeoutError" ? "Timeout (10s)" : (err.message || "Connection failed"),
         };
       }
-    };
-
-    const [syncPing, updatePing, deletePing] = await Promise.all([
-      pingWebhook(N8N_ZOHO_SYNC_WEBHOOK, { action: "check_books_contact", client: "health_check" }),
-      pingWebhook(N8N_ZOHO_UPDATE_WEBHOOK, { action: "ping" }),
-      pingWebhook(N8N_ZOHO_DELETE_WEBHOOK, { action: "ping" }),
-    ]);
+    }
 
     const entitlement = await buildEntitlementSnapshot();
     const crmVerdict = entitlement.connectors["zoho.crm"];
@@ -1043,8 +1038,6 @@ export async function GET(request: NextRequest) {
       healthy,
       n8n: {
         syncWebhook: syncPing,
-        updateWebhook: updatePing,
-        deleteWebhook: deletePing,
       },
       entitlement: {
         crm: crmVerdict,
