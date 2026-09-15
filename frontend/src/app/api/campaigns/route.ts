@@ -17,10 +17,18 @@ export const dynamic = "force-dynamic";
 const PAUSED_ZOHO_MESSAGE =
   "You have paused the Zoho connection. Please go to the Connections page and turn it on.";
 
-const N8N_ZOHO_SYNC_WEBHOOK = process.env.N8N_ZOHO_SYNC_WEBHOOK || "";
-const N8N_ZOHO_DELETE_WEBHOOK = process.env.N8N_ZOHO_DELETE_WEBHOOK || "";
-const N8N_ZOHO_UPDATE_WEBHOOK = process.env.N8N_ZOHO_UPDATE_WEBHOOK || "";
-const N8N_ZOHO_TASK_UPDATE_WEBHOOK = process.env.N8N_ZOHO_TASK_UPDATE_WEBHOOK || "";
+const N8N_ZOHO_SYNC_WEBHOOK =
+  process.env.N8N_ZOHO_SYNC_WEBHOOK ||
+  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
+const N8N_ZOHO_DELETE_WEBHOOK =
+  process.env.N8N_ZOHO_DELETE_WEBHOOK ||
+  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-delete-zoho-resources";
+const N8N_ZOHO_UPDATE_WEBHOOK =
+  process.env.N8N_ZOHO_UPDATE_WEBHOOK ||
+  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-update-resources";
+const N8N_ZOHO_TASK_UPDATE_WEBHOOK =
+  process.env.N8N_ZOHO_TASK_UPDATE_WEBHOOK ||
+  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-update";
 
 /** Reads the current user's server-side pause map (identity: auth user id). */
 async function currentUserPausedMap(userEmailOrId: string | null) {
@@ -541,7 +549,7 @@ async function syncCampaignToZohoCRM(
         is_approved_by_manager: true,
         tasks,
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(45000),
     });
 
     if (!res.ok) {
@@ -597,7 +605,7 @@ async function syncCampaignToZohoCRM(
       projectId: null,
       projectUrl: null,
       writeStatus: "FAILED",
-      error: err.name === "TimeoutError" ? "Webhook timed out (15s)" : (err.message || "Failed to reach sync webhook"),
+      error: err.name === "TimeoutError" ? "Webhook timed out (45s)" : (err.message || "Failed to reach sync webhook"),
     };
   }
 }
@@ -995,8 +1003,8 @@ export async function GET(request: NextRequest) {
         const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "check_books_contact", client: "health_check" }),
-          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({ action: "update_tasks", campaignId: "", tasks: [] }),
+          signal: AbortSignal.timeout(15000),
         });
         syncPing = {
           configured: true,
@@ -1011,7 +1019,7 @@ export async function GET(request: NextRequest) {
           reachable: false,
           status: null,
           latencyMs: Date.now() - start,
-          error: err.name === "TimeoutError" ? "Timeout (10s)" : (err.message || "Connection failed"),
+          error: err.name === "TimeoutError" ? "Timeout (15s)" : (err.message || "Connection failed"),
         };
       }
     }
