@@ -988,15 +988,15 @@ export async function GET(request: NextRequest) {
 
   // ── Diagnostics: Lightweight Zoho & n8n Health Probe ──
   if (action === "zoho_health") {
-    const pingWebhook = async (url: string) => {
+    const pingWebhook = async (url: string, payload: Record<string, any> = { action: "check_books_contact", client: "health_check" }) => {
       if (!url) return { configured: false, reachable: false, status: null, latencyMs: 0 };
       const start = Date.now();
       try {
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "health_check" }),
-          signal: AbortSignal.timeout(5000),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(8000),
         });
         return {
           configured: true,
@@ -1009,16 +1009,16 @@ export async function GET(request: NextRequest) {
           configured: true,
           reachable: false,
           status: null,
-          error: err.name === "TimeoutError" ? "Timeout (5s)" : (err.message || "Connection failed"),
+          error: err.name === "TimeoutError" ? "Timeout (8s)" : (err.message || "Connection failed"),
           latencyMs: Date.now() - start,
         };
       }
     };
 
     const [syncPing, updatePing, deletePing] = await Promise.all([
-      pingWebhook(N8N_ZOHO_SYNC_WEBHOOK),
-      pingWebhook(N8N_ZOHO_UPDATE_WEBHOOK),
-      pingWebhook(N8N_ZOHO_DELETE_WEBHOOK),
+      pingWebhook(N8N_ZOHO_SYNC_WEBHOOK, { action: "check_books_contact", client: "health_check" }),
+      pingWebhook(N8N_ZOHO_UPDATE_WEBHOOK, { action: "ping" }),
+      pingWebhook(N8N_ZOHO_DELETE_WEBHOOK, { action: "ping" }),
     ]);
 
     const entitlement = await buildEntitlementSnapshot();
