@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { supabase } from "@/lib/supabase";
+import { adminSupabase } from "@/lib/supabase-admin";
 import { requireAuth, ensurePersonalOrg } from "@/lib/auth-helpers";
 import { requireConnectorAccess, buildEntitlementSnapshot } from "@/lib/entitlements";
 import { getConnectorPreferences, isConnectorPaused } from "@/lib/connector-preferences";
@@ -676,7 +677,7 @@ export async function reconcileZohoCRMWithSupabase(
   // Check if Zoho CRM is connected for this user / org
   let hasZoho = false;
   if (userId) {
-    const { data: userInteg } = await supabase
+    const { data: userInteg } = await adminSupabase
       .from("user_integrations")
       .select("id, status")
       .eq("auth_user_id", userId)
@@ -687,7 +688,7 @@ export async function reconcileZohoCRMWithSupabase(
   }
 
   if (!hasZoho) {
-    const { data: tenantInteg } = await supabase
+    const { data: tenantInteg } = await adminSupabase
       .from("tenant_integrations")
       .select("id, status")
       .eq("organization_id", orgId)

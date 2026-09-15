@@ -16,7 +16,7 @@
  */
 
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
-import { supabase } from "@/lib/supabase";
+import { adminSupabase } from "@/lib/supabase-admin";
 
 export type ZohoProduct = "crm" | "projects" | "books";
 
@@ -350,7 +350,7 @@ export async function upsertZohoIntegration(opts: {
     last_refreshed_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
-  const { error } = await supabase.from("user_integrations").upsert(row, {
+  const { error } = await adminSupabase.from("user_integrations").upsert(row, {
     onConflict: "user_email,provider,product",
   });
   if (error) {
@@ -369,7 +369,7 @@ export async function getFreshZohoIntegration(
   if (!vaultEnabled()) return { ok: false, record: null, error: "Token vault not configured" };
 
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmail);
-  let query = supabase
+  let query = adminSupabase
     .from("user_integrations")
     .select("*")
     .eq("provider", "zoho")
@@ -424,7 +424,7 @@ export async function rotateZohoAccessToken(
   if (!refreshed.accessToken) {
     // Refresh token rejected → user must reconnect
     if (vaultEnabled()) {
-      let failQuery = supabase
+      let failQuery = adminSupabase
         .from("user_integrations")
         .update({ status: "reauth_required", last_error_message: refreshed.error || "refresh_failed", updated_at: new Date().toISOString() })
         .eq("provider", "zoho")
@@ -465,7 +465,7 @@ export async function persistZohoTokenRefresh(
 ): Promise<{ ok: boolean; error?: string }> {
   if (!vaultEnabled()) return { ok: false, error: "Token vault not configured" };
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmail);
-  let updateQuery = supabase
+  let updateQuery = adminSupabase
     .from("user_integrations")
     .update({
       access_token_encrypted: encryptToken(refreshed.accessToken as string),
@@ -498,7 +498,7 @@ export async function persistZohoTokenRefresh(
 export async function deleteZohoIntegration(userEmailOrAuthId: string, product?: ZohoProduct): Promise<void> {
   if (!vaultEnabled()) return;
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userEmailOrAuthId);
-  let query = supabase.from("user_integrations").delete().eq("provider", "zoho");
+  let query = adminSupabase.from("user_integrations").delete().eq("provider", "zoho");
   if (isUUID) {
     query = query.or(`auth_user_id.eq.${userEmailOrAuthId},user_email.eq.auth:${userEmailOrAuthId}`);
   } else {
@@ -589,7 +589,7 @@ export async function getVaultTokensNeedingRefresh(opts?: {
   const cutoff = Date.now() + TOKEN_FRESHNESS_MARGIN_MS;
   const staleThreshold = Date.now() - UNKNOWN_EXPIRY_STALENESS_MS;
 
-  const { data, error } = await supabase
+  const { data, error } = await adminSupabase
     .from("user_integrations")
     .select("user_email, product, refresh_token_encrypted, access_token_expires_at, updated_at, zoho_data_center")
     .eq("provider", "zoho")
@@ -628,7 +628,7 @@ export async function markVaultTokenStatus(
   errorMessage: string | null
 ): Promise<void> {
   if (!vaultEnabled()) return;
-  await supabase
+  await adminSupabase
     .from("user_integrations")
     .update({ status, last_error_message: errorMessage, updated_at: new Date().toISOString() })
     .eq("user_email", userEmail)
