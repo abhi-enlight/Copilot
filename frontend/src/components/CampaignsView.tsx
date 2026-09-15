@@ -139,6 +139,29 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     icon?: "check" | "sparkle" | "info";
   } | null>(null);
 
+  // Zoho sync health check state
+  const [zohoHealth, setZohoHealth] = useState<{
+    healthy: boolean;
+    n8n?: {
+      syncWebhook?: { configured: boolean; reachable: boolean; status: number | null; latencyMs: number; error?: string };
+      updateWebhook?: { configured: boolean; reachable: boolean };
+      deleteWebhook?: { configured: boolean; reachable: boolean };
+    };
+    entitlement?: {
+      crm?: { access: string; reason?: string };
+      projects?: { access: string; reason?: string };
+      books?: { access: string; reason?: string };
+    };
+    connectorPaused?: {
+      zohoCrm: boolean;
+      zohoProjects: boolean;
+      zohoBooks: boolean;
+    };
+    orgShared?: boolean;
+  } | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [approvalErrorReason, setApprovalErrorReason] = useState<string | null>(null);
+
   // Page-load error state (silent until user notices empty list)
   const [loadError, setLoadError] = useState<string | null>(null);
   // Delete confirmation modal state (replaces window.confirm)
@@ -168,9 +191,28 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
     []
   );
 
+  const fetchZohoHealth = useCallback(async () => {
+    try {
+      setIsCheckingHealth(true);
+      const res = await apiFetch("/api/campaigns?action=zoho_health");
+      if (res.ok) {
+        const data = await res.json();
+        setZohoHealth(data);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch Zoho health:", err);
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  }, [apiFetch]);
+
   const fetchCampaigns = useCallback(async (isManualRefresh = false) => {
-    if (isManualRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
+    if (isManualRefresh) {
+      setIsRefreshing(true);
+      fetchZohoHealth();
+    } else {
+      setIsLoading(true);
+    }
     try {
       const res = await apiFetch("/api/campaigns?sync=true");
       if (res.ok) {
@@ -193,49 +235,52 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [showToast, apiFetch]);
+  }, [showToast, apiFetch, fetchZohoHealth]);
 
   const handleRetrySync = useCallback(
     async (camp: Campaign) => {
       setRetryingCampaignId(camp.id);
+      showToast(`Retrying Zoho sync for "${camp.name}"...`, "info");
       try {
         const res = await apiFetch("/api/campaigns", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "update_campaign_tasks",
+            action: "approve_and_push_zoho",
             campaignId: camp.id,
-            campaignName: camp.name,
+            campaignData: {
+              name: camp.name,
+              client: camp.client,
+              category: camp.category,
+              rewardType: camp.rewardType,
+              budget: camp.budget,
+              codeVolume: camp.codeVolume,
+              startDate: camp.startDate,
+              endDate: camp.endDate,
+              brief: camp.brief,
+              booksCustomerId: camp.booksCustomerId,
+            },
             tasks: camp.tasks,
           }),
         });
-        if (res.ok) {
-          showToast("Re-sync webhook fired, polling for the Zoho deal ID…", "info");
-          // Poll Supabase for deal ID writeback
-          for (let i = 0; i < 5; i++) {
-            await new Promise((r) => setTimeout(r, 3000));
-            const check = await apiFetch(`/api/campaigns?action=get_campaign&id=${camp.id}`);
-            if (check.ok) {
-              const json = await check.json();
-              if (json.campaign?.zohoCrmDealId) {
-                showToast(`✅ Synced! Zoho Deal ID: ${json.campaign.zohoCrmDealId}`, "check");
-                fetchCampaigns();
-                setRetryingCampaignId(null);
-                return;
-              }
-            }
-          }
-          showToast("Re-sync is in progress. Zoho can take up to 2 minutes on first approval. Check back shortly.", "info");
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.campaign) {
+          showToast(`Synced! Zoho Deal ID: ${data.campaign.zohoCrmDealId || "Confirmed"}`, "check");
+          setCampaigns((prev) => prev.map((c) => (c.id === data.campaign.id ? data.campaign : c)));
+          fetchZohoHealth();
         } else {
-          showToast("Re-sync request failed. Try again.", "info");
+          showToast(data.error || "Retry sync failed. Please check Zoho connections.", "info");
+          if (data.campaign) {
+            setCampaigns((prev) => prev.map((c) => (c.id === data.campaign.id ? data.campaign : c)));
+          }
         }
-      } catch {
-        showToast("Re-sync failed, network error", "info");
+      } catch (err: any) {
+        showToast(`Re-sync failed: ${err.message || "Network error"}`, "info");
       } finally {
         setRetryingCampaignId(null);
       }
     },
-    [showToast, fetchCampaigns]
+    [showToast, apiFetch, fetchZohoHealth]
   );
 
   const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
@@ -409,9 +454,8 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
 
   useEffect(() => {
     fetchCampaigns();
-  }, [fetchCampaigns]);
-
-
+    fetchZohoHealth();
+  }, [fetchCampaigns, fetchZohoHealth]);
 
   const handleRegisterBooksInWizard = async () => {
     if (!formData.client) return;
@@ -426,22 +470,20 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
           companyName: wizardBooksContact?.suggestedName,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.contactId) {
-          setWizardBooksContact({
-            exists: true,
-            contactId: data.contactId,
-            contactName: data.contactName,
-          });
-          showToast(`Registered ${data.contactName || formData.client} in Zoho Books!`, "check");
-          return;
-        }
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.contactId) {
+        setWizardBooksContact({
+          exists: true,
+          contactId: data.contactId,
+          contactName: data.contactName,
+        });
+        showToast(`Registered ${data.contactName || formData.client} in Zoho Books!`, "check");
+        return;
       }
-      showToast("Could not register customer in Zoho Books", "info");
-    } catch (e) {
+      showToast(data.error || "Could not register customer in Zoho Books", "info");
+    } catch (e: any) {
       console.error("Failed to register Books contact:", e);
-      showToast("Failed to connect to Zoho Books", "info");
+      showToast(e.message || "Failed to connect to Zoho Books", "info");
     } finally {
       setIsRegisteringBooks(false);
     }
@@ -471,9 +513,12 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       setTimeout(() => {
         const plan = data.plan || generateAspectPlan(formData);
         setGeneratedPlan(plan);
-        if (data.booksContact) {
-          setWizardBooksContact(data.booksContact);
-        }
+        setWizardBooksContact(
+          data.booksContact || {
+            exists: false,
+            suggestedName: `${formData.client.trim()} India`,
+          }
+        );
         const initialAssistantContent = data.aiAnalysis
           ? `I've analyzed **${formData.name}** and generated the 4-aspect plan:\n\n${data.aiAnalysis}\n\nYou can review all tasks on the left. Let me know if you'd like to refine any deadlines or add specific requirements.`
           : "I've drafted a 4-aspect plan based on your inputs. You can review the tasks on the left. Let me know if you need to add, remove, or modify any tasks before we approve & sync to Zoho.";
@@ -493,6 +538,10 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       clearInterval(interval);
       const plan = generateAspectPlan(formData);
       setGeneratedPlan(plan);
+      setWizardBooksContact({
+        exists: false,
+        suggestedName: `${formData.client.trim()} India`,
+      });
       setChatMessages([
         {
           id: `msg-${Date.now()}-assistant`,
@@ -575,7 +624,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
   const handleApproveAndPushToZoho = async () => {
     if (!generatedPlan) return;
     setWizardStep("zoho_pushing");
-    // Approval modal stays open with a syncing spinner while the push runs
+    setApprovalErrorReason(null);
     try {
       const res = await apiFetch("/api/campaigns", {
         method: "POST",
@@ -589,6 +638,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.campaign) {
+        setApprovalErrorReason(null);
         setTimeout(() => {
           setCreatedCampaign(data.campaign);
           setCampaigns((prev) => [data.campaign, ...prev]);
@@ -598,17 +648,20 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
           showToast(`Approved & Synced to Zoho`, "check");
         }, 1200);
       } else {
-        showToast(data.error || "Couldn't sync to Zoho. Your plan is preserved so you can retry.", "info");
+        const err = data.error || (res.status === 403 ? "Zoho access is not enabled or connector is paused." : "Couldn't sync to Zoho. Your plan is preserved so you can retry.");
+        setApprovalErrorReason(err);
+        showToast(err, "info");
         setWizardStep("plan_review");
-        setIsApprovalModalOpen(false);
-        setIsNewModalOpen(true);
+        if (data.campaign) {
+          setCampaigns((prev) => [data.campaign, ...prev.filter((c) => c.id !== data.campaign.id)]);
+        }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to sync to Zoho", e);
-      showToast("Couldn't sync to Zoho. Your plan is preserved so you can retry.", "info");
+      const err = e.message || "Couldn't sync to Zoho. Your plan is preserved so you can retry.";
+      setApprovalErrorReason(err);
+      showToast(err, "info");
       setWizardStep("plan_review");
-      setIsApprovalModalOpen(false);
-      setIsNewModalOpen(true);
     }
   };
 
@@ -647,6 +700,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
   const handleApproveDraftFromCard = async () => {
     if (!draftToApprove) return;
     setApprovingDraftId(draftToApprove.id);
+    setApprovalErrorReason(null);
     try {
       const res = await apiFetch("/api/campaigns", {
         method: "POST",
@@ -669,8 +723,9 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
           booksCustomerId: draftToApprove.booksCustomerId,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok && data.campaign) {
+        setApprovalErrorReason(null);
         setCampaigns((prev) =>
           prev.map((c) => (c.id === data.campaign.id ? data.campaign : c))
         );
@@ -679,17 +734,20 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
         setDraftToApprove(null);
         setDraftBooksContact(null);
       } else {
-        showToast(data.error || "Failed to sync to Zoho", "info");
-        setIsApprovalModalOpen(false);
-        setDraftToApprove(null);
-        setDraftBooksContact(null);
+        const err = data.error || (res.status === 403 ? "Zoho access is not enabled or connector is paused." : "Failed to sync to Zoho");
+        setApprovalErrorReason(err);
+        if (data.campaign) {
+          setCampaigns((prev) =>
+            prev.map((c) => (c.id === data.campaign.id ? data.campaign : c))
+          );
+        }
+        showToast(err, "info");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to sync draft to Zoho", e);
-      showToast("Failed to sync to Zoho", "info");
-      setIsApprovalModalOpen(false);
-      setDraftToApprove(null);
-      setDraftBooksContact(null);
+      const err = e.message || "Failed to sync to Zoho";
+      setApprovalErrorReason(err);
+      showToast(err, "info");
     } finally {
       setApprovingDraftId(null);
     }
@@ -778,12 +836,17 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
           setIsApprovalModalOpen(false);
           setDraftToApprove(null);
           setDraftBooksContact(null);
+          setApprovalErrorReason(null);
         }}
         campaignData={draftToApprove || formData}
         tasks={draftToApprove?.tasks || generatedPlan?.tasks || []}
         booksContact={draftToApprove ? draftBooksContact : wizardBooksContact}
         isPushing={wizardStep === "zoho_pushing" || approvingDraftId !== null}
         source={draftToApprove ? "Draft campaign card" : "New campaign wizard"}
+        errorReason={approvalErrorReason}
+        onOpenConnections={() => {
+          window.location.href = "/connections";
+        }}
         onConfirm={() => {
           if (draftToApprove) {
             handleApproveDraftFromCard();
@@ -851,6 +914,60 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
 
       {/* Main Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        {/* Zoho Sync Health Status Strip */}
+        {zohoHealth && (
+          <div
+            className={`rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs border transition-all ${
+              !zohoHealth.healthy
+                ? "bg-amber-50/90 border-amber-200/90 text-amber-900"
+                : "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  zohoHealth.healthy ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                }`}
+              />
+              <span className="font-semibold flex-shrink-0">
+                {zohoHealth.healthy ? "Zoho Integration Ready" : "Zoho Sync Warning"}
+              </span>
+              <span className="text-stone-300 hidden sm:inline">|</span>
+              <span className="truncate text-stone-600">
+                {zohoHealth.connectorPaused?.zohoCrm ||
+                zohoHealth.connectorPaused?.zohoBooks ||
+                zohoHealth.connectorPaused?.zohoProjects
+                  ? "Connector is paused in settings — approvals and syncs are currently blocked."
+                  : zohoHealth.entitlement?.crm?.access !== "granted"
+                  ? "Zoho CRM access is not granted for this account."
+                  : !zohoHealth.n8n?.syncWebhook?.reachable
+                  ? `Sync webhook unreachable${zohoHealth.n8n?.syncWebhook?.error ? ` (${zohoHealth.n8n.syncWebhook.error})` : ""}`
+                  : `CRM Deals, Projects & Books operational (sync ping: ${zohoHealth.n8n?.syncWebhook?.latencyMs ?? 0}ms)`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 flex-shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => fetchZohoHealth()}
+                disabled={isCheckingHealth}
+                className="text-[11px] font-medium text-stone-500 hover:text-stone-800 underline cursor-pointer disabled:opacity-50"
+              >
+                {isCheckingHealth ? "Pinging…" : "Check Health"}
+              </button>
+              {(!zohoHealth.healthy ||
+                zohoHealth.connectorPaused?.zohoCrm ||
+                zohoHealth.entitlement?.crm?.access !== "granted") && (
+                <a
+                  href="/connections"
+                  className="text-[11px] font-bold text-amber-900 hover:text-amber-950 underline decoration-amber-400 cursor-pointer"
+                >
+                  Manage Connectors &rarr;
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Search + Filter, floats directly on background */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="relative w-full sm:w-96">
@@ -1117,13 +1234,13 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
                           <span>Approve & Push</span>
                         </button>
                       )}
-                      {camp.zohoSyncStatus === "Pending" && camp.status !== "Draft" && (
+                      {(camp.zohoSyncStatus === "Pending" || camp.zohoSyncStatus === "Failed" || camp.zohoSyncStatus === "Partial") && camp.status !== "Draft" && (
                         <button
                           type="button"
                           disabled={retryingCampaignId === camp.id}
                           onClick={() => handleRetrySync(camp)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold transition-all duration-200 cursor-pointer border border-amber-200 shadow-2xs disabled:opacity-50"
-                          title="Re-fire the Zoho sync webhook and poll for deal ID"
+                          title="Re-fire Zoho sync to provision or retry missing CRM, Projects, or Books records"
                         >
                           <ArrowsClockwise
                             size={13}

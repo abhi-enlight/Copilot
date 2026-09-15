@@ -73,6 +73,8 @@ interface ApprovalModalProps {
   source?: string;
   /** Shown inside the confirmation paragraph, e.g. "live records in Zoho" */
   outcomeText?: string;
+  errorReason?: string | null;
+  onOpenConnections?: () => void;
 }
 
 /**
@@ -92,6 +94,8 @@ export default function ApprovalModal({
   onConfirm,
   source,
   outcomeText = "This creates live records in Zoho CRM, Projects and Books and marks the plan",
+  errorReason,
+  onOpenConnections,
 }: ApprovalModalProps) {
   const totalTasks = tasks.length;
   const aspectCounts = (["legal", "compliance", "accounting", "implementation"] as const).map((aspect) => ({
@@ -235,6 +239,30 @@ export default function ApprovalModal({
                     {booksContact.contactName ? `: ${booksContact.contactName}` : ""}
                   </span>
                 </p>
+              )}
+
+              {/* Inline Error & Remediation Banner */}
+              {errorReason && (
+                <div className="rounded-xl bg-rose-50 border border-rose-200/90 p-3.5 space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <WarningCircle size={16} weight="fill" className="text-rose-600 flex-shrink-0 mt-0.5" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-bold text-rose-950">Action Blocked</p>
+                      <p className="text-[11.5px] text-rose-800 mt-0.5 leading-relaxed">{errorReason}</p>
+                    </div>
+                  </div>
+                  {onOpenConnections && (
+                    <div className="pt-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={onOpenConnections}
+                        className="text-[11.5px] font-semibold text-rose-900 hover:text-rose-950 underline decoration-rose-300 hover:decoration-rose-900 cursor-pointer"
+                      >
+                        Manage Connectors &rarr;
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* The commitment, in plain words */}
