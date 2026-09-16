@@ -1,0 +1,128 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy BCP Campaign Brain. Still ACTIVE (chat trigger 20bf7228-5ae0-40c8-b937-00306e81cbec). Candidate for archival after Prism 01/02 confirm no frontend callers remain.",
+    "instance_workflow_id": "Ltbh1TmvK7R4MA1W"
+  },
+  "workflow": {
+    "id": "Ltbh1TmvK7R4MA1W",
+    "name": "BCP Assist - Campaign Brain & Copilot (Gemini & Full Zoho Suite)",
+    "active": true,
+    "versionId": "61f847d2-4235-43d6-a88a-cdb2b3af5784",
+    "activeVersionId": "bad008a6-331f-46f7-8fb8-142156a37b66",
+    "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+    "connections": {
+      "Chat Trigger": { "main": [[{ "node": "BCP Assist AI Agent", "type": "main", "index": 0 }]] },
+      "Google Gemini Model": { "ai_languageModel": [[{ "node": "BCP Assist AI Agent", "type": "ai_languageModel", "index": 0 }]] },
+      "Memory Buffer": { "ai_memory": [[{ "node": "BCP Assist AI Agent", "type": "ai_memory", "index": 0 }]] },
+      "Campaign Knowledge Base": { "ai_tool": [[{ "node": "BCP Assist AI Agent", "type": "ai_tool", "index": 0 }]] },
+      "Gemini Embeddings": { "ai_embedding": [[{ "node": "Campaign Knowledge Base", "type": "ai_embedding", "index": 0 }]] },
+      "Zoho CRM Client Accounts": { "ai_tool": [[{ "node": "BCP Assist AI Agent", "type": "ai_tool", "index": 0 }]] },
+      "Zoho CRM Leads": { "ai_tool": [[{ "node": "BCP Assist AI Agent", "type": "ai_tool", "index": 0 }]] },
+      "Zoho Books Invoices": { "ai_tool": [[{ "node": "BCP Assist AI Agent", "type": "ai_tool", "index": 0 }]] },
+      "Zoho Projects Active Projects": { "ai_tool": [[{ "node": "BCP Assist AI Agent", "type": "ai_tool", "index": 0 }]] },
+      "Zoho CRM Deals": { "ai_tool": [[{ "node": "BCP Assist AI Agent", "type": "ai_tool", "index": 0 }]] }
+    },
+    "nodes": [
+      {
+        "parameters": { "public": true, "options": { "inputPlaceholder": "Ask about a campaign brief, historical precedent, live Zoho deals, invoices, or pending tasks...", "subtitle": "AI Campaign Expert & Client Success Manager (Powered by Google Gemini & Full Zoho Suite)", "title": "BCP Assist: Campaign Brain", "responseMode": "streaming" } },
+        "id": "a0143ead-613d-49db-8373-15f2d327b6e2",
+        "name": "Chat Trigger",
+        "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+        "typeVersion": 1.4,
+        "position": [0, 208],
+        "webhookId": "20bf7228-5ae0-40c8-b937-00306e81cbec"
+      },
+      {
+        "parameters": { "promptType": "define", "text": "={{ $json.chatInput }}", "options": { "systemMessage": "You are the BigCity BCP Assist Campaign AI Agent.\\nYou assist marketing managers and campaign leads in retrieving client leads from Zoho CRM, ideating enterprise marketing campaigns, generating operational task plans and invoices, and querying live system metrics.\\n\\n### Core Operating Principles:\\n1. **Discovery First — Never Invent a Campaign**: ask which client lead to anchor the campaign to before inventing anything.\\n2. **Client Lead Retrieval**: always query Zoho CRM Leads for client details; display a confirmation badge.\\n3. **Split-Screen Studio Awareness**: keep chat summary concise; the Studio Drawer shows granular tasks.\\n4. **Accurate Zoho Application Routing & Live Data**: projects tool for projects, Books tool for invoices, CRM tools for leads/deals; only return live tool data.\\n5. **Conversational Iterations & Post-Approval Modifications**: allow plan iteration before approval.\\n6. **Clarity & Directness**: guide users to 'Approve & Push to Zoho'.\\n7. **Authentic Data Only**: never invent mock campaigns, task IDs, invoices, or team assignments; report 0 records truthfully." } },
+        "id": "f04cbdbc-a321-4e5c-91ac-ddee4af506c9",
+        "name": "BCP Assist AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [704, 208]
+      },
+      {
+        "parameters": { "modelName": "models/gemini-3.7-flash", "options": { "temperature": 0.2 } },
+        "id": "b15cb79c-4169-47b8-847e-ca8b8018036d",
+        "name": "Google Gemini Model",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1.1,
+        "position": [240, 448],
+        "credentials": { "googlePalmApi": { "id": "0kVH2ZY14O7Zgh61", "name": "Google Gemini(PaLM) Api account" } }
+      },
+      {
+        "parameters": { "contextWindowLength": 10 },
+        "id": "748e0504-96a1-43fb-8b02-a3d6fd83015f",
+        "name": "Memory Buffer",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.4,
+        "position": [368, 448]
+      },
+      {
+        "parameters": { "mode": "retrieve-as-tool", "toolDescription": "Search BigCity historical campaign case studies, past UAT issues, client learnings, and campaign execution SOPs from Supabase.", "tableName": { "__rl": true, "mode": "id", "value": "documents" }, "topK": 5, "options": { "queryName": "match_documents" } },
+        "id": "00805b89-c284-4205-a8e2-09b0bee4df43",
+        "name": "Campaign Knowledge Base",
+        "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+        "typeVersion": 1.3,
+        "position": [496, 448],
+        "credentials": { "supabaseApi": { "id": "yxWsintlHzI5AQDc", "name": "Supabase account" } }
+      },
+      {
+        "parameters": {},
+        "id": "704eb4a5-d1b5-4294-89e5-e0158a93295b",
+        "name": "Gemini Embeddings",
+        "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+        "typeVersion": 1,
+        "position": [576, 656],
+        "credentials": { "googlePalmApi": { "id": "0kVH2ZY14O7Zgh61", "name": "Google Gemini(PaLM) Api account" } }
+      },
+      {
+        "parameters": { "operation": "getAll", "options": {} },
+        "id": "4db73da5-2039-4b56-880c-2c429e565ffe",
+        "name": "Zoho CRM Client Accounts",
+        "type": "n8n-nodes-base.zohoCrmTool",
+        "typeVersion": 1,
+        "position": [1008, 448],
+        "credentials": { "zohoOAuth2Api": { "id": "QZGMU0N6VE4Eacvu", "name": "Zoho account" } }
+      },
+      {
+        "parameters": { "resource": "lead", "operation": "getAll", "limit": 20, "options": {} },
+        "id": "node-zoho-crm-leads",
+        "name": "Zoho CRM Leads",
+        "type": "n8n-nodes-base.zohoCrmTool",
+        "typeVersion": 1,
+        "position": [688, 624],
+        "credentials": { "zohoOAuth2Api": { "id": "QZGMU0N6VE4Eacvu", "name": "Zoho account" } }
+      },
+      {
+        "parameters": { "description": "Fetch authentic live invoices, balances, due dates, and line items from Zoho Books (Org: 60085935698). Use exclusively whenever the user asks about invoices, billing status, or customer payments. Never query Zoho CRM for invoices. Scope is automatically bound from the active campaign context, or optional invoiceId / customerId.", "workflowId": { "__rl": true, "mode": "id", "value": "iXeJxuXe1buHC7Vt" }, "workflowInputs": { "mappingMode": "defineBelow", "schema": [ { "display": true, "displayName": "campaignContext", "id": "campaignContext", "type": "string" }, { "display": true, "displayName": "invoiceId", "id": "invoiceId", "type": "string" }, { "display": true, "displayName": "customerId", "id": "customerId", "type": "string" } ], "value": { "campaignContext": "={{ $('Chat Trigger').first().json.campaignContext || '' }}", "customerId": "={{ $fromAI('customerId', 'Optional Zoho Books Customer/Contact ID to filter invoices for. Leave empty to rely on campaign context or fetch org invoices.', 'string', '') }}", "invoiceId": "={{ $fromAI('invoiceId', 'Optional specific Zoho Books Invoice ID to fetch. Leave empty to query campaign or organization invoices.', 'string', '') }}" } } },
+        "id": "ad80625d-17f1-4ef0-bf3e-0298af2c1185",
+        "name": "Zoho Books Invoices",
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [784, 800]
+      },
+      {
+        "parameters": { "description": "Fetch authentic live active projects, project status, task lists, and milestone metrics from Zoho Projects portal 60085935707. Use whenever the user asks about active projects, delivery timelines, project tasks, or project health. Never query Zoho CRM for projects. Scope is automatically bound from active campaign context or optional projectId.", "workflowId": { "__rl": true, "mode": "id", "value": "XngVaIJILTO6B2Bv" }, "workflowInputs": { "mappingMode": "defineBelow", "schema": [ { "display": true, "displayName": "campaignContext", "id": "campaignContext", "type": "string" }, { "display": true, "displayName": "projectId", "id": "projectId", "type": "string" } ], "value": { "campaignContext": "={{ $('Chat Trigger').first().json.campaignContext || '' }}", "projectId": "={{ $fromAI('projectId', 'Optional specific Zoho Projects Project ID to fetch. Leave empty to query active projects.', 'string', '') }}" } } },
+        "id": "98806889-1d3b-4521-9307-ca62b763eb8b",
+        "name": "Zoho Projects Active Projects",
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [928, 800]
+      },
+      {
+        "parameters": { "description": "Fetch live Zoho CRM Deals, stages, amounts, closing dates, and campaign records. Use when the user asks about CRM deals, deal pipeline, deal amounts, or campaigns in CRM. Scope is automatically bound from the active campaign or dealId.", "workflowId": { "__rl": true, "mode": "id", "value": "jAFjtinGr4tCoI4h" }, "workflowInputs": { "mappingMode": "defineBelow", "schema": [ { "display": true, "displayName": "campaignContext", "id": "campaignContext", "type": "string" }, { "display": true, "displayName": "dealId", "id": "dealId", "type": "string" } ], "value": { "campaignContext": "={{ $('Chat Trigger').first().json.campaignContext || '' }}", "dealId": "={{ $fromAI('dealId', 'Optional specific Zoho CRM Deal ID to inspect. Leave empty to query recent active deals.', 'string', '') }}" } } },
+        "id": "zoho-crm-deals-tool",
+        "name": "Zoho CRM Deals",
+        "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+        "typeVersion": 2.2,
+        "position": [784, 448]
+      }
+    ],
+    "tags": [],
+    "meta": { "aiBuilderAssisted": true, "builderVariant": "mcp", "templateCredsSetupCompleted": true },
+    "description": "AI Campaign Copilot with vector RAG, Zoho CRM Deals, Invoices, Accounts, and Pending Tasks tool."
+  },
+  "_full_system_message_note": "The full 7-principle system message was abbreviated in this snapshot for readability; the activeVersion copy on the instance remains authoritative. Re-pull via MCP get_workflow_details id Ltbh1TmvK7R4MA1W for byte-exact content."
+}

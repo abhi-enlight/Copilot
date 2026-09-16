@@ -1,0 +1,18 @@
+{
+  "id": "519qvp5pRGIQEYEQ",
+  "name": "Prism 19 - Error Logger & Health",
+  "active": true,
+  "versionId": "19bfea42-3dc0-4b9c-b408-498cc0f301dd",
+  "updatedAt": "2026-09-15T14:33:59.369Z",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "connections": {
+    "On Any Prism Workflow Error": { "main": [[{ "node": "Build Error Entry", "type": "main", "index": 0 }]] },
+    "Build Error Entry": { "main": [[{ "node": "Persist Error (Supabase)", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    { "id": "b1823ecd-aebf-4a96-b02d-3137b6286d00", "name": "On Any Prism Workflow Error", "type": "n8n-nodes-base.errorTrigger", "typeVersion": 1, "position": [0, 300], "parameters": {} },
+    { "id": "dda0f994-c33f-4d87-bed9-00694a73efdf", "name": "Build Error Entry", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [240, 300], "parameters": { "mode": "runOnceForAllItems", "jsCode": "const err = $input.first()?.json || {};\nconst exec = err.execution || {};\nconst wf = err.workflow || {};\nconst lastNode = (err.execution && err.execution.lastNodeExecuted) || (err.execution && err.execution.error && err.execution.error.node && err.execution.error.node.name) || null;\nconst msg = (err.execution && err.execution.error && err.execution.error.message) || 'Unknown workflow error';\nreturn [{ json: {\n  workflow_id: wf.id || null,\n  workflow_name: wf.name || null,\n  execution_id: exec.id || null,\n  execution_url: exec.url || null,\n  failed_node: lastNode,\n  error_message: String(msg).slice(0, 1000),\n  logged_at: new Date().toISOString(),\n  source: 'n8n-error-trigger'\n} }];" } },
+    { "id": "c835d6d4-37d5-4fdd-8b52-52a3a29bf716", "name": "Persist Error (Supabase)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [480, 300], "alwaysOutputData": true, "onError": "continueRegularOutput", "credentials": { "supabaseApi": { "id": "yxWsintlHzI5AQDc", "name": "Supabase account" } }, "parameters": { "method": "POST", "url": "={{ 'https://ejawdvxnddgkcgkasove.supabase.co'.replace(/\\/+$/, '') + '/rest/v1/agent_audit_logs' }}", "authentication": "predefinedCredentialType", "nodeCredentialType": "supabaseApi", "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify({ organization_id: null, user_id: null, action: 'workflow.error', status: 'error', details: $json, request_id: 'err-' + ($execution.id || 'na') }) }}", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Prefer", "value": "return=minimal" }, { "name": "Content-Type", "value": "application/json" } ] }, "options": { "neverError": true, "timeout": 15000 } } },
+    { "id": "de76d37d-ac92-437b-8d52-2cffa938f676", "name": "Sticky Note 0e1f0551", "type": "n8n-nodes-base.stickyNote", "typeVersion": 1, "position": [190, 250], "parameters": { "content": "## Prism 19 - Error Logger & Health\nWire as the Error Workflow on every Prism workflow (Settings > Error Workflow). Captures workflow/execution/failed-node details and persists them to agent_audit_logs (action=workflow.error) so any failure is queryable by requestId. Set PRISM_SUPABASE_URL as an instance environment variable; falls back to a logged no-op until configured.", "color": 6, "width": 540, "height": 200 } }
+  ]
+}

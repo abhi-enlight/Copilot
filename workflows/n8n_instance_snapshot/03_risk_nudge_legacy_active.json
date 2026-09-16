@@ -1,0 +1,25 @@
+{
+  "id": "I1MupTfDAaVMY0dt",
+  "name": "BCP Assist - Proactive Daily Risk & Deadline Nudge",
+  "active": true,
+  "versionId": "085c091a-6550-4de7-ae58-322371b13382",
+  "updatedAt": "2026-08-27T11:33:20.454Z",
+  "description": "Scheduled daily 9 AM risk scanner that identifies campaign bottlenecks, budget drift, and proactive nudges.",
+  "note": "LEGACY but still ACTIVE — frontend risk-digest still points at this workflow. Kept in the snapshot; candidate for a future Prism migration.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "connections": {
+    "Morning 9 AM Schedule": { "main": [[{ "node": "Morning Risk Inspector", "type": "main", "index": 0 }]] },
+    "Morning Risk Inspector": { "main": [[{ "node": "Format Morning Risk Digest", "type": "main", "index": 0 }]] },
+    "Gemini Risk Evaluator": { "ai_languageModel": [[{ "node": "Morning Risk Inspector", "type": "ai_languageModel", "index": 0 }]] },
+    "Risk Digest Parser": { "ai_outputParser": [[{ "node": "Morning Risk Inspector", "type": "ai_outputParser", "index": 0 }]] },
+    "Run Morning Scan Now": { "main": [[{ "node": "Morning Risk Inspector", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    { "id": "a653d7a7-21fd-4593-886f-141d0921ff32", "name": "Morning 9 AM Schedule", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.4, "position": [0, 16], "parameters": {} },
+    { "id": "6784872a-ba9b-4e64-a846-df560f33ee66", "name": "Morning Risk Inspector", "type": "@n8n/n8n-nodes-langchain.agent", "typeVersion": 3.1, "position": [224, 112], "parameters": { "promptType": "define", "text": "=Evaluate active BigCity campaigns against the 72-hour UAT readiness SOP rule, check budget burn status, and output critical risk alerts and team nudges.", "hasOutputParser": true, "options": { "systemMessage": "You are BCP Assist Proactive Risk Inspector for BigCity Promotions.\nEvaluate the campaign status and output a structured daily risk summary following BigCity SOPs:\n- UAT Gate: Staging testing must be complete 72 hours before launch.\n- Pre-warming: High volume on-pack QR promotions require dual-gateway OTP failover.\n- SPOCs: Khaleel (Ops), Sachin (Tech), CS Heads, Prashant Mittal." } } },
+    { "id": "b36d9cf0-4f59-42dc-8489-03ed8618a2a8", "name": "Gemini Risk Evaluator", "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini", "typeVersion": 1.1, "position": [240, 336], "credentials": { "googlePalmApi": { "id": "0kVH2ZY14O7Zgh61", "name": "Google Gemini(PaLM) Api account" } }, "parameters": { "modelName": "models/gemini-3.7-flash", "options": { "temperature": 0.1 } } },
+    { "id": "49f3509a-deef-4f78-b565-2bf6389b2a68", "name": "Risk Digest Parser", "type": "@n8n/n8n-nodes-langchain.outputParserStructured", "typeVersion": 1.3, "position": [368, 336], "parameters": { "jsonSchemaExample": "{\"scan_date\":\"2026-08-26\",\"critical_risk_alerts\":\"Nestle Festive campaign is 6 days away from launch with pending staging OTP sign-off by Sachin (Tech). Action: Complete 50-number batch test before 2026-08-28.\",\"budget_health\":\"Samsung Rewards: 24% budget utilized, on track. Nestle: 30% utilized, on track.\",\"proactive_nudges\":\"Nudge Khaleel (Ops) for QR print proofs. Nudge CS Heads for client legal T&C sign-off.\"}" } },
+    { "id": "6b594ca5-ef5a-4f89-88ac-46d149c867ed", "name": "Format Morning Risk Digest", "type": "n8n-nodes-base.set", "typeVersion": 3.4, "position": [576, 112], "parameters": { "assignments": { "assignments": [ { "id": "digestType", "name": "digestType", "value": "DAILY_CAMPAIGN_HEALTH_DIGEST", "type": "string" }, { "id": "criticalAlerts", "name": "criticalAlerts", "value": "={{ $json.output.critical_risk_alerts }}", "type": "string" }, { "id": "budgetHealth", "name": "budgetHealth", "value": "={{ $json.output.budget_health }}", "type": "string" }, { "id": "nudges", "name": "proactiveNudges", "value": "={{ $json.output.proactive_nudges }}", "type": "string" } ] }, "includeOtherFields": true, "options": {} } },
+    { "id": "181332f5-b226-4f59-9cea-65f7fed64995", "name": "Run Morning Scan Now", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 208], "parameters": {} }
+  ]
+}

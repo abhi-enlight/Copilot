@@ -141,7 +141,8 @@ export default function PrismApp() {
       }
     } catch {}
 
-    // 3. Listen to hashchange for browser back/forward buttons
+    // 3. Listen to hashchange for browser back/forward buttons and in-page
+    // navigation links (e.g. `/#connections` deep links from error banners).
     const handleHashChange = () => {
       const currentHash = window.location.hash.replace("#", "") as NavView;
       if (VALID_VIEWS.includes(currentHash)) {
@@ -151,6 +152,7 @@ export default function PrismApp() {
         } catch {}
       }
     };
+    handleHashChange();
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [viewKey, planContextKey]);

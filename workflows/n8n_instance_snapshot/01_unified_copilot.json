@@ -1,0 +1,68 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16T12:48Z",
+    "source": "n8n instance via MCP get_workflow_details",
+    "instance_workflow_id": "W3E1wzfXHbhfkNzm",
+    "active_version": "7ca68c16-3f0d-416c-b63f-2c70bd3e845f",
+    "note": "ACTIVE. Canonical Prism Copilot. 7 org-scoped toolWorkflow tools (Outlook UEH38SliBb1uEXpr, SharePoint/OneDrive aO1bUnQFEtcgmlQb, Dynamics d4qv1LSQVF4ZSqLd, Zoho CRM 1vIvRHfDKCBhZlwy, Zoho Projects q22X3dIXTxLERmW8, Zoho Books TVh46VCb1izL8hiw, KB 0WjH1NPNsN0bN7Xm) with hidden tenant-context inputs; errorWorkflow=Prism 19. Includes today's fix: SharePoint tool advertises the new 'sites' scope (list/search ALL sites, no site id needed). Chat webhook: 7c41498d-23d7-482a-9adb-4a3604ec1efb (public streaming)."
+  },
+  "settings": {"executionOrder": "v1", "availableInMCP": true, "errorWorkflow": "519qvp5pRGIQEYEQ"},
+  "chat_webhook_id": "7c41498d-23d7-482a-9adb-4a3604ec1efb",
+  "nodes": {
+    "Chat Trigger": {
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger", "typeVersion": 1.4, "position": [0, 208],
+      "webhookId": "7c41498d-23d7-482a-9adb-4a3604ec1efb",
+      "parameters": {"public": true, "options": {"inputPlaceholder": "Ask across your mail, files, CRM deals, projects, invoices, and knowledge base…", "subtitle": "Prism — One interface, every system. Microsoft 365 + Zoho, gated by real permissions.", "title": "Prism Copilot", "responseMode": "streaming"}}
+    },
+    "Normalize Chat Input": {
+      "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [224, 208],
+      "parameters": {"mode": "runOnceForAllItems", "jsCode": "const m = $input.first()?.json || {};\nconst body = m.body || m;\nreturn [{ json: {\n  chatInput: body.chatInput || body.chatInputText || body.message || '',\n  campaignContext: body.campaignContext || null,\n  sessionId: body.sessionId || body.sessionKey || body.organizationId || 'default',\n  organizationId: body.organizationId || null,\n  userId: body.userId || null,\n  supabaseUrl: body.supabaseUrl || 'https://ejawdvxnddgkcgkasove.supabase.co',\n  orgConfig: body.orgConfig && typeof body.orgConfig === 'object' ? body.orgConfig : {},\n  connectorContext: body.connectorContext && typeof body.connectorContext === 'object' ? body.connectorContext : {}\n} }];"}
+    },
+    "Prism Copilot Agent": {
+      "type": "@n8n/n8n-nodes-langchain.agent", "typeVersion": 3.1, "position": [672, 208],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.campaignContext ? $json.campaignContext + '\\n\\nUser Request: ' + $json.chatInput : $json.chatInput }}",
+        "options": {"systemMessage": "You are Prism, the unified productivity copilot for this organization. You connect Microsoft 365 (Outlook, SharePoint/OneDrive, Dynamics 365 CRM), Zoho (CRM, Projects, Books), and the org Knowledge Base — always gated by the user's real permissions.\n\n### Absolute rules\n1. Live data only. Never invent emails, files, deals, tasks, invoices, or numbers. Zero records means say \"No records found in <source>\".\n2. Never echo access tokens, secrets, or raw headers.\n3. Be concise and structured: bold labels, bullets, small tables. Cite the source per fact, e.g. \"(Zoho CRM)\" or \"(KB: <doc title>)\".\n\n### Reading tool envelopes\nEvery Prism tool returns {ok, status, reasonCode, userMessage, records, total}. On status=success, summarize the records and name the source. On status=refused or error, NEVER invent data — relay honestly:\n- connector_disabled -> \"<Connector> is turned off for you — enable it in Connections.\"\n- not_entitled -> \"Your account doesn't have access to <Connector> — ask your admin to unlock it.\"\n- missing_token -> \"<Connector> isn't connected yet — connect it in Connections.\"\n- reauth_required -> \"<Connector> needs re-authentication — reconnect it in Connections.\"\n- rate_limited -> \"<Connector> is rate-limited right now — try again in a minute.\"\n- timeout or provider_error -> \"Fetching from <Connector> failed — try again shortly; if it persists, check the connection.\"\n- org_misconfigured or empty -> quote the envelope's userMessage.\nWhen several sources were needed, end with a short sources summary: which sources succeeded (with counts) and which failed and why.\n\n### Routing\nMail -> Outlook Mail. Documents/files -> SharePoint & OneDrive Files. Microsoft pipeline/CRM -> Dynamics 365. Zoho campaigns-as-deals, tasks, leads -> Zoho CRM. Projects and project tasks -> Zoho Projects. Invoices/payments/customers -> Zoho Books. SOPs, policies, how-tos, past-campaign learnings -> Knowledge Base. Use several tools when useful and say which you checked.\n\n### Campaigns & approvals\nActive promotion programs live as Deals in Zoho CRM and as Campaigns in Prism. When asked about active campaigns, task completion, or pending approvals, use the campaign context embedded above and/or Zoho CRM (scope deals/tasks). State names, execution stages, task completion across Legal/Compliance/Accounting/Implementation, and approval gates with owners. Never show sample/template campaigns.\n\n### Writes\nYou are read-only in chat. If asked to create or modify records, or to push a campaign to Zoho, explain that writes go through the Campaigns view (\"Push to Zoho Suite\" after approval) and cannot be performed from chat."}
+      }
+    },
+    "Google Gemini Model": {
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini", "typeVersion": 1.1, "position": [224, 432],
+      "parameters": {"modelName": "models/gemini-3.7-flash", "options": {"temperature": 0.2}},
+      "credentials": {"googlePalmApi": {"id": "0kVH2ZY14O7Zgh61", "name": "Google Gemini(PaLM) Api account"}}
+    },
+    "Memory Buffer": {
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow", "typeVersion": 1.4, "position": [352, 432],
+      "parameters": {"contextWindowLength": 10}
+    }
+  },
+  "tool_nodes": {
+    "Microsoft Outlook Mail":   {"service": "Prism 10", "workflowId": "UEH38SliBb1uEXpr", "ai_inputs": ["scope: list|search|thread", "query", "limit:10"]},
+    "SharePoint & OneDrive Files": {"service": "Prism 11", "workflowId": "aO1bUnQFEtcgmlQb", "ai_inputs": ["scope: sites|onedrive|site (sites = list/search ALL SharePoint sites, no site id needed)", "query (search term for sites / site id for site)", "recordId (optional folder id)", "limit:15"]},
+    "Dynamics 365 CRM":         {"service": "Prism 12", "workflowId": "d4qv1LSQVF4ZSqLd", "ai_inputs": ["scope: deals|deal|accounts|contacts", "recordId", "limit:10"]},
+    "Zoho CRM":                 {"service": "Prism 13", "workflowId": "1vIvRHfDKCBhZlwy", "ai_inputs": ["scope: deals|deal|tasks|accounts|contacts|leads", "recordId", "limit:10"]},
+    "Zoho Projects":            {"service": "Prism 14", "workflowId": "q22X3dIXTxLERmW8", "ai_inputs": ["scope: portals|projects|tasks", "recordId", "limit:10"]},
+    "Zoho Books":               {"service": "Prism 15", "workflowId": "TVh46VCb1izL8hiw", "ai_inputs": ["scope: invoices|invoice|estimates|customers", "recordId", "limit:10"]},
+    "Knowledge Base":           {"service": "Prism 16", "workflowId": "0WjH1NPNsN0bN7Xm", "ai_inputs": ["query", "matchCount:5"]}
+  },
+  "shared_hidden_tool_inputs": {
+    "description": "Every toolWorkflow passes these hidden (display:false) inputs in addition to the AI inputs above; services re-resolve server-side via Prism 00 anyway (fallbacks only used when server resolution fails):",
+    "fields": [
+      "organizationId = $('Normalize Chat Input').first().json.organizationId",
+      "userId = $('Normalize Chat Input').first().json.userId",
+      "supabaseUrl = $('Normalize Chat Input').first().json.supabaseUrl (default https://ejawdvxnddgkcgkasove.supabase.co)",
+      "fallbackAccessToken = connectorContext['<connector>']?.accessToken",
+      "fallbackEnabled / fallbackEntitlement = connectorContext['<connector>']?.enabled/entitlement (default true)",
+      "fallbackOrgConfig = orgConfig"
+    ],
+    "connector_keys": {
+      "Outlook": "microsoft.outlook", "SharePoint": "microsoft.sharepoint", "Dynamics": "microsoft.dynamics",
+      "Zoho CRM": "zoho.crm", "Zoho Projects": "zoho.projects", "Zoho Books": "zoho.books", "KB": "internal.kb"
+    }
+  },
+  "connections": {
+    "main": [["Chat Trigger", "Normalize Chat Input", "Prism Copilot Agent"]],
+    "ai_languageModel": [["Google Gemini Model", "Memory Buffer", "Prism Copilot Agent"]],
+    "ai_tool": ["Microsoft Outlook Mail", "SharePoint & OneDrive Files", "Dynamics 365 CRM", "Zoho CRM", "Zoho Projects", "Zoho Books", "Knowledge Base"]
+  }
+}

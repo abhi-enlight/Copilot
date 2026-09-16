@@ -958,7 +958,7 @@ export default function CampaignsView({ onOpenChatWithPrompt, onModifyInCopilot 
                 zohoHealth.connectorPaused?.zohoCrm ||
                 zohoHealth.entitlement?.crm?.access !== "granted") && (
                 <a
-                  href="/connections"
+                  href="/#connections"
                   className="text-[11px] font-bold text-amber-900 hover:text-amber-950 underline decoration-amber-400 cursor-pointer"
                 >
                   Manage Connectors &rarr;

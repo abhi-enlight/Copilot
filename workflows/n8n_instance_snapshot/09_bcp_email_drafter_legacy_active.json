@@ -1,0 +1,214 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy BCP Smart Client Email Drafter, still ACTIVE (webhook bcp-email-draft ec0826e3-25a2-452b-a7c7-2ba096b81f8f). Candidate for archival after confirming no frontend callers (frontend now has its own mail draft/send via api/mail/* + Microsoft Graph).",
+    "instance_workflow_id": "DsEn5VzZy71Cp9YG"
+  },
+  "workflow": {
+    "id": "DsEn5VzZy71Cp9YG",
+    "name": "BCP Assist - Smart Client Email Drafter",
+    "active": true,
+    "versionId": "cdcf9b72-1022-44d7-bc10-33055a811206",
+    "activeVersionId": "148ea3e3-0a29-4c87-aba7-0be4f418d818",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "binaryMode": "separate"
+    },
+    "description": "Drafts context-aware client email replies against BigCity SOPs and queues them for human manager review.",
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp",
+      "templateCredsSetupCompleted": true
+    },
+    "tags": [],
+    "connections": {
+      "Incoming Email Webhook": {
+        "main": [
+          [
+            {
+              "node": "AI Smart Email Drafter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Simulate Client Email": {
+        "main": [
+          [
+            {
+              "node": "AI Smart Email Drafter",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Smart Email Drafter": {
+        "main": [
+          [
+            {
+              "node": "Queue Draft for Review",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini Email Drafter": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AI Smart Email Drafter",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Email Draft Parser": {
+        "ai_outputParser": [
+          [
+            {
+              "node": "AI Smart Email Drafter",
+              "type": "ai_outputParser",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "bcp-email-draft",
+          "options": {}
+        },
+        "id": "5e2e44b9-0a0f-4fa0-bb57-15acd8c03b89",
+        "name": "Incoming Email Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          16
+        ],
+        "webhookId": "ec0826e3-25a2-452b-a7c7-2ba096b81f8f"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.body?.email_text || $json.email_text || \"Hi BigCity Team, Can you please share the current status of the Festive Scratch & Win staging UAT and when we can expect final OTP test results? Thanks, Nestle Brand Team\" }}",
+          "hasOutputParser": true,
+          "options": {
+            "systemMessage": "You are BCP Assist Smart Email Drafter for BigCity Promotions (SOW Section 6.A & 7).\\nDraft professional, polite, and reassuring client email replies matching BigCity SOP guidelines.\\n\\nStrict Human-in-the-Loop Rules:\\n1. Always prepare a DRAFT \u2014 do NOT assume autonomous authority.\\n2. Ensure legal disclosures and timelines reflect confirmed status.\\n3. Add a concise manager_review_note explaining the context to the human sender."
+          }
+        },
+        "id": "90f77724-a778-44cc-bb8a-aaa78594ee70",
+        "name": "AI Smart Email Drafter",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          224,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "modelName": "models/gemini-3.7-flash",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "id": "f4acea18-8571-44d5-8b72-a3ba2076391e",
+        "name": "Gemini Email Drafter",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          384
+        ],
+        "credentials": {
+          "googlePalmApi": {
+            "id": "0kVH2ZY14O7Zgh61",
+            "name": "Google Gemini(PaLM) Api account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsonSchemaExample": "{\"client_sender\":\"brand.manager@nestle.com\",\"campaign_name\":\"Nestle Festive Scratch & Win\",\"subject\":\"Re: Update on Campaign Launch & OTP Readiness\",\"email_body\":\"Dear Team,\\\\n\\\\nThank you for reaching out. Staging UAT is currently in progress and on track for completion by Thursday 5 PM. Dual-gateway OTP routing has been configured per standard protocols.\\\\n\\\\nBest regards,\\\\nBigCity Client Success Team\",\"manager_review_note\":\"Ready for human review before sending. Verified against BigCity SOP.\",\"requires_human_signoff\":true}"
+        },
+        "id": "8b2fca62-37be-47f3-82ec-e4f404583e17",
+        "name": "Email Draft Parser",
+        "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+        "typeVersion": 1.3,
+        "position": [
+          368,
+          352
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "status",
+                "name": "status",
+                "value": "DRAFT_READY_FOR_HUMAN_REVIEW",
+                "type": "string"
+              },
+              {
+                "id": "subject",
+                "name": "subject",
+                "value": "={{ $json.output.subject }}",
+                "type": "string"
+              },
+              {
+                "id": "emailBody",
+                "name": "emailBody",
+                "value": "={{ $json.output.email_body }}",
+                "type": "string"
+              },
+              {
+                "id": "reviewNote",
+                "name": "reviewNote",
+                "value": "={{ $json.output.manager_review_note }}",
+                "type": "string"
+              },
+              {
+                "id": "guardrail",
+                "name": "guardrail",
+                "value": "HUMAN_APPROVAL_ENFORCED",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "0917c371-8c4d-45cb-8a95-a6d706ee1db4",
+        "name": "Queue Draft for Review",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          576,
+          112
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "8af1be3b-41d9-4168-993b-7b3047166463",
+        "name": "Simulate Client Email",
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          0,
+          208
+        ]
+      }
+    ]
+  }
+}

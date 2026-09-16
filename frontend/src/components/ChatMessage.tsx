@@ -15,12 +15,52 @@ import {
   ShieldWarning,
 } from "@phosphor-icons/react";
 import ErrorBoundary from "./ErrorBoundary";
+import EmailDraftCard, { EmailDraftData } from "./EmailDraftCard";
 
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+}
+
+function extractEmailDrafts(text: string): { drafts: EmailDraftData[]; contentWithoutDrafts: string } {
+  const drafts: EmailDraftData[] = [];
+  const regex = /(?:```(?:json)?\s*)?\[EMAIL_DRAFT\]([\s\S]*?)\[\/EMAIL_DRAFT\](?:\s*```)?/gi;
+
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const rawBlock = match[1].trim();
+    try {
+      const parsed = JSON.parse(rawBlock);
+      if (parsed && (parsed.to || parsed.subject || parsed.body)) {
+        drafts.push({
+          to: parsed.to || "",
+          cc: parsed.cc,
+          subject: parsed.subject || "",
+          body: parsed.body || "",
+          campaignId: parsed.campaignId,
+        });
+      }
+    } catch {
+      const toMatch = rawBlock.match(/to:\s*([^\n\r]+)/i);
+      const ccMatch = rawBlock.match(/cc:\s*([^\n\r]+)/i);
+      const subjectMatch = rawBlock.match(/subject:\s*([^\n\r]+)/i);
+      const bodyMatch = rawBlock.match(/body:\s*([\s\S]*)/i);
+
+      if (toMatch || subjectMatch || bodyMatch) {
+        drafts.push({
+          to: toMatch ? toMatch[1].trim() : "",
+          cc: ccMatch ? ccMatch[1].trim() : undefined,
+          subject: subjectMatch ? subjectMatch[1].trim() : "",
+          body: bodyMatch ? bodyMatch[1].trim() : "",
+        });
+      }
+    }
+  }
+
+  const contentWithoutDrafts = text.replace(regex, "").trim();
+  return { drafts, contentWithoutDrafts };
 }
 
 interface ChatMessageProps {
@@ -39,9 +79,13 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
         .replace(/^Calling tools?:\s*[\s\S]*?(?=(?:I am|[A-Z][a-z]+))/gi, "")
         .trim();
 
+  const { drafts, contentWithoutDrafts } = !isUser
+    ? extractEmailDrafts(cleanContent)
+    : { drafts: [], contentWithoutDrafts: cleanContent };
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(cleanContent);
+      await navigator.clipboard.writeText(contentWithoutDrafts || cleanContent);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
@@ -327,8 +371,16 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
                     ),
                   }}
                 >
-                  {cleanContent}
+                  {contentWithoutDrafts}
                 </ReactMarkdown>
+
+                {drafts.length > 0 && (
+                  <div className="mt-2 space-y-3 not-prose">
+                    {drafts.map((draft, i) => (
+                      <EmailDraftCard key={i} draft={draft} />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

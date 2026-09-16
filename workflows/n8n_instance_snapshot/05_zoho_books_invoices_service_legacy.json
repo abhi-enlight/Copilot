@@ -1,0 +1,143 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy Zoho Books Invoices Service (hardcoded org 60085935698 + shared Zoho credential QZGMU0N6VE4Eacvu). Superseded by Prism 15 (per-tenant vault tokens). Referred to by legacy Campaign Brain tool 'Zoho Books Invoices'.",
+    "instance_workflow_id": "iXeJxuXe1buHC7Vt"
+  },
+  "workflow": {
+    "id": "iXeJxuXe1buHC7Vt",
+    "name": "Zoho Books Invoices Service",
+    "active": true,
+    "versionId": "22f035a6-bb9a-4f20-af25-d777eb212ece",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    },
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "tags": [],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "Parse Invoice Scope",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Invoice Scope": {
+        "main": [
+          [
+            {
+              "node": "Get Zoho Books Invoices",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Zoho Books Invoices": {
+        "main": [
+          [
+            {
+              "node": "Format Invoices",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "id": "09159248-0d52-41b8-89ee-751147c2d95a",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "inputSource": "workflowInputs",
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "campaignContext",
+                "type": "string"
+              },
+              {
+                "name": "invoiceId",
+                "type": "string"
+              },
+              {
+                "name": "customerId",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "7b38b98a-9f0f-4a00-a7eb-9500f0433bf2",
+        "name": "Parse Invoice Scope",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          200,
+          0
+        ],
+        "parameters": {
+          "jsCode": "const item = $input.first()?.json || {};\nconst explicitInvoiceId = String(item.invoiceId || '').trim();\nconst explicitCustomerId = String(item.customerId || '').trim();\nconst context = String(item.campaignContext || '');\n\nlet targetInvoiceId = explicitInvoiceId;\nlet targetCustomerId = explicitCustomerId;\n\nif (!targetInvoiceId && context) {\n  const matchInv = context.match(/(?:Books Invoice ID|invoiceId|invoice_id)[:=\\s]+(\\d+)/i);\n  if (matchInv && matchInv[1]) targetInvoiceId = matchInv[1];\n}\nif (!targetCustomerId && context) {\n  const matchCust = context.match(/(?:Books Customer ID|customerId|customer_id)[:=\\s]+(\\d+)/i);\n  if (matchCust && matchCust[1]) targetCustomerId = matchCust[1];\n}\n\nlet requestUrl = 'https://www.zohoapis.in/books/v3/invoices?organization_id=60085935698';\nlet scopeType = 'all';\n\nif (targetInvoiceId) {\n  requestUrl = 'https://www.zohoapis.in/books/v3/invoices/' + targetInvoiceId + '?organization_id=60085935698';\n  scopeType = 'single_invoice';\n} else if (targetCustomerId) {\n  requestUrl = 'https://www.zohoapis.in/books/v3/invoices?organization_id=60085935698&customer_id=' + targetCustomerId;\n  scopeType = 'customer_invoices';\n}\n\nreturn [{\n  json: {\n    requestUrl,\n    scopeType,\n    invoiceId: targetInvoiceId,\n    customerId: targetCustomerId,\n    campaignContext: context\n  }\n}];",
+          "mode": "runOnceForAllItems"
+        }
+      },
+      {
+        "id": "c065a62c-0f7b-4697-8439-162085590d53",
+        "name": "Get Zoho Books Invoices",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          220,
+          0
+        ],
+        "parameters": {
+          "authentication": "predefinedCredentialType",
+          "method": "GET",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          },
+          "sendBody": false,
+          "url": "={{ $json.requestUrl }}"
+        },
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "b39aca31-e29a-4e1f-85ec-41685adf05d8",
+        "name": "Format Invoices",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          0
+        ],
+        "parameters": {
+          "jsCode": "const res = $input.first()?.json || {};\nconst scopeInfo = $('Parse Invoice Scope').first()?.json || {};\nconst scopeType = scopeInfo.scopeType;\n\nif (res.code === 1002 || res.code === 1000 || (typeof res.message === 'string' && res.message.includes('does not exist')) || res.status_code === 404) {\n  return [{\n    json: {\n      scoped: true,\n      exists: false,\n      total_invoices: 0,\n      invoices: [],\n      message: 'The invoice or customer records requested (' + (scopeInfo.invoiceId || scopeInfo.customerId || 'ID') + ') do not exist or were deleted from Zoho Books.'\n    }\n  }];\n}\n\nlet invoicesList = [];\nif (scopeType === 'single_invoice' && res.invoice) {\n  invoicesList = [res.invoice];\n} else if (Array.isArray(res.invoices)) {\n  invoicesList = res.invoices;\n}\n\nreturn [{\n  json: {\n    scoped: scopeType !== 'all',\n    scope_type: scopeType,\n    total_invoices: invoicesList.length,\n    invoices: invoicesList.map(i => ({\n      invoice_id: String(i.invoice_id || ''),\n      invoice_number: i.invoice_number || '',\n      customer_name: i.customer_name || '',\n      amount: i.total !== undefined ? i.total : (i.amount || 0),\n      balance: i.balance !== undefined ? i.balance : 0,\n      status: i.status || 'draft',\n      date: i.date || '',\n      due_date: i.due_date || ''\n    }))\n  }\n}];",
+          "mode": "runOnceForAllItems"
+        }
+      }
+    ]
+  }
+}

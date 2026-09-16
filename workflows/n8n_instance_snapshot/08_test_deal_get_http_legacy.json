@@ -1,0 +1,209 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy test/demo delete webhook 'bcp-delete-resources' (INACTIVE, hardcoded demo org IDs + shared credential). Superseded by direct-REST deleteZohoResourcesDirect in the frontend. Safe to delete after frontend audit.",
+    "instance_workflow_id": "eGz9QGE5fgIXpgeQ"
+  },
+  "workflow": {
+    "id": "eGz9QGE5fgIXpgeQ",
+    "name": "Test Deal Get HTTP",
+    "active": false,
+    "versionId": "f6f1bf3f-c90b-4f2d-a4fa-8d369b694a68",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    },
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "tags": [],
+    "connections": {
+      "Test Deal Get Webhook": {
+        "main": [
+          [
+            {
+              "node": "Parse Delete Targets",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Delete Targets": {
+        "main": [
+          [
+            {
+              "node": "Delete Deal from CRM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Delete Deal from CRM": {
+        "main": [
+          [
+            {
+              "node": "Delete Project from Projects",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Delete Project from Projects": {
+        "main": [
+          [
+            {
+              "node": "Delete Invoice from Books",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Delete Invoice from Books": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "id": "db624013-9e98-4c34-ba70-424f3c363df6",
+        "name": "Test Deal Get Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "bcp-delete-resources",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "webhookId": "7040bcf7-86f0-4a96-9016-4d2bf9a8ed62"
+      },
+      {
+        "id": "b8c44314-9008-411d-aec5-b0900550ba59",
+        "name": "Parse Delete Targets",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          0
+        ],
+        "parameters": {
+          "jsCode": "const item = $input.first().json;\nconst body = item.body || item;\n\nconst dealId = String(body.dealId || body.deal_id || '').trim();\nconst projectId = String(body.projectId || body.project_id || '').trim();\nconst invoiceId = String(body.invoiceId || body.invoice_id || '').trim();\nconst campaignName = String(body.campaignName || body.name || '').trim();\n\nreturn [{\n  json: {\n    dealId,\n    projectId,\n    invoiceId,\n    campaignName,\n    dealDeleteUrl: dealId ? `https://www.zohoapis.in/crm/v2/Deals?ids=${dealId}` : null,\n    projectDeleteUrl: projectId ? `https://projectsapi.zoho.in/restapi/portal/60085935707/projects/${projectId}/` : null,\n    invoiceDeleteUrl: invoiceId ? `https://www.zohoapis.in/books/v3/invoices/${invoiceId}?organization_id=60085935698` : null\n  }\n}];"
+        }
+      },
+      {
+        "id": "e087161b-70a6-45cd-a74b-b426f31fdf6f",
+        "name": "Delete Deal from CRM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          224,
+          0
+        ],
+        "parameters": {
+          "method": "DELETE",
+          "url": "={{ $('Parse Delete Targets').first().json.dealId ? ('https://www.zohoapis.in/crm/v2/Deals?ids=' + $('Parse Delete Targets').first().json.dealId) : 'https://www.zohoapis.in/crm/v2/Deals?ids=0' }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          }
+        },
+        "onError": "continueRegularOutput",
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "1c836312-017e-45d2-99c0-c16702a1b4f7",
+        "name": "Delete Project from Projects",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          448,
+          0
+        ],
+        "parameters": {
+          "authentication": "predefinedCredentialType",
+          "method": "DELETE",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          },
+          "sendBody": false,
+          "sendQuery": false,
+          "url": "={{ $('Parse Delete Targets').first().json.projectId ? ('https://projectsapi.zoho.in/restapi/portal/60085935707/projects/' + $('Parse Delete Targets').first().json.projectId + '/') : 'https://projectsapi.zoho.in/restapi/portal/60085935707/projects/0/' }}"
+        },
+        "onError": "continueRegularOutput",
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "69880d82-0ea6-407d-89ea-6628d3601485",
+        "name": "Delete Invoice from Books",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          672,
+          0
+        ],
+        "parameters": {
+          "authentication": "predefinedCredentialType",
+          "method": "DELETE",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          },
+          "sendBody": false,
+          "sendQuery": false,
+          "url": "={{ $('Parse Delete Targets').first().json.invoiceId ? ('https://www.zohoapis.in/books/v3/invoices/' + $('Parse Delete Targets').first().json.invoiceId + '?organization_id=60085935698') : 'https://www.zohoapis.in/books/v3/invoices/0?organization_id=60085935698' }}"
+        },
+        "onError": "continueRegularOutput",
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "543c6568-a1e8-45f5-9fb7-1efd2b549904",
+        "name": "Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          448,
+          0
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "options": {},
+          "responseBody": "={{\n  JSON.stringify({ success: true, message: \"Deleted across CRM, Projects, and Books\" })\n}}"
+        }
+      }
+    ]
+  }
+}

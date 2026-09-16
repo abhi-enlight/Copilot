@@ -1,0 +1,18 @@
+{
+  "id": "niIyrBbjOeoycK4l",
+  "name": "Prism 18 - Token Refresh & Health",
+  "active": true,
+  "versionId": "6b31d514-fba3-4ec3-bce0-7efb1b11cae2",
+  "updatedAt": "2026-09-16T04:57:22.944Z",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "errorWorkflow": "519qvp5pRGIQEYEQ" },
+  "connections": {
+    "Every 15 Minutes": { "main": [[{ "node": "Call Token Refresh Function", "type": "main", "index": 0 }]] },
+    "Call Token Refresh Function": { "main": [[{ "node": "Summarize Refresh Run", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    { "id": "0713db30-bd14-4d4d-885a-58ac82197426", "name": "Every 15 Minutes", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.3, "position": [0, 300], "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 15 } ] } } },
+    { "id": "8724e5c8-ce33-4338-8417-f3faffd2db13", "name": "Call Token Refresh Function", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [240, 300], "alwaysOutputData": true, "onError": "continueRegularOutput", "credentials": { "supabaseApi": { "id": "yxWsintlHzI5AQDc", "name": "Supabase account" } }, "parameters": { "method": "POST", "url": "={{ 'https://ejawdvxnddgkcgkasove.supabase.co'.replace(/\\/+$/, '') + '/functions/v1/prism-token-refresh' }}", "authentication": "predefinedCredentialType", "genericAuthType": "", "sendHeaders": true, "headerParameters": { "parameters": [ { "name": "Content-Type", "value": "application/json" }, { "name": "x-prism-secret", "value": "prism_sec_9d4f82a17e0b6c385fa21e4bc79d06e3" } ] }, "sendBody": true, "specifyBody": "json", "jsonBody": "={{ JSON.stringify({ source: 'n8n-cron', invokedAt: new Date().toISOString() }) }}", "options": { "neverError": true, "timeout": 60000 }, "nodeCredentialType": "supabaseApi" } },
+    { "id": "6c03dad2-f5e8-400b-ab92-323fc3234975", "name": "Summarize Refresh Run", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [480, 300], "parameters": { "mode": "runOnceForAllItems", "jsCode": "const res = $input.first()?.json || {};\nconst refreshed = Number(res.refreshed || res.count || 0);\nconst failed = Number(res.failed || res.errors || 0);\nreturn [{ json: {\n  ok: res.ok !== false,\n  refreshed: refreshed,\n  failed: failed,\n  note: res.ok === false ? 'prism-token-refresh function not reachable yet (deploy from docs/SUPABASE_PRISM_V2_PROMPTS.md and set PRISM_SUPABASE_URL + credential)' : 'refresh cycle complete',\n  diagnostics: { requestId: 'ref-' + ($execution.id || 'na') + '-' + Date.now(), workflow: 'prism-18-token-refresh-health' }\n} }];" } },
+    { "id": "a1e2114c-7790-4e51-804e-36879cfa3048", "name": "Sticky Note 175f649b", "type": "n8n-nodes-base.stickyNote", "typeVersion": 1, "position": [190, 250], "parameters": { "content": "## Prism 18 - Token Refresh & Health (cron, every 15 min)\nCalls the Supabase Edge Function `prism-token-refresh` (see docs/SUPABASE_PRISM_V2_PROMPTS.md) which scans tokens expiring within 10 minutes and refreshes them server-side. Configure PRISM_SUPABASE_URL as an instance environment variable and the Prism Token Refresh Secret header credential (x-refresh-secret) after deploying the function. Until then the run logs a clear \"not configured\" note and stays green.", "color": 6, "width": 540, "height": 200 } }
+  ]
+}

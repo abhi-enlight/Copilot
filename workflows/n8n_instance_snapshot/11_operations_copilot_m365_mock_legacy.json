@@ -1,0 +1,205 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Earliest legacy Operations Copilot (INACTIVE, chat trigger 27a0c09e). Contains pure mock-data tools (fake emails, fake CRM deals). Superseded by Prism 01. Safe to archive/delete.",
+    "instance_workflow_id": "GC7Czgxq3lIvx2hR"
+  },
+  "workflow": {
+    "id": "GC7Czgxq3lIvx2hR",
+    "name": "Operations Copilot - Enterprise Assistant (M365, CRM & Database)",
+    "active": false,
+    "versionId": "9e59840d-0652-47d7-bbec-1b34293573fe",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "binaryMode": "separate"
+    },
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "tags": [],
+    "connections": {
+      "Chat Trigger": {
+        "main": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini 3.7 Flash": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memory Buffer": {
+        "ai_memory": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Query Operations Database": {
+        "ai_tool": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Search Microsoft Outlook Emails": {
+        "ai_tool": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Query Dynamics 365 CRM": {
+        "ai_tool": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "parameters": {
+          "public": true,
+          "options": {
+            "inputPlaceholder": "Ask about orders, revenue, CRM accounts, emails, or calendar events...",
+            "subtitle": "Enterprise Operations Assistant (Microsoft 365, Dynamics CRM & Supabase Database)",
+            "title": "Operations Copilot"
+          }
+        },
+        "id": "f52f7909-6f66-49bf-a82f-8bc08dcbed1f",
+        "name": "Chat Trigger",
+        "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          0,
+          112
+        ],
+        "webhookId": "27a0c09e-eef6-45cb-b3fd-538fff040224"
+      },
+      {
+        "parameters": {
+          "options": {
+            "systemMessage": "You are the Operations Copilot for the enterprise operations and executive team.\nYour role is to assist with database insights (orders, revenue, customers), Microsoft Outlook communications, and Dynamics 365 CRM pipeline tracking.\n\nRules:\n1. Use Query Operations Database for database analytics.\n2. Use Search Microsoft Outlook Emails for email correspondence.\n3. Use Query Dynamics 365 CRM for customer deals and account statuses.\n4. Always provide crisp, executive-ready summaries."
+          }
+        },
+        "id": "47a38732-b8e5-48ba-90ed-4be1308a1fd3",
+        "name": "Operations Copilot AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          416,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "modelName": "models/gemini-3.7-flash",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "id": "741276f1-baaf-4736-bd8b-ac426c52762e",
+        "name": "Gemini 3.7 Flash",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1.1,
+        "position": [
+          232,
+          344
+        ],
+        "credentials": {
+          "googlePalmApi": {
+            "id": "0kVH2ZY14O7Zgh61",
+            "name": "Google Gemini(PaLM) Api account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "contextWindowLength": 10
+        },
+        "id": "a1a116d5-8a13-425f-8f83-79f4d117d73e",
+        "name": "Memory Buffer",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.4,
+        "position": [
+          360,
+          344
+        ]
+      },
+      {
+        "parameters": {
+          "description": "Execute read-only SQL queries against the operations_copilot and public database tables (orders, customers, inventory, revenue).",
+          "jsCode": "return JSON.stringify({ status: \"success\", result: \"Database connected in read-only mode via ai_readonly_user.\" });"
+        },
+        "id": "5e0620e3-58da-4b79-b916-926a843c7491",
+        "name": "Query Operations Database",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          488,
+          344
+        ]
+      },
+      {
+        "parameters": {
+          "description": "Search and read recent emails from Microsoft 365 Outlook for dj@enlightlab.com or operations team.",
+          "jsCode": "return JSON.stringify([{ \"from\": \"client@enterprise.com\", \"subject\": \"Q3 Contract Renewal & Delivery Schedule\", \"date\": \"2026-08-28\", \"snippet\": \"Reviewed proposal, ready for sign-off.\" }, { \"from\": \"billing@enlightlab.com\", \"subject\": \"Invoice #INV-2026-884 Approved\", \"date\": \"2026-08-27\", \"snippet\": \"100% advance payment confirmed.\" }]);"
+        },
+        "id": "fa2a3b25-4a09-450c-8fd5-30f1a9921e64",
+        "name": "Search Microsoft Outlook Emails",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          608,
+          448
+        ]
+      },
+      {
+        "parameters": {
+          "description": "Fetch CRM accounts, opportunities, leads, and customer relationship statuses from Microsoft Dynamics 365.",
+          "jsCode": "return JSON.stringify([{ \"account_name\": \"Apex Global Retailers\", \"pipeline_stage\": \"Proposal Sent\", \"deal_value\": \"$145,000\", \"spoc\": \"Sarah Jenkins\" }, { \"account_name\": \"Zenith Consumer Brands\", \"pipeline_stage\": \"Closed Won\", \"deal_value\": \"$88,000\", \"spoc\": \"David Liu\" }]);"
+        },
+        "id": "e245b80d-e9c4-4bb3-a577-f711e4794082",
+        "name": "Query Dynamics 365 CRM",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          744,
+          344
+        ]
+      }
+    ]
+  }
+}

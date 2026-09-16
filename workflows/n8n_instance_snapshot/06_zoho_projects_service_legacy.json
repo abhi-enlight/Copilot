@@ -1,0 +1,235 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy Zoho Projects Service (hardcoded portal 60085935707 + shared Zoho credential QZGMU0N6VE4Eacvu). Superseded by Prism 14 (per-tenant vault tokens). Referred to by legacy Campaign Brain tool 'Zoho Projects Active Projects'.",
+    "instance_workflow_id": "XngVaIJILTO6B2Bv"
+  },
+  "workflow": {
+    "id": "XngVaIJILTO6B2Bv",
+    "name": "Zoho Projects Service",
+    "active": true,
+    "versionId": "eb99bcf1-d117-49fa-94d9-b1d8bd1a3118",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    },
+    "description": "Subworkflow for querying live Zoho Projects",
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "tags": [],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "Parse Projects Scope",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Projects Scope": {
+        "main": [
+          [
+            {
+              "node": "Check If Project Scoped",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check If Project Scoped": {
+        "main": [
+          [
+            {
+              "node": "Get Scoped Project",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Fetch All Portal Projects",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Scoped Project": {
+        "main": [
+          [
+            {
+              "node": "Format Scoped Project",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch All Portal Projects": {
+        "main": [
+          [
+            {
+              "node": "Format All Projects",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "id": "b6022a97-c760-46ae-95ea-3ef5b1c0100c",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          0
+        ],
+        "parameters": {
+          "inputSource": "workflowInputs",
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "campaignContext",
+                "type": "string"
+              },
+              {
+                "name": "projectId",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "c63eaf97-79fa-494c-be93-86b2cb138f45",
+        "name": "Parse Projects Scope",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          200,
+          0
+        ],
+        "parameters": {
+          "jsCode": "const item = $input.first()?.json || {};\nconst explicitProjectId = String(item.projectId || '').trim();\nconst context = String(item.campaignContext || '');\n\nlet targetProjectId = explicitProjectId;\nif (!targetProjectId && context) {\n  const match = context.match(/(?:Projects ID|projectId|project_id)[:=\\s]+(\\w+)/i);\n  if (match && match[1]) {\n    targetProjectId = match[1];\n  }\n}\n\nreturn [{\n  json: {\n    projectId: targetProjectId,\n    isScoped: Boolean(targetProjectId),\n    campaignContext: context,\n    portalId: '60085935707'\n  }\n}];",
+          "mode": "runOnceForAllItems"
+        }
+      },
+      {
+        "id": "441b4a54-5db8-4a13-bd38-7cbe25e5fdb5",
+        "name": "Check If Project Scoped",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          400,
+          0
+        ],
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "leftValue": "={{ $json.isScoped }}",
+                "operator": {
+                  "operation": "true",
+                  "type": "boolean"
+                }
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "typeValidation": "loose"
+            }
+          }
+        }
+      },
+      {
+        "id": "280a6f98-8a62-4be1-a804-1e512d99d477",
+        "name": "Get Scoped Project",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          650,
+          -100
+        ],
+        "parameters": {
+          "authentication": "predefinedCredentialType",
+          "method": "GET",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          },
+          "url": "={{ \"https://projectsapi.zoho.in/api/v3/portal/60085935707/projects/\" + $json.projectId }}"
+        },
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "af35d4cf-3310-433f-9d96-c61a00d8546e",
+        "name": "Format Scoped Project",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          850,
+          -100
+        ],
+        "parameters": {
+          "jsCode": "const res = $input.first()?.json || {};\nconst targetId = $('Parse Projects Scope').first()?.json?.projectId || '';\n\nlet p = null;\nif (res.id) p = res;\nelse if (Array.isArray(res.projects) && res.projects.length > 0) p = res.projects[0];\nelse if (Array.isArray(res.data) && res.data.length > 0) p = res.data[0];\n\nif (!p || res.error || res.status_code === 404 || (typeof res.message === 'string' && res.message.includes('not exist'))) {\n  return [{\n    json: {\n      scoped: true,\n      exists: false,\n      project_id: targetId,\n      message: 'Project with ID ' + targetId + ' was deleted or does not exist in Zoho Projects portal 60085935707.'\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    scoped: true,\n    exists: true,\n    project_id: String(p.id_string || p.id || targetId),\n    name: p.name || p.project_name || 'Untitled',\n    key: p.key || '',\n    status: p.status?.name || (typeof p.status === 'string' ? p.status : 'active'),\n    description: p.description || '',\n    open_tasks: p.tasks?.open_count !== undefined ? p.tasks.open_count : (p.open_task_count || 0),\n    closed_tasks: p.tasks?.closed_count !== undefined ? p.tasks.closed_count : 0,\n    owner: p.owner?.name || p.owner_name || 'Owner',\n    created_time: p.created_time || ''\n  }\n}];",
+          "mode": "runOnceForAllItems"
+        }
+      },
+      {
+        "id": "e9d5777f-2bd9-4a0e-9f84-0cbfdfa11a06",
+        "name": "Fetch All Portal Projects",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          650,
+          100
+        ],
+        "parameters": {
+          "authentication": "predefinedCredentialType",
+          "method": "GET",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          },
+          "url": "https://projectsapi.zoho.in/api/v3/portal/60085935707/projects"
+        },
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "276ae7d2-c0f2-4efb-9c0e-85fc5d2a2065",
+        "name": "Format All Projects",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          850,
+          100
+        ],
+        "parameters": {
+          "jsCode": "const allItems = $input.all();\nlet rawList = [];\n\nfor (const item of allItems) {\n  const data = item.json || {};\n  if (Array.isArray(data.projects)) {\n    rawList.push(...data.projects);\n  } else if (Array.isArray(data.data)) {\n    rawList.push(...data.data);\n  } else if (Array.isArray(data)) {\n    rawList.push(...data);\n  } else if (data && (data.id || data.name || data.key)) {\n    rawList.push(data);\n  }\n}\n\n// Deduplicate by project ID\nconst seenIds = new Set();\nconst projectsList = [];\nfor (const p of rawList) {\n  const pid = String(p.id_string || p.id || p.key || '');\n  if (pid && seenIds.has(pid)) continue;\n  if (pid) seenIds.add(pid);\n  projectsList.push(p);\n}\n\nreturn [{\n  json: {\n    scoped: false,\n    portal_id: '60085935707',\n    total_projects: projectsList.length,\n    projects: projectsList.map(p => ({\n      id: String(p.id_string || p.id || ''),\n      key: p.key || '',\n      name: p.name || p.project_name || 'Untitled',\n      status: p.status?.name || (typeof p.status === 'string' ? p.status : 'active'),\n      owner_name: p.owner?.name || p.owner_name || 'Owner',\n      task_count: p.tasks?.open_count !== undefined ? p.tasks.open_count : (p.open_task_count || 0)\n    }))\n  }\n}];",
+          "mode": "runOnceForAllItems"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy Operations Copilot (INACTIVE, chat trigger b1c82c64). Hardcoded Dynamics org98ee0c24 mock tool. Superseded by Prism 01/12. Safe to archive/delete.",
+    "instance_workflow_id": "I5sEuK25iV63AghV"
+  },
+  "workflow": {
+    "id": "I5sEuK25iV63AghV",
+    "name": "Operations Copilot - Unified Enterprise Assistant (SharePoint, CRM, Outlook & DB)",
+    "active": false,
+    "versionId": "3b266556-dabf-4704-869f-dd061fd09df2",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true,
+      "binaryMode": "separate"
+    },
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "tags": [],
+    "connections": {
+      "Chat Trigger": {
+        "main": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini 3.7 Flash": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memory Buffer": {
+        "ai_memory": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dynamics 365 CRM": {
+        "ai_tool": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Microsoft Outlook": {
+        "ai_tool": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Microsoft Documents & Files": {
+        "ai_tool": [
+          [
+            {
+              "node": "Operations Copilot AI Agent",
+              "type": "ai_tool",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "parameters": {
+          "public": true,
+          "options": {
+            "inputPlaceholder": "Ask about emails, SharePoint docs, or Dynamics CRM opportunities...",
+            "subtitle": "Enterprise Copilot with SharePoint, Dynamics 365 CRM & Outlook Access",
+            "title": "Operations Copilot"
+          }
+        },
+        "id": "f52f7909-6f66-49bf-a82f-8bc08dcbed1f",
+        "name": "Chat Trigger",
+        "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+        "typeVersion": 1.4,
+        "position": [
+          0,
+          112
+        ],
+        "webhookId": "b1c82c64-895a-4c9a-bad9-1b415aefa8dd"
+      },
+      {
+        "parameters": {
+          "options": {
+            "systemMessage": "You are the Enterprise Operations Copilot powered by Google Gemini 3.7 Flash.\nYou have real-time access to 3 core enterprise data sources:\n1. Microsoft SharePoint & OneDrive: Document libraries, contracts, SOPs, and technical files.\n2. Microsoft Dynamics 365 CRM: Deals pipeline, client accounts, leads, and revenues.\n3. Microsoft Outlook & Calendar: Email communications, customer requests, and upcoming meetings.\n\nTENANT ISOLATION & CONTEXT:\n- Queries execute within the scope of the active workspace / tenant context.\n- Respect enterprise boundaries and report tenant-scoped metrics accurately.\n\nENTERPRISE PERMISSIONS & NON-ADMIN RESOLUTION:\n- If any tool call encounters a permissions failure (403 Forbidden, 401 Unauthorized, PrincipalUserHasNoPrivileges, or AADSTS65001 missing admin consent), report the exact cause clearly.\n- Inform non-admin users that their corporate IT Administrator must grant tenant-wide consent via the Microsoft Entra ID admin consent portal (`/adminconsent`), and specify the required scopes (Sites.Read.All, Mail.Read, or Dataverse user_impersonation).\n\nCRITICAL ZERO-HALLUCINATION & ERROR HONESTY RULES:\n- NEVER FABRICATE OR SIMULATE DATA: If live data cannot be retrieved, report the failure directly.\n- NEVER output fake, simulated, or invented cached communications.\n- Only summarize and present data that was actually returned in the tool response.\n- Format responses cleanly with structured markdown tables, bullet points, and high readability with zero clutter."
+          }
+        },
+        "id": "47a38732-b8e5-48ba-90ed-4be1308a1fd3",
+        "name": "Operations Copilot AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 3.1,
+        "position": [
+          480,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "modelName": "models/gemini-3.7-flash",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "id": "741276f1-baaf-4736-bd8b-ac426c52762e",
+        "name": "Gemini 3.7 Flash",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1.1,
+        "position": [
+          224,
+          336
+        ],
+        "credentials": {
+          "googlePalmApi": {
+            "id": "0kVH2ZY14O7Zgh61",
+            "name": "Google Gemini(PaLM) Api account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "contextWindowLength": 10
+        },
+        "id": "a1a116d5-8a13-425f-8f83-79f4d117d73e",
+        "name": "Memory Buffer",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.4,
+        "position": [
+          432,
+          336
+        ]
+      },
+      {
+        "parameters": {
+          "description": "Query Microsoft Dynamics 365 Dataverse Web API v9.2 for open pipeline opportunities, accounts, and revenues.",
+          "jsCode": "// Query Dynamics 365 Dataverse Web API for live pipeline opportunities\nconst orgEndpoint = \"https://org98ee0c24.crm8.dynamics.com/api/data/v9.2/opportunities\";\n\nreturn JSON.stringify({\n  endpoint: orgEndpoint,\n  status: \"connected\",\n  records_retrieved: 0,\n  message: \"Connected to Dataverse organization org98ee0c24. Live pipeline ready.\"\n});",
+          "parameters": {
+            "jsCode": "// Query Dynamics 365 Dataverse for live opportunities\nreturn JSON.stringify({\n  endpoint: \"https://org98ee0c24.crm8.dynamics.com/api/data/v9.2/opportunities\",\n  status: \"connected\",\n  records_retrieved: 0,\n  message: \"Connected to Dataverse organization org98ee0c24. Live pipeline records synchronized.\"\n});"
+          }
+        },
+        "id": "6dff2f8a-2f20-446d-be7b-f781bea4be42",
+        "name": "Dynamics 365 CRM",
+        "type": "@n8n/n8n-nodes-langchain.toolCode",
+        "typeVersion": 1.3,
+        "position": [
+          624,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "authentication": "microsoftOAuth2Api",
+          "operation": "getAll",
+          "limit": 10,
+          "options": {}
+        },
+        "id": "5743b46c-1090-4a62-a209-129f9e6a182e",
+        "name": "Microsoft Outlook",
+        "type": "n8n-nodes-base.microsoftOutlookTool",
+        "typeVersion": 2,
+        "position": [
+          944,
+          128
+        ],
+        "webhookId": "1636a1d7-8967-4188-9b13-f4176c346534",
+        "credentials": {
+          "microsoftOAuth2Api": {
+            "id": "4rW8okroAhbBlLs8",
+            "name": "Microsoft account"
+          }
+        }
+      },
+      {
+        "id": "ad76f6d9-db70-49f1-89fd-ff277ff4bc4f",
+        "name": "Microsoft Documents & Files",
+        "type": "n8n-nodes-base.microsoftOneDriveTool",
+        "typeVersion": 1.1,
+        "position": [
+          784,
+          -80
+        ],
+        "parameters": {
+          "authentication": "microsoftOAuth2Api",
+          "folderId": "root",
+          "operation": "getChildren",
+          "resource": "folder"
+        },
+        "credentials": {
+          "microsoftOAuth2Api": {
+            "id": "4rW8okroAhbBlLs8",
+            "name": "Microsoft account"
+          }
+        }
+      }
+    ]
+  }
+}

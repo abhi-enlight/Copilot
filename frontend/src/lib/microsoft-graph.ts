@@ -211,3 +211,178 @@ export async function fetchUserProfile(
     return { profile: null, error: err.message };
   }
 }
+
+export interface SendEmailOptions {
+  to: string | string[];
+  cc?: string | string[];
+  bcc?: string | string[];
+  subject: string;
+  body: string;
+  isHtml?: boolean;
+}
+
+export interface SendEmailResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
+export interface DraftEmailResult {
+  success: boolean;
+  draftId?: string;
+  webLink?: string;
+  error?: string;
+}
+
+/**
+ * Sends an email on behalf of the authenticated user via Microsoft Graph API /me/sendMail.
+ */
+export async function sendUserEmail(
+  accessToken: string,
+  options: SendEmailOptions,
+  orgId?: string | null
+): Promise<SendEmailResult> {
+  try {
+    const toAddresses = Array.isArray(options.to) ? options.to : [options.to];
+    const ccAddresses = options.cc ? (Array.isArray(options.cc) ? options.cc : [options.cc]) : [];
+    const bccAddresses = options.bcc ? (Array.isArray(options.bcc) ? options.bcc : [options.bcc]) : [];
+
+    const toRecipients = toAddresses
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((address) => ({ emailAddress: { address } }));
+
+    if (toRecipients.length === 0) {
+      return { success: false, error: 'At least one valid recipient email address is required.' };
+    }
+
+    const ccRecipients = ccAddresses
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((address) => ({ emailAddress: { address } }));
+
+    const bccRecipients = bccAddresses
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((address) => ({ emailAddress: { address } }));
+
+    const payload = {
+      message: {
+        subject: options.subject || '(No Subject)',
+        body: {
+          contentType: options.isHtml ? 'HTML' : 'Text',
+          content: options.body || '',
+        },
+        toRecipients,
+        ...(ccRecipients.length > 0 ? { ccRecipients } : {}),
+        ...(bccRecipients.length > 0 ? { bccRecipients } : {}),
+      },
+      saveToSentItems: 'true',
+    };
+
+    const url = 'https://graph.microsoft.com/v1.0/me/sendMail';
+    const res = await resilientFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(25000),
+      },
+      {
+        tenantKey: orgId || tenantKeyFromToken(accessToken),
+        provider: 'microsoft-graph',
+      }
+    );
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Microsoft Graph /me/sendMail error:', res.status, errText);
+      return { success: false, error: `Microsoft Graph sendMail error (${res.status}): ${res.statusText}` };
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error('Failed to send email via Microsoft Graph:', err);
+    const degraded = circuitDegradedMessage(err);
+    const errorDetail = err instanceof Error ? err.message : 'Failed to send email';
+    return { success: false, error: degraded || errorDetail };
+  }
+}
+
+/**
+ * Creates a draft email in the authenticated user's Outlook Drafts folder.
+ */
+export async function createDraftEmail(
+  accessToken: string,
+  options: SendEmailOptions,
+  orgId?: string | null
+): Promise<DraftEmailResult> {
+  try {
+    const toAddresses = Array.isArray(options.to) ? options.to : (options.to ? [options.to] : []);
+    const ccAddresses = options.cc ? (Array.isArray(options.cc) ? options.cc : [options.cc]) : [];
+    const bccAddresses = options.bcc ? (Array.isArray(options.bcc) ? options.bcc : [options.bcc]) : [];
+
+    const toRecipients = toAddresses
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((address) => ({ emailAddress: { address } }));
+
+    const ccRecipients = ccAddresses
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((address) => ({ emailAddress: { address } }));
+
+    const bccRecipients = bccAddresses
+      .map((addr) => addr.trim())
+      .filter(Boolean)
+      .map((address) => ({ emailAddress: { address } }));
+
+    const payload = {
+      subject: options.subject || '(No Subject)',
+      body: {
+        contentType: options.isHtml ? 'HTML' : 'Text',
+        content: options.body || '',
+      },
+      ...(toRecipients.length > 0 ? { toRecipients } : {}),
+      ...(ccRecipients.length > 0 ? { ccRecipients } : {}),
+      ...(bccRecipients.length > 0 ? { bccRecipients } : {}),
+    };
+
+    const url = 'https://graph.microsoft.com/v1.0/me/messages';
+    const res = await resilientFetch(
+      url,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(25000),
+      },
+      {
+        tenantKey: orgId || tenantKeyFromToken(accessToken),
+        provider: 'microsoft-graph',
+      }
+    );
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Microsoft Graph create draft error:', res.status, errText);
+      return { success: false, error: `Microsoft Graph draft error (${res.status}): ${res.statusText}` };
+    }
+
+    const data = await res.json();
+    return { success: true, draftId: data.id, webLink: data.webLink };
+  } catch (err: unknown) {
+    console.error('Failed to create draft email via Microsoft Graph:', err);
+    const degraded = circuitDegradedMessage(err);
+    const errorDetail = err instanceof Error ? err.message : 'Failed to create draft';
+    return { success: false, error: degraded || errorDetail };
+  }
+}
+

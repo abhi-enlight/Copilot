@@ -1,0 +1,235 @@
+{
+  "_snapshot_meta": {
+    "pulled_at": "2026-09-16",
+    "source": "n8n instance via MCP get_workflow_details",
+    "note": "Legacy Zoho CRM Deals Service (hardcoded zohoapis.in + shared Zoho credential QZGMU0N6VE4Eacvu). Superseded by Prism 13 (per-tenant vault tokens, datacenter-aware). Referred to by legacy Campaign Brain tool 'Zoho CRM Deals'.",
+    "instance_workflow_id": "jAFjtinGr4tCoI4h"
+  },
+  "workflow": {
+    "id": "jAFjtinGr4tCoI4h",
+    "name": "Zoho CRM Deals Service",
+    "active": true,
+    "versionId": "1ef50c33-35f2-4a78-ab9a-9dfa8e6a00c0",
+    "settings": {
+      "executionOrder": "v1",
+      "availableInMCP": true
+    },
+    "description": "Subworkflow for querying live Zoho CRM Deals with deterministic campaignContext scoping",
+    "meta": {
+      "aiBuilderAssisted": true,
+      "builderVariant": "mcp"
+    },
+    "tags": [],
+    "connections": {
+      "Execute Workflow Trigger": {
+        "main": [
+          [
+            {
+              "node": "Parse Scope",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Scope": {
+        "main": [
+          [
+            {
+              "node": "Check If Scoped",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check If Scoped": {
+        "main": [
+          [
+            {
+              "node": "Get Scoped Deal",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "List Active Deals",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Scoped Deal": {
+        "main": [
+          [
+            {
+              "node": "Format Scoped Deal",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "List Active Deals": {
+        "main": [
+          [
+            {
+              "node": "Format Deals List",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodes": [
+      {
+        "id": "32573198-8868-4002-be7d-ea116b6458bb",
+        "name": "Execute Workflow Trigger",
+        "type": "n8n-nodes-base.executeWorkflowTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          96
+        ],
+        "parameters": {
+          "workflowInputs": {
+            "values": [
+              {
+                "name": "campaignContext",
+                "type": "string"
+              },
+              {
+                "name": "dealId",
+                "type": "string"
+              }
+            ]
+          },
+          "inputSource": "workflowInputs"
+        }
+      },
+      {
+        "id": "41a50996-5484-4e08-a2a2-141e97507ff1",
+        "name": "Parse Scope",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          96
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const item = $input.first()?.json || {};\nconst explicitDealId = String(item.dealId || '').trim();\nconst context = String(item.campaignContext || '');\n\nlet targetDealId = explicitDealId;\nif (!targetDealId && context) {\n  const match = context.match(/(?:CRM Deal ID|dealId|deal_id)[:=\\s]+(\\d+)/i);\n  if (match && match[1]) {\n    targetDealId = match[1];\n  }\n}\n\nreturn [{\n  json: {\n    dealId: targetDealId,\n    isScoped: Boolean(targetDealId),\n    campaignContext: context\n  }\n}];"
+        }
+      },
+      {
+        "id": "cad00398-7281-40d9-9ed6-aa30b28a06c3",
+        "name": "Check If Scoped",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          448,
+          96
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "typeValidation": "loose"
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.isScoped }}",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "9e5efd3b-39ec-4b58-a097-5da626282dfe",
+        "name": "Get Scoped Deal",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          672,
+          0
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ \"https://www.zohoapis.in/crm/v2/Deals/\" + $json.dealId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          }
+        },
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "984886a8-771e-45f1-adeb-fffebe9e6bcd",
+        "name": "Format Scoped Deal",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          896,
+          0
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const res = $input.first()?.json || {};\nconst targetDealId = $('Parse Scope').first()?.json?.dealId || '';\n\nconst dealData = Array.isArray(res.data) ? res.data[0] : (res.id ? res : null);\n\nif (!dealData || res.status === 'error' || res.code === 'RECORD_NOT_FOUND' || res.code === 'INVALID_DATA') {\n  return [{\n    json: {\n      scoped: true,\n      exists: false,\n      deal_id: targetDealId,\n      message: 'Deal record with ID ' + targetDealId + ' does not exist or was deleted from Zoho CRM.'\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    scoped: true,\n    exists: true,\n    deal_id: String(dealData.id),\n    name: dealData.Deal_Name || dealData.dealName || '',\n    stage: dealData.Stage || dealData.stage || 'Qualification',\n    amount: dealData.Amount !== undefined && dealData.Amount !== null ? dealData.Amount : 0,\n    closing_date: dealData.Closing_Date || dealData.closingDate || '',\n    account_name: dealData.Account_Name?.name || (typeof dealData.Account_Name === 'string' ? dealData.Account_Name : 'None'),\n    contact_name: dealData.Contact_Name?.name || (typeof dealData.Contact_Name === 'string' ? dealData.Contact_Name : 'None'),\n    description: dealData.Description || '',\n    raw_deal: dealData\n  }\n}];"
+        }
+      },
+      {
+        "id": "ec041775-c38a-4194-a0db-f4ada9b2ac42",
+        "name": "List Active Deals",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          672,
+          192
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://www.zohoapis.in/crm/v2/Deals?sort_by=Modified_Time&sort_order=desc",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "zohoOAuth2Api",
+          "options": {
+            "neverError": true
+          }
+        },
+        "credentials": {
+          "zohoOAuth2Api": {
+            "id": "QZGMU0N6VE4Eacvu",
+            "name": "Zoho account"
+          }
+        }
+      },
+      {
+        "id": "ac678c0e-c4d7-490d-9745-ff48468ef86f",
+        "name": "Format Deals List",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          896,
+          192
+        ],
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const res = $input.first()?.json || {};\nconst dealsList = Array.isArray(res.data) ? res.data : [];\n\nreturn [{\n  json: {\n    scoped: false,\n    total_deals: dealsList.length,\n    deals: dealsList.map(d => ({\n      id: String(d.id),\n      name: d.Deal_Name || '',\n      stage: d.Stage || 'Qualification',\n      amount: d.Amount || 0,\n      closing_date: d.Closing_Date || '',\n      account: d.Account_Name?.name || '',\n      contact: d.Contact_Name?.name || ''\n    }))\n  }\n}];"
+        }
+      }
+    ]
+  }
+}
