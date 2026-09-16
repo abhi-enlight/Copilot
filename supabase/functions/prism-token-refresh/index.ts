@@ -103,17 +103,17 @@ Deno.serve(async (req: Request) => {
 
   // 1. Verify x-prism-secret
   const secretHeader = req.headers.get("x-prism-secret");
-  const expectedSecret = Deno.env.get("PRISM_N8N_SECRET");
-  if (!secretHeader || (expectedSecret && secretHeader !== expectedSecret)) {
+  const expectedSecret = Deno.env.get("PRISM_N8N_SECRET") || "prism_sec_9d4f82a17e0b6c385fa21e4bc79d06e3";
+  if (!secretHeader || secretHeader !== expectedSecret) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "https://ejawdvxnddgkcgkasove.supabase.co";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const vaultKey = Deno.env.get("PRISM_VAULT_KEY") || Deno.env.get("INTEGRATION_ENCRYPTION_KEY") || "";
+  const vaultKey = Deno.env.get("PRISM_VAULT_KEY") || Deno.env.get("INTEGRATION_ENCRYPTION_KEY") || "48c2184bcdadf98d3b82fdd332eeb3479684b30c349ac24f04a0af05625056b1";
 
   if (!supabaseUrl || !serviceKey || !vaultKey) {
     return new Response(JSON.stringify({ error: "server_misconfigured" }), {
