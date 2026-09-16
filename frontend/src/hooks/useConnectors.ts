@@ -37,7 +37,15 @@ export interface ServerTenantStatus {
   role?: string;
   crmAccess?: ConnectorAccess;
   crmReason?: string;
-  zoho?: Record<string, { connected: boolean; access: ConnectorAccess; reason: string }>;
+  zoho?: Record<string, {
+    connected: boolean;
+    access: ConnectorAccess;
+    reason: string;
+    accountEmail?: string | null;
+    accountName?: string | null;
+  }>;
+  zohoAccountEmail?: string | null;
+  zohoAccountName?: string | null;
 }
 
 // -----------------------------------------------------------------------------

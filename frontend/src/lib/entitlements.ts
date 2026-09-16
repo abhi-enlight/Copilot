@@ -57,9 +57,9 @@ export interface EntitlementSnapshot {
     probedAt: number;
   };
   zoho: {
-    crm: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> };
-    projects: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> };
-    books: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null> };
+    crm: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null>; accountEmail?: string | null; accountName?: string | null };
+    projects: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null>; accountEmail?: string | null; accountName?: string | null };
+    books: { connected: boolean; probeOk: boolean; detail: string; orgIds: Record<string, string | null>; accountEmail?: string | null; accountName?: string | null };
   };
   connectors: Record<ConnectorId, ConnectorVerdict>;
   checkedAt: string;
@@ -149,6 +149,12 @@ export async function readMicrosoftSession(): Promise<MicrosoftSession> {
         refreshToken = vault.refreshToken;
         expiresAt = vault.expiresAt || 0;
         grantedScopes = vault.scopes || [];
+        if (vault.accountEmail || vault.userEmail) {
+          userEmail = vault.accountEmail || vault.userEmail;
+        }
+        if (vault.displayName) {
+          userName = vault.displayName;
+        }
       }
     }
   } catch (err) {
@@ -340,6 +346,8 @@ export async function buildEntitlementSnapshot(opts: { forceReprobe?: boolean } 
                 portalId: resolved.record.portalId,
                 booksOrgId: resolved.record.booksOrgId,
               },
+              accountEmail: resolved.record.accountEmail || null,
+              accountName: resolved.record.accountName || null,
             };
           }
         } catch {
@@ -347,6 +355,16 @@ export async function buildEntitlementSnapshot(opts: { forceReprobe?: boolean } 
         }
       })
     );
+
+    // Share discovered Zoho account email & name across all connected Zoho products for this user
+    const discoveredZohoEmail = zohoState.books.accountEmail || zohoState.projects.accountEmail || zohoState.crm.accountEmail || null;
+    const discoveredZohoName = zohoState.books.accountName || zohoState.projects.accountName || zohoState.crm.accountName || null;
+    for (const p of ZOHO_PRODUCTS) {
+      if (zohoState[p].connected) {
+        if (!zohoState[p].accountEmail && discoveredZohoEmail) zohoState[p].accountEmail = discoveredZohoEmail;
+        if (!zohoState[p].accountName && discoveredZohoName) zohoState[p].accountName = discoveredZohoName;
+      }
+    }
   }
 
   const connectors: Record<ConnectorId, ConnectorVerdict> = {

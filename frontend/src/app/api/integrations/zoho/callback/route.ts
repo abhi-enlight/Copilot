@@ -125,11 +125,24 @@ export async function GET(request: Request) {
   })();
   const effectiveEmail = session?.email || zohoEmail || (session ? `auth:${session.id}` : null);
 
+  // Collect probe results and extract discovered Zoho account identity
+  const probeMap: Record<string, any> = {};
   for (const product of effectiveProducts) {
-    const probe =
+    probeMap[product] =
       product === "crm" && crmProbe.ok
         ? crmProbe
         : await probeZohoProduct(product, tokenSet.accessToken, dc);
+  }
+
+  let discoveredEmail = zohoEmail;
+  let discoveredName: string | null = null;
+  for (const p of Object.values(probeMap)) {
+    if (!discoveredEmail && p?.accountEmail) discoveredEmail = p.accountEmail;
+    if (!discoveredName && p?.accountName) discoveredName = p.accountName;
+  }
+
+  for (const product of effectiveProducts) {
+    const probe = probeMap[product];
     results[product] = { ok: probe.ok, detail: probe.detail };
 
     if (!effectiveEmail) {
@@ -146,6 +159,8 @@ export async function GET(request: Request) {
       scopes: ZOHO_PRODUCT_SCOPES[product],
       probe,
       expiresAt: tokenSet.expiresIn ? Date.now() + tokenSet.expiresIn * 1000 : null,
+      accountEmail: probe.accountEmail || discoveredEmail || null,
+      accountName: probe.accountName || discoveredName || null,
     });
     if (!stored.ok) {
       results[product] = { ok: false, detail: stored.error || "token store failed" };
@@ -157,11 +172,14 @@ export async function GET(request: Request) {
     if (linkUserId && stored.ok) {
       await adminSupabase
         .from("user_integrations")
-        .update({ auth_user_id: linkUserId })
+        .update({
+          auth_user_id: linkUserId,
+          account_email: probe.accountEmail || discoveredEmail || null,
+          account_name: probe.accountName || discoveredName || null,
+        })
         .eq("user_email", effectiveEmail)
         .eq("provider", "zoho")
-        .eq("product", product)
-        .is("auth_user_id", null);
+        .eq("product", product);
     }
   }
 

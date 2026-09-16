@@ -10,8 +10,6 @@
  *   ZOHO_CLIENT_ID / ZOHO_CLIENT_SECRET, Zoho API Console client
  *   ZOHO_DATACENTER, in | com | eu | com.au | jp | in.cn (default: in)
  *   ZOHO_REDIRECT_URI, optional explicit override
- *   ZOHO_ORG_SHARED, "true" enables the legacy org-shared
- *                                          n8n 'Zoho account' credential fallback
  *   INTEGRATION_ENCRYPTION_KEY, 32+ char secret for AES-256-GCM
  */
 
@@ -24,8 +22,13 @@ export const ZOHO_PRODUCTS: ZohoProduct[] = ["crm", "projects", "books"];
 
 /** Per-product OAuth scopes, a CRM-only user never consents to Books. */
 export const ZOHO_PRODUCT_SCOPES: Record<ZohoProduct, string[]> = {
-  crm: ["ZohoCRM.modules.ALL", "ZohoCRM.settings.ALL"],
-  projects: ["ZohoProjects.projects.ALL", "ZohoProjects.portals.ALL"],
+  crm: ["ZohoCRM.modules.ALL", "ZohoCRM.settings.ALL", "ZohoCRM.users.READ"],
+  projects: [
+    "ZohoProjects.projects.ALL",
+    "ZohoProjects.portals.ALL",
+    "ZohoProjects.tasks.ALL",
+    "ZohoProjects.milestones.ALL",
+  ],
   books: ["ZohoBooks.fullaccess.ALL"],
 };
 
@@ -51,6 +54,8 @@ export interface ZohoIntegrationRecord {
   /** Epoch ms when the access token expires (null = unknown, e.g. legacy rows). */
   expiresAt: number | null;
   lastRefreshedAt: number | null;
+  accountEmail?: string | null;
+  accountName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +238,8 @@ export interface ZohoProbeResult {
   booksOrgId?: string | null;
   zohoUserId?: string | null;
   dataCenter?: string | null;
+  accountEmail?: string | null;
+  accountName?: string | null;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -256,8 +263,11 @@ export async function probeZohoCrm(accessToken: string, dc = zohoDataCenter()): 
   }
   const orgId = res.json?.org?.[0]?.zgid ?? res.json?.org?.zgid ?? null;
   const user = await zohoGet(`${zohoApiBase(dc)}/crm/v2/users?type=CurrentUser`, accessToken);
-  const zohoUserId = user.ok ? String(user.json?.users?.[0]?.id || "") || null : null;
-  return { ok: true, detail: "Deals module accessible", crmOrgId: orgId ? String(orgId) : null, zohoUserId, dataCenter: dc };
+  const u = user.json?.users?.[0];
+  const zohoUserId = user.ok ? String(u?.id || "") || null : null;
+  const accountEmail = user.ok && u?.email ? String(u.email) : null;
+  const accountName = user.ok && (u?.full_name || u?.first_name) ? String(u.full_name || `${u.first_name || ""} ${u.last_name || ""}`.trim()) : null;
+  return { ok: true, detail: "Deals module accessible", crmOrgId: orgId ? String(orgId) : null, zohoUserId, dataCenter: dc, accountEmail, accountName };
 }
 
 export async function probeZohoProjects(accessToken: string, dc = zohoDataCenter()): Promise<ZohoProbeResult> {
@@ -265,10 +275,13 @@ export async function probeZohoProjects(accessToken: string, dc = zohoDataCenter
   if (!res.ok) {
     return { ok: false, detail: `Portals probe failed (HTTP ${res.status})` };
   }
-  const portals = res.json?.portals?.portal || res.json?.portals || [];
+  const portals = Array.isArray(res.json) ? res.json : (res.json?.portals?.portal || res.json?.portals || []);
   const first = Array.isArray(portals) ? portals[0] : null;
   const portalId = first?.id ?? first?.portal_id ?? null;
-  return { ok: true, detail: "Portals accessible", portalId: portalId ? String(portalId) : null, dataCenter: dc };
+  const owner = first?.owner || null;
+  const accountEmail = owner?.email ? String(owner.email) : null;
+  const accountName = owner?.full_name || owner?.name ? String(owner.full_name || owner.name) : (first?.portal_name ? String(first.portal_name) : null);
+  return { ok: true, detail: "Portals accessible", portalId: portalId ? String(portalId) : null, dataCenter: dc, accountEmail, accountName };
 }
 
 export async function probeZohoBooks(accessToken: string, dc = zohoDataCenter()): Promise<ZohoProbeResult> {
@@ -278,11 +291,15 @@ export async function probeZohoBooks(accessToken: string, dc = zohoDataCenter())
   }
   const orgs = res.json?.organizations || [];
   const first = Array.isArray(orgs) ? orgs[0] : null;
+  const accountEmail = first?.email ? String(first.email) : null;
+  const accountName = first?.contact_name || first?.name ? String(first.contact_name || first.name) : null;
   return {
     ok: Boolean(first),
     detail: first ? `Books org ${first.name || first.organization_id}` : "No Books organization on this account",
     booksOrgId: first ? String(first.organization_id || "") || null : null,
     dataCenter: dc,
+    accountEmail,
+    accountName,
   };
 }
 
@@ -319,6 +336,8 @@ export async function upsertZohoIntegration(opts: {
   probe: ZohoProbeResult;
   /** Epoch ms when the access token expires; enables the background refresh job. */
   expiresAt?: number | null;
+  accountEmail?: string | null;
+  accountName?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   if (!vaultEnabled()) {
     return { ok: false, error: "Token vault not configured (Supabase or INTEGRATION_ENCRYPTION_KEY missing)" };
@@ -335,6 +354,8 @@ export async function upsertZohoIntegration(opts: {
     zoho_crm_org_id: opts.probe.crmOrgId || null,
     zoho_portal_id: opts.probe.portalId || null,
     zoho_books_org_id: opts.probe.booksOrgId || null,
+    account_email: opts.accountEmail || opts.probe.accountEmail || null,
+    account_name: opts.accountName || opts.probe.accountName || null,
     status: "active" as const,
     last_error_message: null,
     last_probed_at: new Date().toISOString(),
@@ -393,6 +414,8 @@ export async function getFreshZohoIntegration(
     status: data.status || "active",
     expiresAt: data.access_token_expires_at ? new Date(data.access_token_expires_at).getTime() : null,
     lastRefreshedAt: data.last_refreshed_at ? new Date(data.last_refreshed_at).getTime() : null,
+    accountEmail: data.account_email || (data.user_email && !data.user_email.includes("@testing.com") && !data.user_email.startsWith("auth:") ? data.user_email : null),
+    accountName: data.account_name || null,
   };
 
   // Access tokens last ~1h; resolveZohoAccessToken refreshes proactively when
@@ -541,9 +564,11 @@ export async function resolveZohoAccessToken(
 }
 
 // ---------------------------------------------------------------------------
-// Org-shared fallback (legacy behavior, opt-in via ZOHO_ORG_SHARED=true)
+// (Legacy org-shared fallback has been fully removed. All Zoho operations use
+// the authenticated user's own OAuth tokens from the user_integrations vault.)
 // ---------------------------------------------------------------------------
 
+/** @deprecated Legacy org-shared mode is removed; always returns false. */
 export function isZohoOrgSharedEnabled(): boolean {
   return false;
 }

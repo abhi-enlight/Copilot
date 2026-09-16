@@ -14,8 +14,8 @@ import {
  * shared entitlements engine:
  *  - crmConnected reflects a REAL probe (license + Dataverse WhoAmI) or an
  *    Admin/Owner role override, never a hardcoded true.
- *  - zohoConnected reflects the user's own per-user Zoho connections (or the
- *    legacy org-shared fallback when ZOHO_ORG_SHARED=true), never a hardcoded true.
+ *  - zohoConnected reflects the user's own per-user Zoho connections, never a
+ *    hardcoded true (the legacy org-shared fallback has been removed).
  */
 export async function GET(request: Request) {
   const auth = await requireAuth(request);
@@ -57,10 +57,12 @@ export async function GET(request: Request) {
       // Real Zoho state (per-user connections)
       zohoConnected: Boolean(snapshot.zoho.crm.connected || snapshot.zoho.projects.connected || snapshot.zoho.books.connected),
       zoho: {
-        crm: { connected: Boolean(snapshot.zoho.crm.connected), access: zohoCrm.access, reason: zohoCrm.reason, orgIds: snapshot.zoho.crm.orgIds },
-        projects: { connected: Boolean(snapshot.zoho.projects.connected), access: zohoProjects.access, reason: zohoProjects.reason, orgIds: snapshot.zoho.projects.orgIds },
-        books: { connected: Boolean(snapshot.zoho.books.connected), access: zohoBooks.access, reason: zohoBooks.reason, orgIds: snapshot.zoho.books.orgIds },
+        crm: { connected: Boolean(snapshot.zoho.crm.connected), access: zohoCrm.access, reason: zohoCrm.reason, orgIds: snapshot.zoho.crm.orgIds, accountEmail: snapshot.zoho.crm.accountEmail || null, accountName: snapshot.zoho.crm.accountName || null },
+        projects: { connected: Boolean(snapshot.zoho.projects.connected), access: zohoProjects.access, reason: zohoProjects.reason, orgIds: snapshot.zoho.projects.orgIds, accountEmail: snapshot.zoho.projects.accountEmail || null, accountName: snapshot.zoho.projects.accountName || null },
+        books: { connected: Boolean(snapshot.zoho.books.connected), access: zohoBooks.access, reason: zohoBooks.reason, orgIds: snapshot.zoho.books.orgIds, accountEmail: snapshot.zoho.books.accountEmail || null, accountName: snapshot.zoho.books.accountName || null },
       },
+      zohoAccountEmail: snapshot.zoho.crm.accountEmail || snapshot.zoho.projects.accountEmail || snapshot.zoho.books.accountEmail || null,
+      zohoAccountName: snapshot.zoho.crm.accountName || snapshot.zoho.projects.accountName || snapshot.zoho.books.accountName || null,
       role: snapshot.role,
       userEmail: isConnected ? userEmail : null,
       userName: isConnected ? userName : null,

@@ -9,6 +9,8 @@ export interface MicrosoftVaultRecord {
   scopes: string[];
   expiresAt: number | null;
   userEmail: string | null;
+  displayName?: string | null;
+  accountEmail?: string | null;
   status: string;
 }
 
@@ -92,12 +94,15 @@ export async function resolveMicrosoftVaultTokens(
             })
             .eq("id", row.id);
 
+          const userEmailResult = row.account_email || row.user_email;
           return {
             accessToken: refreshed.accessToken,
             refreshToken: newRefreshToken,
             scopes,
             expiresAt: new Date(newExpiresAt).getTime(),
-            userEmail: row.user_email,
+            userEmail: userEmailResult,
+            accountEmail: userEmailResult,
+            displayName: row.account_name || null,
             status: "active",
           };
         } else {
@@ -111,12 +116,15 @@ export async function resolveMicrosoftVaultTokens(
             })
             .eq("id", row.id);
 
+          const userEmailResult = row.account_email || row.user_email;
           return {
             accessToken: null,
             refreshToken: null,
             scopes,
             expiresAt: null,
-            userEmail: row.user_email,
+            userEmail: userEmailResult,
+            accountEmail: userEmailResult,
+            displayName: row.account_name || null,
             status: "reauth_required",
           };
         }
@@ -125,12 +133,15 @@ export async function resolveMicrosoftVaultTokens(
       }
     }
 
+    const userEmailResult = row.account_email || row.user_email;
     return {
       accessToken: decryptedAccessToken,
       refreshToken: decryptedRefreshToken,
       scopes,
       expiresAt,
-      userEmail: row.user_email,
+      userEmail: userEmailResult,
+      accountEmail: userEmailResult,
+      displayName: row.account_name || null,
       status: row.status || "active",
     };
   } catch (err) {
@@ -184,6 +195,8 @@ export async function upsertMicrosoftIntegration(opts: {
         {
           auth_user_id: opts.authUserId,
           user_email: normalizedEmail,
+          account_email: normalizedEmail,
+          account_name: opts.displayName || null,
           provider: "microsoft",
           product,
           access_token_encrypted: encryptedAccess,

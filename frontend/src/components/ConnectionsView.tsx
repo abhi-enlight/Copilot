@@ -200,9 +200,36 @@ export default function ConnectionsView() {
   // Status flags from live server check
   const isM365Authed = Boolean(serverStatus?.authenticated);
   const userEmail = serverStatus?.userEmail || "";
+  const userName = serverStatus?.userName || "";
   const isOutlookLive = isM365Authed && Boolean(serverStatus?.outlookConnected);
   const isOneDriveLive = isM365Authed && Boolean(serverStatus?.onedriveConnected);
   const isCrmLive = isM365Authed && access("microsoft.dynamics") === "granted" && Boolean(serverStatus?.crmConnected);
+
+  // Discovered Zoho account identity for connected cards
+  const zohoGlobalAccount =
+    serverStatus?.zohoAccountEmail ||
+    serverStatus?.zoho?.crm?.accountEmail ||
+    serverStatus?.zoho?.projects?.accountEmail ||
+    serverStatus?.zoho?.books?.accountEmail ||
+    serverStatus?.zohoAccountName ||
+    "";
+
+  const zohoCrmAccount =
+    serverStatus?.zoho?.crm?.accountEmail ||
+    zohoGlobalAccount ||
+    serverStatus?.zoho?.crm?.accountName ||
+    "Connected & Authorized";
+
+  const zohoProjectsAccount =
+    serverStatus?.zoho?.projects?.accountEmail ||
+    zohoGlobalAccount ||
+    serverStatus?.zoho?.projects?.accountName ||
+    "Connected & Authorized";
+
+  const zohoBooksAccount =
+    serverStatus?.zoho?.books?.accountEmail ||
+    zohoGlobalAccount ||
+    (serverStatus?.zoho?.books?.accountName ? `${serverStatus.zoho.books.accountName}` : "Connected & Authorized");
 
   // Real Zoho state from the entitlements engine (per-user connections)
   const zohoAccess = (product: "zoho.crm" | "zoho.projects" | "zoho.books"): ConnectorAccess =>
@@ -387,8 +414,11 @@ export default function ConnectionsView() {
                 Authenticates with your own Microsoft and Zoho accounts. Minimal scopes, zero IT Admin approval required.
               </p>
             </div>
-            {isM365Authed && (
-              <span className="text-[11px] text-stone-500 font-mono bg-stone-100 px-2.5 py-1 rounded-lg border border-stone-200">
+            {isM365Authed && userEmail && (
+              <span
+                className="text-[11px] text-stone-500 font-mono bg-stone-100 px-2.5 py-1 rounded-lg border border-stone-200"
+                title={`Connected Microsoft Account: ${userEmail}${userName ? ` (${userName})` : ""}`}
+              >
                 {userEmail}
               </span>
             )}
@@ -409,7 +439,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("microsoft.outlook")}
               accessState={access("microsoft.outlook")}
               onToggle={() => guardToggle("microsoft.outlook")}
-              account={isOutlookLive ? userEmail : undefined}
+              account={isOutlookLive ? (userName ? `${userEmail} (${userName})` : userEmail) : undefined}
               connectHref="/api/integrations/microsoft/connect?preset=mail&returnTo=/"
               onDisconnect={handleDisconnectMicrosoft}
             />
@@ -428,7 +458,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("microsoft.sharepoint")}
               accessState={access("microsoft.sharepoint")}
               onToggle={() => guardToggle("microsoft.sharepoint")}
-              account={isOneDriveLive ? (serverStatus?.sharepointDrive || "/me/drive") : undefined}
+              account={isOneDriveLive ? (userEmail || serverStatus?.sharepointDrive || "/me/drive") : undefined}
               connectHref="/api/integrations/microsoft/connect?preset=personal_files&returnTo=/"
               onDisconnect={handleDisconnectMicrosoft}
             />
@@ -438,16 +468,26 @@ export default function ConnectionsView() {
         {/* SECTION 2: Organization & Enterprise Connections */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Buildings size={16} weight="bold" className="text-emerald-600" />
-                <h2 className="text-xs font-bold uppercase tracking-wider text-stone-700">
-                  Organization & Enterprise Connections
-                </h2>
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Buildings size={16} weight="bold" className="text-emerald-600" />
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-stone-700">
+                    Organization & Enterprise Connections
+                  </h2>
+                </div>
+                <p className="text-[11.5px] text-stone-400 mt-0.5">
+                  Connect any Zoho or Microsoft account with real provider permissions.
+                </p>
               </div>
-              <p className="text-[11.5px] text-stone-400 mt-0.5">
-                Connect any Zoho or Microsoft account with real provider permissions.
-              </p>
+              {zohoGlobalAccount && (
+                <span
+                  className="hidden sm:inline-block text-[11px] text-emerald-700 font-mono bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80"
+                  title="Connected Zoho Account"
+                >
+                  {zohoGlobalAccount}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 bg-stone-50 border border-stone-200/80 rounded-xl px-3 py-1.5 self-start sm:self-auto">
               <span className="text-[11px] font-semibold text-stone-600">Zoho Region:</span>
@@ -481,6 +521,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("zoho.crm")}
               accessState={zohoAccess("zoho.crm")}
               onToggle={() => guardToggle("zoho.crm")}
+              account={zohoConnected("zoho.crm") ? zohoCrmAccount : undefined}
               connectHref={`/api/integrations/zoho/connect?product=crm&dc=${zohoDc}&returnTo=/`}
               onConnectClick={() => guardConnect("zoho.crm")}
               onDisconnect={() => handleDisconnectZoho("crm")}
@@ -506,6 +547,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("zoho.projects")}
               accessState={zohoAccess("zoho.projects")}
               onToggle={() => guardToggle("zoho.projects")}
+              account={zohoConnected("zoho.projects") ? zohoProjectsAccount : undefined}
               connectHref={`/api/integrations/zoho/connect?product=projects&dc=${zohoDc}&returnTo=/`}
               onConnectClick={() => guardConnect("zoho.projects")}
               onDisconnect={() => handleDisconnectZoho("projects")}
@@ -525,6 +567,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("zoho.books")}
               accessState={zohoAccess("zoho.books")}
               onToggle={() => guardToggle("zoho.books")}
+              account={zohoConnected("zoho.books") ? zohoBooksAccount : undefined}
               connectHref={`/api/integrations/zoho/connect?product=books&dc=${zohoDc}&returnTo=/`}
               onConnectClick={() => guardConnect("zoho.books")}
               onDisconnect={() => handleDisconnectZoho("books")}
@@ -544,6 +587,7 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("microsoft.dynamics")}
               accessState={access("microsoft.dynamics")}
               onToggle={() => guardToggle("microsoft.dynamics")}
+              account={isCrmLive ? (serverStatus?.dynamicsOrg || userEmail || "Connected & Authorized") : undefined}
               connectHref="/api/integrations/microsoft/connect?preset=dynamics_crm&returnTo=/"
               onConnectClick={() => guardConnect("microsoft.dynamics")}
               requiresAdminNotice={

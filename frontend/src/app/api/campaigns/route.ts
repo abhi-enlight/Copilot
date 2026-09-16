@@ -9,6 +9,7 @@ import {
   resolveZohoAccessToken,
   zohoApiBase,
   zohoDataCenter,
+  zohoProjectsApiBase,
 } from "@/lib/zoho";
 
 export const dynamic = "force-dynamic";
@@ -16,18 +17,6 @@ export const dynamic = "force-dynamic";
 const PAUSED_ZOHO_MESSAGE =
   "You have paused the Zoho connection. Please go to the Connections page and turn it on.";
 
-const N8N_ZOHO_SYNC_WEBHOOK =
-  process.env.N8N_ZOHO_SYNC_WEBHOOK ||
-  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-ingest-v2";
-const N8N_ZOHO_DELETE_WEBHOOK =
-  process.env.N8N_ZOHO_DELETE_WEBHOOK ||
-  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-delete-zoho-resources";
-const N8N_ZOHO_UPDATE_WEBHOOK =
-  process.env.N8N_ZOHO_UPDATE_WEBHOOK ||
-  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-update-resources";
-const N8N_ZOHO_TASK_UPDATE_WEBHOOK =
-  process.env.N8N_ZOHO_TASK_UPDATE_WEBHOOK ||
-  "https://indigo-pelican-266513.hostingersite.com/webhook/bcp-task-update";
 
 /** Reads the current user's server-side pause map (identity: auth user id). */
 async function currentUserPausedMap(userEmailOrId: string | null) {
@@ -261,6 +250,7 @@ export async function createZohoBooksContact(
       };
     } else if (
       directData.code === 10001 ||
+      directData.code === 3062 ||
       (directData.message && directData.message.toLowerCase().includes("already exists"))
     ) {
       const searchRes = await fetch(
@@ -292,131 +282,214 @@ export async function createZohoBooksContact(
 }
 
 /**
- * Searches live Zoho resources for this campaign by name BEFORE creating.
- * n8n must implement `action: "find_existing"` returning
- * { deal?: {id}, project?: {id}, invoice?: {id} }.
- *
- * This is the idempotency guard for provisioning: without it, every retry of
- * approve_and_push_zoho after a response that failed to carry IDs created a
- * fresh Deal + Project + Invoice (the duplicate Projects/Invoices reported in
- * production).
+ * Direct multi-tenant Zoho resource cleanup using the authenticated user's own
+ * OAuth tokens. Deletes the given Deal / Projects / Invoice records. Never
+ * touches any shared or demo account. Best-effort per resource; the summary
+ * reports which deletions were confirmed.
  */
-async function findExistingZohoResources(
-  campaignName: string,
-  client: string
-): Promise<{ dealId?: string; projectId?: string; invoiceId?: string }> {
-  if (!N8N_ZOHO_SYNC_WEBHOOK) return {};
-  try {
-    const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "find_existing",
-        campaignName,
-        client,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return {};
-    const body = (await res.json().catch(() => ({}))) as {
-      deal?: { id?: string };
-      project?: { id?: string };
-      invoice?: { id?: string };
-      dealId?: string;
-      projectId?: string;
-      invoiceId?: string;
-    };
-    return {
-      dealId: body?.deal?.id || body?.dealId || undefined,
-      projectId: body?.project?.id || body?.projectId || undefined,
-      invoiceId: body?.invoice?.id || body?.invoiceId || undefined,
-    };
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Self-heal for partial adoptions: asks n8n to create ONLY the missing
- * resources for a campaign whose some-but-not-all Zoho records already exist.
- * n8n route: `action: "fill_missing"` — create Deal/Project/Invoice only when
- * its ID is null in the payload, return { dealId?, projectId?, invoiceId? }.
- *
- * Graceful degradation: when n8n doesn't implement the route (or the call
- * fails), returns an empty result so the caller keeps the adopted IDs and
- * marks the campaign `partial` — identical to pre-fill_missing behavior.
- */
-async function fillMissingZohoResources(opts: {
-  campaignId: string | null;
-  campaignName: string;
-  client: string;
-  budget: string;
-  codeVolume: string;
-  tasks: AspectTask[];
-  booksCustomerId?: string | null;
+async function deleteZohoResourcesDirect(opts: {
+  userEmail: string | null;
+  userId: string | null;
   dealId: string | null;
   projectId: string | null;
   invoiceId: string | null;
-}): Promise<{ dealId?: string; projectId?: string; invoiceId?: string }> {
+}): Promise<{
+  ok: boolean;
+  detail: string;
+  deletedIds?: { dealId?: string | null; projectId?: string | null; projectIds?: string[]; invoiceId?: string | null };
+}> {
+  const lookupKey = opts.userEmail || opts.userId;
+  const deletedIds: { dealId?: string | null; projectId?: string | null; projectIds?: string[]; invoiceId?: string | null } = {};
+  const failures: string[] = [];
+  let attempted = 0;
+
+  // Deal (Zoho CRM)
+  if (opts.dealId && lookupKey) {
+    attempted++;
+    try {
+      const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "crm", opts.userId || undefined);
+      if (accessToken) {
+        const dc = record?.dataCenter || zohoDataCenter();
+        const res = await fetch(`${zohoApiBase(dc)}/crm/v2/Deals?ids=${encodeURIComponent(opts.dealId)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (res.ok) deletedIds.dealId = opts.dealId;
+        else failures.push(`deal: HTTP ${res.status}`);
+      } else {
+        failures.push("deal: no CRM token");
+      }
+    } catch (e: any) {
+      failures.push(`deal: ${e?.message}`);
+    }
+  }
+
+  // Project (Zoho Projects)
+  if (opts.projectId && lookupKey) {
+    attempted++;
+    try {
+      const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "projects", opts.userId || undefined);
+      if (accessToken) {
+        const dc = record?.dataCenter || zohoDataCenter();
+        let portalId = record?.portalId || null;
+        if (!portalId) {
+          const portalsRes = await fetch(`${zohoProjectsApiBase(dc)}/api/v3/portals`, {
+            headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (portalsRes.ok) {
+            const pData = await portalsRes.json().catch(() => ({}));
+            const pList = Array.isArray(pData?.portals) ? pData.portals : [];
+            portalId = pList[0]?.id ? String(pList[0].id) : null;
+          }
+        }
+        if (portalId) {
+          const res = await fetch(`${zohoProjectsApiBase(dc)}/restapi/portal/${portalId}/projects/${encodeURIComponent(opts.projectId)}/`, {
+            method: "DELETE",
+            headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.ok) deletedIds.projectId = opts.projectId;
+          else failures.push(`project: HTTP ${res.status}`);
+        } else {
+          failures.push("project: portal not resolved");
+        }
+      } else {
+        failures.push("project: no Projects token");
+      }
+    } catch (e: any) {
+      failures.push(`project: ${e?.message}`);
+    }
+  }
+
+  // Invoice (Zoho Books)
+  if (opts.invoiceId && lookupKey) {
+    attempted++;
+    try {
+      const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "books", opts.userId || undefined);
+      const booksOrgId = record?.booksOrgId || process.env.ZOHO_BOOKS_ORG_ID;
+      if (accessToken && booksOrgId) {
+        const dc = record?.dataCenter || zohoDataCenter();
+        const res = await fetch(`${zohoApiBase(dc)}/books/v3/invoices/${encodeURIComponent(opts.invoiceId)}?organization_id=${booksOrgId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (res.ok) deletedIds.invoiceId = opts.invoiceId;
+        else failures.push(`invoice: HTTP ${res.status}`);
+      } else {
+        failures.push("invoice: no Books token/org");
+      }
+    } catch (e: any) {
+      failures.push(`invoice: ${e?.message}`);
+    }
+  }
+
+  if (attempted === 0) {
+    return { ok: true, detail: "no_resources", deletedIds };
+  }
+  if (failures.length === 0) {
+    return { ok: true, detail: "confirmed", deletedIds };
+  }
+  return { ok: false, detail: `zoho_delete_failed (${failures.join("; ")})`, deletedIds };
+}
+
+/**
+ * Idempotent task provisioning into a Zoho Projects project using the
+ * authenticated user's own OAuth token. Fetches the project's existing task
+ * names first and only pushes tasks that are missing, so re-running is safe
+ * (no duplicates). This also backfills projects that were created before the
+ * ZohoProjects.tasks.ALL OAuth scope was granted to the connection.
+ */
+async function syncCampaignTasksToZoho(opts: {
+  userEmail: string | null;
+  userId: string | null;
+  projectId: string;
+  tasks: AspectTask[];
+}): Promise<{ pushed: number; skipped: number; failed: string[] }> {
+  const lookupKey = opts.userEmail || opts.userId;
+  const empty = { pushed: 0, skipped: 0, failed: [] as string[] };
+  if (!lookupKey || !opts.projectId || !opts.tasks || opts.tasks.length === 0) return empty;
+
   try {
-    const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "fill_missing",
-        campaignId: opts.campaignId,
-        campaignName: opts.campaignName,
-        client: opts.client,
-        budget: opts.budget,
-        codeVolume: opts.codeVolume,
-        booksCustomerId: opts.booksCustomerId || undefined,
-        is_approved_by_manager: true,
-        tasks: opts.tasks,
-        existing: {
-          dealId: opts.dealId || null,
-          projectId: opts.projectId || null,
-          invoiceId: opts.invoiceId || null,
-        },
-      }),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!res.ok) {
-      console.warn(`[fill_missing] n8n returned ${res.status}; keeping adopted IDs only`);
-      return {};
+    const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "projects", opts.userId || undefined);
+    if (!accessToken) return { ...empty, failed: ["no Projects token — reconnect Zoho Projects in Connections"] };
+
+    const dc = record?.dataCenter || zohoDataCenter();
+    let portalId = record?.portalId || null;
+    if (!portalId) {
+      const portalsRes = await fetch(`${zohoProjectsApiBase(dc)}/api/v3/portals`, {
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (portalsRes.ok) {
+        const pJson = await portalsRes.json().catch(() => null);
+        const pList = Array.isArray(pJson) ? pJson : (pJson?.portals?.portal || pJson?.portals || []);
+        portalId = pList[0]?.id ? String(pList[0].id) : null;
+      }
     }
-    const body = (await res.json().catch(() => ({}))) as {
-      deal?: { id?: string };
-      project?: { id?: string };
-      invoice?: { id?: string };
-      dealId?: string;
-      projectId?: string;
-      invoiceId?: string;
-    };
-    const filled = {
-      dealId: body?.deal?.id || body?.dealId || undefined,
-      projectId: body?.project?.id || body?.projectId || undefined,
-      invoiceId: body?.invoice?.id || body?.invoiceId || undefined,
-    };
-    if (filled.dealId || filled.projectId || filled.invoiceId) {
-      console.log(`[fill_missing] Filled missing Zoho resources for "${opts.campaignName}":`, filled);
+    if (!portalId) return { ...empty, failed: ["Zoho Projects portal not resolved"] };
+
+    // Existing task names in this project (dedupe guard)
+    const existingNames = new Set<string>();
+    try {
+      const listRes = await fetch(`${zohoProjectsApiBase(dc)}/restapi/portal/${portalId}/projects/${encodeURIComponent(opts.projectId)}/tasks/`, {
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (listRes.ok) {
+        const listData = await listRes.json().catch(() => ({}));
+        const list = Array.isArray(listData?.tasks) ? listData.tasks : [];
+        for (const t of list) {
+          if (t?.name) existingNames.add(String(t.name).trim().toLowerCase());
+        }
+      }
+    } catch (lErr: any) {
+      console.warn("[syncCampaignTasksToZoho] Existing-task fetch warning:", lErr?.message);
     }
-    return filled;
-  } catch (err: unknown) {
-    console.warn("[fill_missing] Failed; keeping adopted IDs only:", err instanceof Error ? err.message : String(err));
-    return {};
+
+    let pushed = 0;
+    let skipped = 0;
+    const failed: string[] = [];
+    for (const t of opts.tasks) {
+      const name = String(t.title || (t as any).name || "").trim();
+      if (!name) continue;
+      if (existingNames.has(name.toLowerCase())) { skipped++; continue; }
+
+      const taskParams = new URLSearchParams();
+      taskParams.append("name", name);
+      taskParams.append("description", `[${(t.aspect || "").toUpperCase()}] Owner: ${t.assignee || "TBD"}, TAT: ${t.tat || "3 Days"}, Urgency: ${t.urgency || "HIGH"}`);
+      try {
+        const res = await fetch(`${zohoProjectsApiBase(dc)}/restapi/portal/${portalId}/projects/${encodeURIComponent(opts.projectId)}/tasks/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Zoho-oauthtoken ${accessToken}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: taskParams.toString(),
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          pushed++;
+        } else {
+          const errText = await res.text().catch(() => "");
+          failed.push(`${name}: HTTP ${res.status}`);
+          console.warn(`[syncCampaignTasksToZoho] Task '${name}' failed: HTTP ${res.status}`, errText.slice(0, 200));
+        }
+      } catch (tErr: any) {
+        failed.push(`${name}: ${tErr?.message}`);
+      }
+    }
+    return { pushed, skipped, failed };
+  } catch (e: any) {
+    return { ...empty, failed: [`task sync error: ${e?.message}`] };
   }
 }
 
 function writeStatusExplanation(status: string, detail?: string): string {
-  if (status === "NO_WEBHOOK_CONFIGURED") {
-    return "Zoho sync webhook is not configured (N8N_ZOHO_SYNC_WEBHOOK missing).";
-  }
-  if (status.startsWith("WEBHOOK_ERROR_")) {
-    const code = status.replace("WEBHOOK_ERROR_", "");
-    return `Zoho sync webhook returned HTTP ${code}. The n8n workflow may have encountered an issue.`;
-  }
   if (status === "FAILED") {
-    return detail ? `Failed to connect to Zoho sync service: ${detail}` : "Failed to connect to Zoho sync service (timeout or unreachable).";
+    return detail ? `Zoho provisioning failed: ${detail}` : "Zoho provisioning failed (timeout or unreachable).";
   }
   if (status === "CREATED_NO_ID") {
     return detail ? `Zoho CRM Deal was not created: ${detail}` : "Zoho CRM did not return a Deal ID.";
@@ -431,7 +504,14 @@ async function syncCampaignToZohoCRM(
   budget: string,
   codeVolume: string,
   tasks: AspectTask[],
-  booksCustomerId?: string | null
+  booksCustomerId?: string | null,
+  userEmail?: string | null,
+  userId?: string | null,
+  endDate?: string | null,
+  brief?: string | null,
+  existingDealId?: string | null,
+  existingProjectId?: string | null,
+  existingInvoiceId?: string | null
 ): Promise<{
   dealId: string | null;
   dealUrl: string | null;
@@ -442,139 +522,281 @@ async function syncCampaignToZohoCRM(
   writeStatus: string;
   error?: string;
 }> {
-  if (!N8N_ZOHO_SYNC_WEBHOOK) {
-    return { dealId: null, dealUrl: null, invoiceId: null, invoiceUrl: null, projectId: null, projectUrl: null, writeStatus: "NO_WEBHOOK_CONFIGURED", error: "N8N_ZOHO_SYNC_WEBHOOK missing" };
-  }
+  const lookupKey = userEmail || userId;
+  const numericAmount = parseFloat(String(budget || "0").replace(/[^0-9.]/g, "")) || 0;
 
-  // IDEMPOTENCY GUARD: if resources for this campaign name already exist in
-  // Zoho (from an earlier run whose IDs were lost), adopt them instead of
-  // creating duplicates.
-  const existing = await findExistingZohoResources(campaignName, client);
-  if (existing.dealId || existing.projectId || existing.invoiceId) {
-    console.log(`[syncCampaignToZohoCRM] Found existing Zoho resources for "${campaignName}", adopting instead of creating duplicates:`, existing);
-    let dealId = existing.dealId || null;
-    let projectId = existing.projectId || null;
-    let invoiceId = existing.invoiceId || null;
+  // ── 1. Direct Multi-Tenant Provisioning (User's Authenticated Zoho Account) ──
+  if (lookupKey) {
+    let dealId: string | null = existingDealId || null;
+    let dealUrl: string | null = dealId ? `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}` : null;
+    let projectId: string | null = existingProjectId || null;
+    let projectUrl: string | null = projectId ? getZohoProjectUrl(projectId) : null;
+    let invoiceId: string | null = existingInvoiceId || null;
+    let invoiceUrl: string | null = invoiceId ? `https://books.zoho.in/app#/invoices/${invoiceId}` : null;
+    const directErrors: string[] = [];
 
-    // SELF-HEAL: adoption found SOME resources but not all. Fire fill_missing
-    // so n8n creates only the missing pieces (instead of full ingestion, which
-    // would duplicate the ones already in Zoho).
-    if (!dealId || !projectId || !invoiceId) {
-      const filled = await fillMissingZohoResources({
-        campaignId,
-        campaignName,
-        client,
-        budget,
-        codeVolume,
-        tasks,
-        booksCustomerId,
-        dealId,
-        projectId,
-        invoiceId,
-      });
-      if (filled.dealId) dealId = filled.dealId;
-      if (filled.projectId) projectId = filled.projectId;
-      if (filled.invoiceId) invoiceId = filled.invoiceId;
+    // 1a. Zoho CRM Deal
+    if (!dealId) {
+      try {
+        const { accessToken: crmToken, record: crmRecord } = await resolveZohoAccessToken(lookupKey, "crm", userId || undefined);
+        if (crmToken) {
+          const crmDc = crmRecord?.dataCenter || zohoDataCenter();
+          // Check if deal with exact name already exists in this user's CRM
+          try {
+            const searchRes = await fetch(`${zohoApiBase(crmDc)}/crm/v2/Deals/search?criteria=(Deal_Name:equals:${encodeURIComponent(campaignName.trim())})`, {
+              headers: { Authorization: `Zoho-oauthtoken ${crmToken}` },
+              signal: AbortSignal.timeout(10000),
+            });
+            if (searchRes.status === 200) {
+              const searchJson = await searchRes.json().catch(() => ({}));
+              const existingDeal = searchJson?.data?.[0];
+              if (existingDeal?.id) {
+                dealId = String(existingDeal.id);
+                dealUrl = `https://crm.zoho.${crmDc}/crm/org/tab/Potentials/${dealId}`;
+              }
+            }
+          } catch (sErr: any) {
+            console.warn("[syncCampaignToZohoCRM] CRM search notice:", sErr?.message);
+          }
+
+          if (!dealId) {
+            const createRes = await fetch(`${zohoApiBase(crmDc)}/crm/v2/Deals`, {
+              method: "POST",
+              headers: {
+                Authorization: `Zoho-oauthtoken ${crmToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                data: [
+                  {
+                    Deal_Name: campaignName,
+                    Stage: "Qualification",
+                    Amount: numericAmount,
+                    Closing_Date: endDate || new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0],
+                    Description: brief || `Campaign deal for ${client}`,
+                  },
+                ],
+              }),
+              signal: AbortSignal.timeout(15000),
+            });
+            if (createRes.ok) {
+              const createData = await createRes.json().catch(() => ({}));
+              const createdDealId = createData?.data?.[0]?.details?.id;
+              if (createdDealId) {
+                dealId = String(createdDealId);
+                dealUrl = `https://crm.zoho.${crmDc}/crm/org/tab/Potentials/${dealId}`;
+              }
+            } else {
+              directErrors.push(`CRM: HTTP ${createRes.status}`);
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn("[syncCampaignToZohoCRM] Direct CRM error:", e?.message);
+        directErrors.push(`CRM: ${e?.message}`);
+      }
     }
 
-    const complete = Boolean(dealId && projectId && invoiceId);
-    return {
-      dealId,
-      dealUrl: dealId ? `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}` : null,
-      invoiceId,
-      invoiceUrl: invoiceId ? `https://books.zoho.in/app#/invoices/${invoiceId}` : null,
-      projectId,
-      projectUrl: projectId ? getZohoProjectUrl(projectId) : null,
-      writeStatus: complete ? "ADOPTED_EXISTING" : "ADOPTED_EXISTING_PARTIAL",
-    };
-  }
+    // 1b. Zoho Projects Project + Tasks
+    if (!projectId) {
+      try {
+        const { accessToken: projToken, record: projRecord } = await resolveZohoAccessToken(lookupKey, "projects", userId || undefined);
+        if (projToken) {
+          const projDc = projRecord?.dataCenter || zohoDataCenter();
+          let portalId = projRecord?.portalId || null;
 
-  const taskSummary = tasks
-    .map((t, i) => `${i + 1}. [${t.aspect.toUpperCase()}] ${t.title}, Owner: ${t.assignee}, TAT: ${t.tat}, Urgency: ${t.urgency}`)
-    .join("\n");
+          if (!portalId) {
+            try {
+              const portalsRes = await fetch(`${zohoProjectsApiBase(projDc)}/api/v3/portals`, {
+                headers: { Authorization: `Zoho-oauthtoken ${projToken}` },
+                signal: AbortSignal.timeout(10000),
+              });
+              if (portalsRes.ok) {
+                const pJson = await portalsRes.json().catch(() => null);
+                const pList = Array.isArray(pJson) ? pJson : (pJson?.portals?.portal || pJson?.portals || []);
+                portalId = pList[0]?.id ? String(pList[0].id) : null;
+              }
+            } catch (pErr: any) {
+              console.warn("[syncCampaignToZohoCRM] Portal discovery failed:", pErr?.message);
+            }
+          }
 
-  const message =
-    `APPROVE CAMPAIGN FOR ZOHO CRM: ${campaignName}\n` +
-    `Client: ${client}\n` +
-    `Budget: ${budget}\n` +
-    `Volume: ${codeVolume}\n` +
-    `Total Tasks: ${tasks.length}\n\n` +
-    `Task Breakdown:\n${taskSummary}`;
+          if (portalId) {
+            // Check if project already exists in portal
+            try {
+              const listProjRes = await fetch(`${zohoProjectsApiBase(projDc)}/restapi/portal/${portalId}/projects/`, {
+                headers: { Authorization: `Zoho-oauthtoken ${projToken}` },
+                signal: AbortSignal.timeout(10000),
+              });
+              if (listProjRes.ok) {
+                const lpData = await listProjRes.json().catch(() => ({}));
+                const existingProj = (lpData.projects || []).find((p: any) =>
+                  String(p.name || "").trim().toLowerCase() === campaignName.trim().toLowerCase()
+                );
+                if (existingProj) {
+                  projectId = String(existingProj.id_string || existingProj.id);
+                  projectUrl = `https://projects.zoho.${projDc}/portal/${portalId}#project/${projectId}`;
+                }
+              }
+            } catch (lpErr: any) {
+              console.warn("[syncCampaignToZohoCRM] Projects search error:", lpErr?.message);
+            }
 
-  try {
-    const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message,
-        campaignId,
-        campaignName,
-        client,
-        budget,
-        codeVolume,
-        booksCustomerId: booksCustomerId || undefined,
-        is_approved_by_manager: true,
-        tasks,
-      }),
-      signal: AbortSignal.timeout(45000),
-    });
+            if (!projectId) {
+              const projParams = new URLSearchParams();
+              projParams.append("name", campaignName);
+              projParams.append("description", brief || `Execution tracker for ${client} ${campaignName}`);
 
-    if (!res.ok) {
-      console.error(`[ZohoCRM] n8n webhook returned ${res.status}`);
+              const createProjRes = await fetch(`${zohoProjectsApiBase(projDc)}/restapi/portal/${portalId}/projects/`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Zoho-oauthtoken ${projToken}`,
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: projParams.toString(),
+                signal: AbortSignal.timeout(15000),
+              });
+
+              if (createProjRes.ok) {
+                const cpData = await createProjRes.json().catch(() => ({}));
+                const newId = cpData?.projects?.[0]?.id_string || cpData?.projects?.[0]?.id;
+                if (newId) {
+                  projectId = String(newId);
+                  projectUrl = `https://projects.zoho.${projDc}/portal/${portalId}#project/${projectId}`;
+                }
+              } else {
+                directErrors.push(`Projects: HTTP ${createProjRes.status}`);
+              }
+            }
+
+          }
+        }
+      } catch (e: any) {
+        console.warn("[syncCampaignToZohoCRM] Direct Projects error:", e?.message);
+        directErrors.push(`Projects: ${e?.message}`);
+      }
+    }
+
+    // Task provisioning/backfill: runs whenever the project is known (newly
+    // created OR pre-existing), so projects created before the tasks.ALL OAuth
+    // scope was granted get their task list backfilled on the next sync.
+    if (projectId && tasks.length > 0) {
+      const taskSync = await syncCampaignTasksToZoho({ userEmail: userEmail ?? null, userId: userId ?? null, projectId, tasks });
+      if (taskSync.failed.length > 0) {
+        directErrors.push(`Tasks: ${taskSync.failed.length} failed (${taskSync.failed[0]}${taskSync.failed.length > 1 ? "; ..." : ""})`);
+      }
+    }
+
+    // 1c. Zoho Books Customer & Invoice
+    if (!invoiceId) {
+      try {
+        const { accessToken: booksToken, record: booksRecord } = await resolveZohoAccessToken(lookupKey, "books", userId || undefined);
+        const booksOrgId = booksRecord?.booksOrgId || process.env.ZOHO_BOOKS_ORG_ID;
+
+        if (booksToken && booksOrgId) {
+          const booksDc = booksRecord?.dataCenter || zohoDataCenter();
+          let finalCustomerId = booksCustomerId;
+
+          if (!finalCustomerId && client) {
+            const contactCheck = await checkZohoBooksContact(client, null, userEmail, userId || undefined);
+            if (contactCheck.exists && contactCheck.contact?.contactId) {
+              finalCustomerId = contactCheck.contact.contactId;
+            } else {
+              const created = await createZohoBooksContact(client, undefined, userEmail, userId || undefined);
+              if (created.success && created.contactId) {
+                finalCustomerId = created.contactId;
+              }
+            }
+          }
+
+          if (finalCustomerId) {
+            // Check if invoice for this campaign already exists in Books
+            try {
+              const listInvRes = await fetch(`${zohoApiBase(booksDc)}/books/v3/invoices?organization_id=${booksOrgId}&customer_id=${finalCustomerId}`, {
+                headers: { Authorization: `Zoho-oauthtoken ${booksToken}` },
+                signal: AbortSignal.timeout(10000),
+              });
+              if (listInvRes.ok) {
+                const invList = await listInvRes.json().catch(() => ({}));
+                const existingInv = (invList.invoices || []).find((i: any) =>
+                  String(i.invoice_number || "").includes(campaignName) ||
+                  (typeof i.total === "number" && i.total === numericAmount)
+                );
+                if (existingInv?.invoice_id) {
+                  invoiceId = String(existingInv.invoice_id);
+                  invoiceUrl = `https://books.zoho.${booksDc}/app#/invoices/${invoiceId}`;
+                }
+              }
+            } catch (liErr: any) {
+              console.warn("[syncCampaignToZohoCRM] Invoice search error:", liErr?.message);
+            }
+
+            if (!invoiceId) {
+              const invRes = await fetch(`${zohoApiBase(booksDc)}/books/v3/invoices?organization_id=${booksOrgId}`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Zoho-oauthtoken ${booksToken}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  customer_id: finalCustomerId,
+                  date: new Date().toISOString().split("T")[0],
+                  line_items: [
+                    {
+                      name: `${campaignName} Campaign Fee`,
+                      description: `Execution & milestone billing for ${client}`,
+                      rate: numericAmount,
+                      quantity: 1,
+                    },
+                  ],
+                }),
+                signal: AbortSignal.timeout(15000),
+              });
+
+              if (invRes.ok) {
+                const invData = await invRes.json().catch(() => ({}));
+                const createdInvId = invData?.invoice?.invoice_id;
+                if (createdInvId) {
+                  invoiceId = String(createdInvId);
+                  invoiceUrl = `https://books.zoho.${booksDc}/app#/invoices/${invoiceId}`;
+                }
+              } else {
+                directErrors.push(`Books: HTTP ${invRes.status}`);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn("[syncCampaignToZohoCRM] Direct Books error:", e?.message);
+        directErrors.push(`Books: ${e?.message}`);
+      }
+    }
+
+    if (dealId || projectId || invoiceId) {
+      const isComplete = Boolean(dealId && projectId && invoiceId);
       return {
-        dealId: null,
-        dealUrl: null,
-        invoiceId: null,
-        invoiceUrl: null,
-        projectId: null,
-        projectUrl: null,
-        writeStatus: `WEBHOOK_ERROR_${res.status}`,
-        error: `Webhook returned HTTP ${res.status}`,
+        dealId,
+        dealUrl,
+        invoiceId,
+        invoiceUrl,
+        projectId,
+        projectUrl,
+        writeStatus: isComplete ? "SYNCED" : "PARTIAL",
+        error: directErrors.length > 0 ? directErrors.join("; ") : undefined,
       };
     }
-
-    const body = (await res.json().catch(() => ({}))) as Record<string, any>;
-    const dealId: string | null =
-      body?.id ||
-      body?.deal_id ||
-      body?.data?.[0]?.id ||
-      body?.dealId ||
-      body?.deal?.id ||
-      null;
-
-    const invoiceId: string | null = body?.invoice_id || body?.invoiceId || null;
-    const projectId: string | null = body?.project_id || body?.projectId || null;
-
-    const dealUrl = dealId ? (body?.dealUrl || `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}`) : null;
-    const invoiceUrl = invoiceId ? (body?.invoiceUrl || `https://books.zoho.in/app#/invoices/${invoiceId}`) : null;
-    const projectUrl = projectId ? (body?.projectUrl || getZohoProjectUrl(projectId)) : null;
-
-    const writeStatus = dealId ? "SYNCED" : "CREATED_NO_ID";
-    const errorDetail = !dealId ? (body?.errors?.crm || body?.error || "Zoho CRM did not return a Deal ID") : undefined;
-
-    return {
-      dealId,
-      dealUrl,
-      invoiceId,
-      invoiceUrl,
-      projectId,
-      projectUrl,
-      writeStatus,
-      error: errorDetail,
-    };
-  } catch (err: any) {
-    console.error("[ZohoCRM] Sync failed:", err.message);
-    return {
-      dealId: null,
-      dealUrl: null,
-      invoiceId: null,
-      invoiceUrl: null,
-      projectId: null,
-      projectUrl: null,
-      writeStatus: "FAILED",
-      error: err.name === "TimeoutError" ? "Webhook timed out (45s)" : (err.message || "Failed to reach sync webhook"),
-    };
   }
+
+  return {
+    dealId: null,
+    dealUrl: null,
+    invoiceId: null,
+    invoiceUrl: null,
+    projectId: null,
+    projectUrl: null,
+    writeStatus: "FAILED",
+    error: "Zoho is not connected. Please connect your Zoho account in the Connections tab.",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -680,7 +902,48 @@ export async function reconcileZohoCRMWithSupabase(
     };
   }
 
-  if (!N8N_ZOHO_SYNC_WEBHOOK) {
+  // Fetch live deals:
+  // 1. Direct Zoho CRM API using the authenticated user's own token vault (multi-tenant)
+  const lookupKey = userEmail || userId;
+  let liveDeals: Array<{ id: string; name: string; stage?: string; amount?: number }> = [];
+  let liveFetchSucceeded = false;
+
+  if (lookupKey) {
+    try {
+      const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "crm", userId);
+      if (accessToken) {
+        const dc = record?.dataCenter || zohoDataCenter();
+        const dealsRes = await fetch(`${zohoApiBase(dc)}/crm/v2/Deals?fields=id,Deal_Name,Stage,Amount`, {
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (dealsRes.status === 200) {
+          const directData = await dealsRes.json().catch(() => ({}));
+          const list = Array.isArray(directData?.data) ? directData.data : [];
+          liveDeals = list.map((d: any) => ({
+            id: String(d.id),
+            name: d.Deal_Name || d.name || "Deal",
+            stage: d.Stage || d.stage || "Qualification",
+            amount: typeof d.Amount === "number" ? d.Amount : (typeof d.amount === "number" ? d.amount : 0),
+          }));
+          liveFetchSucceeded = true;
+        } else if (dealsRes.status === 204) {
+          // HTTP 204: Valid authenticated connection, user has 0 deals in their Zoho CRM
+          liveDeals = [];
+          liveFetchSucceeded = true;
+        } else {
+          console.warn(`[reconcileZohoCRMWithSupabase] Direct Zoho CRM returned HTTP ${dealsRes.status}`);
+        }
+      }
+    } catch (directErr: any) {
+      console.warn("[reconcileZohoCRMWithSupabase] Direct Zoho CRM fetch error:", directErr?.message);
+    }
+  }
+
+
+  // If live fetch was not successful (e.g. network outage or no connection), return local Supabase campaigns safely
+  if (!liveFetchSucceeded) {
     const { data: orgCampaigns } = await supabase
       .from("campaigns")
       .select("*")
@@ -696,90 +959,50 @@ export async function reconcileZohoCRMWithSupabase(
   }
 
   try {
-    const listRes = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "list_deals" }),
-      signal: AbortSignal.timeout(15000),
-    });
+    const liveDealIds = new Set(liveDeals.map((d) => String(d.id)));
+    const liveDealMap = new Map(liveDeals.map((d) => [String(d.id), d]));
 
-    if (listRes.ok) {
-      const listData = (await listRes.json().catch(() => ({}))) as Record<string, any>;
-      const liveDeals: Array<{ id: string; name: string; stage?: string; amount?: number }> =
-        Array.isArray(listData?.deals) ? listData.deals : [];
-      const liveDealIds = new Set(
-        (Array.isArray(listData?.dealIds) ? listData.dealIds : liveDeals.map((d) => d.id)).map(String)
-      );
-      const liveDealMap = new Map(liveDeals.map((d) => [String(d.id), d]));
+    const { data: allCampaigns } = await supabase
+      .from("campaigns")
+      .select("*")
+      .eq("organization_id", orgId);
+    const existing = allCampaigns || [];
 
-      const { data: allCampaigns } = await supabase
-        .from("campaigns")
-        .select("*")
-        .eq("organization_id", orgId);
-      const existing = allCampaigns || [];
+    let deletedCount = 0;
+    let updatedCount = 0;
+    const claimedDealIds = new Set<string>();
 
-      let deletedCount = 0;
-      let updatedCount = 0;
-      const claimedDealIds = new Set<string>();
+    for (const camp of existing) {
+      // Approval gate: drafts were never pushed to Zoho and must never be auto-linked
+      // to live Zoho CRM deals or deleted during Zoho CRM reconciliation.
+      if (camp.status === "draft") continue;
 
-      for (const camp of existing) {
-        // Approval gate: drafts were never pushed to Zoho and must never be auto-linked
-        // to live Zoho CRM deals or deleted during Zoho CRM reconciliation.
-        if (camp.status === "draft") continue;
+      const dealIdStr = camp.zoho_crm_deal_id ? String(camp.zoho_crm_deal_id) : "";
+      const isNativeCampaign = String(camp.zoho_crm_deal_url || "").includes("/Campaigns/");
 
-        const dealIdStr = camp.zoho_crm_deal_id ? String(camp.zoho_crm_deal_id) : "";
-        const isNativeCampaign = String(camp.zoho_crm_deal_url || "").includes("/Campaigns/");
+      if (isNativeCampaign) {
+        claimedDealIds.add(dealIdStr);
+        continue;
+      }
 
-        if (isNativeCampaign) {
-          claimedDealIds.add(dealIdStr);
-          continue;
-        }
-
-        if (dealIdStr) {
-          if (liveDealIds.size > 0 && !liveDealIds.has(dealIdStr)) {
-            // Deal was DELETED in Zoho CRM, cascade cleanup in Projects and Books
-            console.log(`[reconcile] Zoho deal ${dealIdStr} was deleted in CRM. Cleaning up Projects, Books & Supabase for ${camp.name} (${camp.id})`);
-            let cleanupOk = true;
-            if (N8N_ZOHO_DELETE_WEBHOOK && (camp.zoho_project_id || camp.zoho_books_invoice_id)) {
-              try {
-                const res = await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    dealId: dealIdStr,
-                    projectId: camp.zoho_project_id,
-                    invoiceId: camp.zoho_books_invoice_id,
-                    campaignName: camp.name,
-                    client: camp.client,
-                  }),
-                  signal: AbortSignal.timeout(20000),
-                });
-                if (!res.ok) {
-                  cleanupOk = false;
-                  console.warn(`[reconcile] Zoho delete webhook returned HTTP ${res.status} for ${camp.name}`);
-                } else {
-                  const deleteRes = (await res.json().catch(() => null)) as {
-                    anyFailed?: boolean;
-                    outcomes?: Record<string, any>;
-                  } | null;
-                  if (deleteRes?.anyFailed) {
-                    console.warn(`[reconcile] Some Zoho resources failed to delete for ${camp.name}:`, deleteRes.outcomes);
-                  }
-                }
-              } catch (err: unknown) {
-                cleanupOk = false;
-                console.warn(`[reconcile] Zoho delete webhook error for ${camp.name}:`, (err as Error)?.message);
-              }
-            }
-            if (cleanupOk) {
-              await supabase
-                .from("campaigns")
-                .delete()
-                .eq("id", camp.id)
-                .eq("organization_id", orgId);
-              deletedCount++;
-            }
-          } else {
+      if (dealIdStr) {
+        if (!liveDealIds.has(dealIdStr)) {
+          // Deal was DELETED in Zoho CRM or does not exist in the connected user's Zoho CRM account
+          console.log(`[reconcile] Zoho deal ${dealIdStr} was deleted or not found in CRM. Cleaning up for ${camp.name} (${camp.id})`);
+          // The deal is gone from the user's own Zoho CRM, so the local row is
+          // stale. Projects/Invoices tied to the deleted deal are cleaned via
+          // direct Zoho API calls with the user's own tokens where possible;
+          // the local row is always removed since CRM is the source of truth.
+          if (camp.zoho_project_id || camp.zoho_books_invoice_id) {
+            console.log(`[reconcile] Note: project/invoice cleanup for ${camp.name} requires direct Zoho API delete (not yet implemented); local row removed.`);
+          }
+          await supabase
+            .from("campaigns")
+            .delete()
+            .eq("id", camp.id)
+            .eq("organization_id", orgId);
+          deletedCount++;
+        } else {
             claimedDealIds.add(dealIdStr);
             const live = liveDealMap.get(dealIdStr);
             const updates: Record<string, any> = {
@@ -895,7 +1118,6 @@ export async function reconcileZohoCRMWithSupabase(
         updated: updatedCount,
         reset: deletedCount,
       };
-    }
   } catch (err: any) {
     console.warn("[reconcileZohoCRMWithSupabase] Live Zoho list failed:", err.message);
   }
@@ -953,35 +1175,9 @@ export async function GET(request: NextRequest) {
 
   const effectiveOrgId = await resolveEffectiveOrgId(user, orgId);
 
-  // ── Diagnostics: Lightweight Zoho & n8n Health Probe ──
+  // ── Diagnostics: Lightweight Zoho Health Probe ──
   if (action === "zoho_health") {
-    let syncPing = { configured: false, reachable: false, status: null as number | null, latencyMs: 0, error: undefined as string | undefined };
-    if (N8N_ZOHO_SYNC_WEBHOOK) {
-      const start = Date.now();
-      try {
-        const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "update_tasks", campaignId: "", tasks: [] }),
-          signal: AbortSignal.timeout(15000),
-        });
-        syncPing = {
-          configured: true,
-          reachable: res.ok || res.status < 500,
-          status: res.status,
-          latencyMs: Date.now() - start,
-          error: undefined,
-        };
-      } catch (err: any) {
-        syncPing = {
-          configured: true,
-          reachable: false,
-          status: null,
-          latencyMs: Date.now() - start,
-          error: err.name === "TimeoutError" ? "Timeout (15s)" : (err.message || "Connection failed"),
-        };
-      }
-    }
+    const syncPing = { configured: false as boolean, reachable: false as boolean, status: null as number | null, latencyMs: 0, error: undefined as string | undefined };
 
     const entitlement = await buildEntitlementSnapshot();
     const crmVerdict = entitlement.connectors["zoho.crm"];
@@ -1585,31 +1781,20 @@ export async function POST(request: NextRequest) {
       const allResourcesExist = Boolean(dealId && projectId && invoiceId);
 
       if (allResourcesExist) {
-        // Record already exists across Zoho CRM, Projects, and Books: Update existing resources
-        if (N8N_ZOHO_UPDATE_WEBHOOK) {
-          const numericAmount = parseFloat(String(campaignData.budget || targetRow.budget || "0").replace(/[^0-9.]/g, "")) || 0;
-          const taskSummary = resolvedTasks
-            .map((t: any, i: number) => `${i + 1}. [${(t.aspect || "").toUpperCase()}] ${t.title || t.name}, Owner: ${t.assignee || "TBD"}, TAT: ${t.tat || "2 Days"}, Urgency: ${t.urgency || "HIGH"}`)
-            .join("\n");
-
-          await fetch(N8N_ZOHO_UPDATE_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dealId,
-              projectId,
-              invoiceId,
-              customerId: booksCustomerId || targetRow.books_customer_id,
-              client: campaignData.client || targetRow.client,
-              campaignName: campaignData.name || targetRow.name,
-              amount: numericAmount,
-              budget: campaignData.budget || targetRow.budget,
-              rewardType: campaignData.rewardType || targetRow.reward_type,
-              tasks: resolvedTasks,
-              taskSummary,
-            }),
-            signal: AbortSignal.timeout(12000),
-          }).catch((err) => console.warn("[approve_and_push_zoho] Update webhook failed:", err));
+        // Record already exists across Zoho CRM, Projects, and Books: all
+        // resources are live and owned by this org; nothing to re-provision.
+        // Still backfill any missing project tasks (e.g. projects created
+        // before the tasks.ALL OAuth scope was granted to the connection).
+        if (projectId && resolvedTasks.length > 0) {
+          const taskBackfill = await syncCampaignTasksToZoho({
+            userEmail: userEmail ?? null,
+            userId: user.id,
+            projectId,
+            tasks: resolvedTasks,
+          });
+          if (taskBackfill.failed.length > 0) {
+            console.warn("[approve_and_push_zoho] Task backfill incomplete:", taskBackfill.failed);
+          }
         }
 
         await supabase
@@ -1623,44 +1808,7 @@ export async function POST(request: NextRequest) {
           })
           .eq("id", campaignId)
           .eq("organization_id", effectiveOrgId);
-      } else if (dealId && (!projectId || !invoiceId)) {
-        // Deal already exists in Zoho CRM, but missing Zoho Projects Project or Zoho Books Invoice!
-        if (N8N_ZOHO_SYNC_WEBHOOK) {
-          try {
-            const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "sync_missing_products",
-                dealId,
-                campaignId,
-                campaignName: campaignData.name || targetRow?.name,
-                client: campaignData.client || targetRow?.client,
-                budget: campaignData.budget || targetRow?.budget,
-                codeVolume: campaignData.codeVolume || targetRow?.code_volume,
-                booksCustomerId: booksCustomerId || targetRow?.books_customer_id || undefined,
-                tasks: resolvedTasks,
-              }),
-              signal: AbortSignal.timeout(20000),
-            });
-
-            if (res.ok) {
-              const body = await res.json().catch(() => ({}));
-              projectId = body?.project_id || body?.projectId || projectId;
-              invoiceId = body?.invoice_id || body?.invoiceId || invoiceId;
-              projectUrl = projectId ? getZohoProjectUrl(projectId) : projectUrl;
-              invoiceUrl = invoiceId ? `https://books.zoho.in/app#/invoices/${invoiceId}` : invoiceUrl;
-              writeStatus = "SYNCED";
-            } else {
-              syncErrorMessage = `Sync missing products failed with HTTP ${res.status}`;
-            }
-          } catch (e: any) {
-            console.error("[approve_and_push_zoho] Sync missing products failed:", e);
-            syncErrorMessage = e.message;
-          }
-        }
       } else {
-        // Missing Deal: Trigger full ingestion to provision Zoho CRM deal, Projects project, and Books invoice
         const syncRes = await syncCampaignToZohoCRM(
           campaignId,
           campaignData.name || targetRow?.name,
@@ -1668,7 +1816,14 @@ export async function POST(request: NextRequest) {
           campaignData.budget || targetRow?.budget,
           campaignData.codeVolume || targetRow?.code_volume,
           resolvedTasks,
-          booksCustomerId
+          booksCustomerId,
+          userEmail || user.email,
+          user.id,
+          campaignData.endDate || targetRow?.end_date,
+          campaignData.brief || targetRow?.brief,
+          dealId,
+          projectId,
+          invoiceId
         );
         dealId = syncRes.dealId || dealId;
         dealUrl = syncRes.dealUrl || dealUrl;
@@ -1917,25 +2072,8 @@ export async function POST(request: NextRequest) {
         userId: user.id,
       });
 
-      // Approval gate: DRAFT tasks have no Zoho CRM record, skip webhook entirely.
-      if (!isDraft && task.zohoCrmTaskId && N8N_ZOHO_TASK_UPDATE_WEBHOOK) {
-        try {
-          await fetch(N8N_ZOHO_TASK_UPDATE_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              campaignId: campaignRow.id,
-              taskId,
-              newStatus,
-              zohoCrmTaskId: task.zohoCrmTaskId
-            }),
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err) {
-          console.warn("[update_zoho_task] Webhook failed:", err);
-        }
-      }
-
+      // Task status changes persist locally only; Zoho CRM task sync happens
+      // through the direct multi-tenant provisioning path on approval.
       return NextResponse.json({
         success: true,
         task,
@@ -2048,70 +2186,8 @@ export async function POST(request: NextRequest) {
             .eq("organization_id", effectiveOrgId)
             .maybeSingle();
 
-          if (!checkRow?.zoho_crm_deal_id) {
-            if (N8N_ZOHO_SYNC_WEBHOOK) {
-              try {
-                const syncRes = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    action: "approve_and_sync",
-                    campaignId: resolvedCampaignId,
-                    campaignName: resolvedCampaignName,
-                    client: resolvedClient,
-                    budget: resolvedBudget,
-                    codeVolume: resolvedCodeVolume,
-                    is_approved_by_manager: true,
-                    tasks: tasks || [],
-                  }),
-                  signal: AbortSignal.timeout(15000),
-                });
-                if (syncRes.ok) {
-                  const syncData = (await syncRes.json().catch(() => ({}))) as Record<string, any>;
-                  const dealId = syncData?.id || syncData?.deal_id;
-                  if (dealId) {
-                    await supabase
-                      .from("campaigns")
-                      .update({
-                        zoho_crm_deal_id: String(dealId),
-                        zoho_crm_deal_url: `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}`,
-                        zoho_crm_deal_stage: "Qualification",
-                        zoho_books_invoice_id: syncData.invoice_id || null,
-                        zoho_books_invoice_url: syncData.invoice_id ? `https://books.zoho.in/app#/invoices/${syncData.invoice_id}` : null,
-                        zoho_project_id: syncData.project_id || null,
-                        zoho_project_url: syncData.project_id ? getZohoProjectUrl(syncData.project_id) : null,
-                        zoho_sync_status: "synced",
-                        last_zoho_sync: new Date().toISOString(),
-                      })
-                      .eq("id", resolvedCampaignId)
-                      .eq("organization_id", effectiveOrgId);
-                  }
-                }
-              } catch (err) {
-                console.warn("[update_campaign_tasks] Zoho re-sync failed:", err);
-              }
-            }
-          } else {
-            // Already synced to Zoho, push updated tasks to Zoho Projects via n8n webhook
-            if (N8N_ZOHO_SYNC_WEBHOOK) {
-              try {
-                await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    action: "update_campaign_tasks",
-                    campaignId: resolvedCampaignId,
-                    projectId: (checkRow as any)?.zoho_project_id || null,
-                    campaignName: resolvedCampaignName,
-                    tasks: tasks || [],
-                  }),
-                  signal: AbortSignal.timeout(10000),
-                }).catch((e) => console.warn("[update_campaign_tasks] Push to Zoho webhook warning:", e));
-              } catch (err) {
-                console.warn("[update_campaign_tasks] Post-approval task push failed:", err);
-              }
-            }
-          }
+          // Task updates stay local; Zoho-side task pushes are handled by the
+          // direct multi-tenant provisioning path on approval.
         } catch (err) {
           console.warn("[update_campaign_tasks] Zoho re-sync check failed:", err);
         }
@@ -2154,93 +2230,39 @@ export async function POST(request: NextRequest) {
 
       console.log(`[delete_campaign] Wiping Zoho resources for ${camp.name}: deal=${camp.zoho_crm_deal_id}, project=${camp.zoho_project_id}, invoice=${camp.zoho_books_invoice_id}`);
       const hasZohoResources = Boolean(camp.zoho_crm_deal_id || camp.zoho_project_id || camp.zoho_books_invoice_id);
-      let zohoDelete: { ok: boolean; detail: string } = { ok: !hasZohoResources, detail: hasZohoResources ? "no_webhook_configured" : "skipped" };
-      let zohoDeletedIds: { dealId: string | null; projectId: string | null; projectIds: string[]; invoiceId: string | null } | null = null;
-      if (N8N_ZOHO_DELETE_WEBHOOK) {
-        try {
-          const res = await fetch(N8N_ZOHO_DELETE_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dealId: camp.zoho_crm_deal_id || undefined,
-              projectId: camp.zoho_project_id || undefined,
-              invoiceId: camp.zoho_books_invoice_id || undefined,
-              campaignName: camp.name,
-              // Fallback lookup key: lets n8n find & delete resources that were
-              // provisioned but whose IDs were never persisted (the duplicate
-              // generator). n8n should search by name when IDs are absent.
-              client: camp.client,
-            }),
-            signal: AbortSignal.timeout(20000),
-          });
-          if (res.ok) {
-            // Classify by actual outcome: n8n returns outcomes per resource
-            // (deleted, failed, skipped) and anyDeleted / anyFailed flags.
-            const body = (await res.json().catch(() => null)) as {
-              success?: boolean;
-              deleted?: {
-                dealId?: string | null;
-                projectId?: string | null;
-                projectIds?: string[] | null;
-                invoiceId?: string | null;
-              } | null;
-              outcomes?: {
-                deal?: string;
-                projects?: string[];
-                invoice?: string;
-              };
-              lookupPerformed?: boolean;
-              anyDeleted?: boolean;
-              anyFailed?: boolean;
-            } | null;
-            const d = body?.deleted || {};
-            const deletedAny = Boolean(
-              body?.anyDeleted ||
-              d.dealId ||
-              d.projectId ||
-              (Array.isArray(d.projectIds) && d.projectIds.length > 0) ||
-              d.invoiceId
-            );
-            zohoDeletedIds = {
-              dealId: d.dealId || null,
-              projectId: d.projectId || null,
-              projectIds: Array.isArray(d.projectIds) ? d.projectIds : [],
-              invoiceId: d.invoiceId || null,
-            };
 
-            if (body?.anyFailed) {
-              zohoDelete = { ok: false, detail: "zoho_delete_failed" };
-            } else if (deletedAny) {
-              zohoDelete = { ok: true, detail: "confirmed" };
-            } else if (body?.lookupPerformed) {
-              zohoDelete = { ok: !hasZohoResources, detail: hasZohoResources ? "resources_not_found" : "not_found" };
-            } else {
-              zohoDelete = { ok: !hasZohoResources, detail: hasZohoResources ? "unconfirmed" : "requested" };
-            }
-          } else {
-            zohoDelete = { ok: false, detail: `webhook_http_${res.status}` };
-          }
-        } catch (err: unknown) {
-          const errObj = err as Error;
-          console.error("[delete_campaign] Zoho delete webhook failed:", errObj?.message);
-          zohoDelete = { ok: false, detail: errObj?.name === "TimeoutError" ? "webhook_timeout" : "webhook_error" };
-        }
-      }
+      // Direct multi-tenant cleanup using the authenticated user's own Zoho tokens
+      const cleanup = await deleteZohoResourcesDirect({
+        userEmail: userEmail ?? null,
+        userId: user.id,
+        dealId: camp.zoho_crm_deal_id || null,
+        projectId: camp.zoho_project_id || null,
+        invoiceId: camp.zoho_books_invoice_id || null,
+      });
+      const zohoDelete: { ok: boolean; detail: string } = cleanup.ok
+        ? { ok: true, detail: cleanup.detail }
+        : { ok: false, detail: cleanup.detail };
+      const zohoDeletedIds: { dealId: string | null; projectId: string | null; projectIds: string[]; invoiceId: string | null } | null = {
+        dealId: cleanup.deletedIds?.dealId || null,
+        projectId: cleanup.deletedIds?.projectId || null,
+        projectIds: cleanup.deletedIds?.projectIds || [],
+        invoiceId: cleanup.deletedIds?.invoiceId || null,
+      };
 
-      if (hasZohoResources && !zohoDelete.ok && !N8N_ZOHO_DELETE_WEBHOOK) {
-        // Nothing configured to clean Zoho with — keep the row so state stays
-        // truthful instead of orphaning live Zoho records.
+      if (hasZohoResources && !zohoDelete.ok) {
+        // Could not confirm Zoho cleanup — keep the row so state stays truthful
+        // instead of orphaning live Zoho records.
         await auditWrite({
           action: "delete_campaign",
           outcome: "refused",
-          payloadSummary: { reason: "no_delete_webhook", campaign: camp.name },
+          payloadSummary: { reason: zohoDelete.detail, campaign: camp.name },
           orgId: effectiveOrgId,
           userId: user.id,
         });
         return NextResponse.json(
           {
-            error: "Zoho cleanup is not configured (N8N_ZOHO_DELETE_WEBHOOK missing). The campaign still exists in Zoho, so it was not deleted here.",
-            reason: "delete_webhook_not_configured",
+            error: `Zoho cleanup could not be confirmed (${zohoDelete.detail}). The campaign still exists in Zoho, so it was not deleted here.`,
+            reason: "zoho_cleanup_unconfirmed",
           },
           { status: 503 }
         );
@@ -2393,36 +2415,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const taskSummary = resolvedTasks
-        .map((t: any, i: number) => `${i + 1}. [${(t.aspect || "").toUpperCase()}] ${t.title || t.name}, Owner: ${t.assignee || "TBD"}, TAT: ${t.tat || "2 Days"}, Urgency: ${t.urgency || "HIGH"}`)
-        .join("\n");
-
-      const updateRes = N8N_ZOHO_UPDATE_WEBHOOK
-        ? await fetch(N8N_ZOHO_UPDATE_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              dealId: resolvedDealId,
-              projectId: resolvedProjectId,
-              invoiceId: resolvedInvoiceId,
-              customerId: campRow?.books_customer_id,
-              client: campRow?.client,
-              campaignName: resolvedName,
-              amount: numericAmount,
-              budget: resolvedBudget,
-              rewardType: resolvedRewardType,
-              tasks: resolvedTasks,
-              taskSummary,
-            }),
-            signal: AbortSignal.timeout(12000),
-          }).catch((err) => {
-            console.warn("[update_live_campaign] Webhook call failed:", err);
-            return null;
-          })
-        : null;
-
-      const updateData = updateRes && updateRes.ok ? await updateRes.json().catch(() => ({})) : null;
-
       const targetCampaignId = campRow?.id || campaignId;
       if (targetCampaignId) {
         const updates: Record<string, any> = {
@@ -2463,7 +2455,6 @@ export async function POST(request: NextRequest) {
         dealId: resolvedDealId,
         projectId: resolvedProjectId,
         invoiceId: resolvedInvoiceId,
-        zohoResponse: updateData,
       });
     }
 
