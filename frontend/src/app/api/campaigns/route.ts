@@ -7,10 +7,8 @@ import { requireConnectorAccess, buildEntitlementSnapshot } from "@/lib/entitlem
 import { getConnectorPreferences, isConnectorPaused } from "@/lib/connector-preferences";
 import {
   resolveZohoAccessToken,
-  isZohoOrgSharedEnabled,
   zohoApiBase,
   zohoDataCenter,
-  ZOHO_LEGACY,
 } from "@/lib/zoho";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +32,12 @@ const N8N_ZOHO_TASK_UPDATE_WEBHOOK =
 /** Reads the current user's server-side pause map (identity: auth user id). */
 async function currentUserPausedMap(userEmailOrId: string | null) {
   return getConnectorPreferences(userEmailOrId);
+}
+
+function getZohoProjectUrl(projectId: string | null | undefined, portalId?: string | null, dc: string = "in"): string | null {
+  if (!projectId) return null;
+  const pId = portalId || projectId;
+  return `https://projects.zoho.${dc}/portal/${pId}#project/${projectId}`;
 }
 
 /**
@@ -146,36 +150,20 @@ export async function checkZohoBooksContact(
   contact?: { contactId: string; contactName: string; companyName: string };
   suggestedName: string;
 }> {
-  const normClient = String(client || '').trim().toLowerCase();
-
-  // 1. Live lookup via n8n webhook
-  if (N8N_ZOHO_SYNC_WEBHOOK) {
-    try {
-      const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "check_books_contact", client, organizationId: organizationId || undefined }),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.exists && data.contact) {
-          return {
-            exists: true,
-            contact: data.contact,
-            suggestedName: data.contact.contactName,
-          };
-        }
-      }
-    } catch (e) {
-      console.warn("[checkZohoBooksContact] Live check via n8n webhook failed, falling back to direct Books API:", e);
-    }
+  const normClient = String(client || "").trim().toLowerCase();
+  if (!normClient) {
+    return { exists: false, suggestedName: "India" };
   }
 
-  // 2. Direct Zoho Books API fallback
+  const lookupKey = userEmail || userId;
+  if (!lookupKey) {
+    return { exists: false, suggestedName: `${client.trim()} India` };
+  }
+
+  // Direct Zoho Books API lookup with the user's authenticated OAuth credentials
   try {
-    const { accessToken, record } = await resolveZohoAccessToken(userEmail, "books", userId);
-    const booksOrgId = record?.booksOrgId || process.env.ZOHO_BOOKS_ORG_ID || ZOHO_LEGACY.booksOrgId;
+    const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "books", userId);
+    const booksOrgId = record?.booksOrgId || process.env.ZOHO_BOOKS_ORG_ID;
     const dc = record?.dataCenter || zohoDataCenter();
     if (accessToken && booksOrgId) {
       const searchUrl = `${zohoApiBase(dc)}/books/v3/contacts?organization_id=${booksOrgId}&search_text=${encodeURIComponent(client.trim())}`;
@@ -191,8 +179,10 @@ export async function checkZohoBooksContact(
         const matched = contacts.find((c: any) => {
           const name = String(c.contact_name || "").toLowerCase();
           const comp = String(c.company_name || "").toLowerCase();
-          return (name && (name.includes(normClient) || normClient.includes(name))) ||
-                 (comp && (comp.includes(normClient) || normClient.includes(comp)));
+          return (
+            (name && (name.includes(normClient) || normClient.includes(name))) ||
+            (comp && (comp.includes(normClient) || normClient.includes(comp)))
+          );
         });
         if (matched) {
           return {
@@ -208,7 +198,7 @@ export async function checkZohoBooksContact(
       }
     }
   } catch (directErr) {
-    console.warn("[checkZohoBooksContact] Direct Books API fallback error:", directErr);
+    console.warn("[checkZohoBooksContact] Direct Books API lookup error:", directErr);
   }
 
   return {
@@ -229,100 +219,76 @@ export async function createZohoBooksContact(
   companyName?: string;
   error?: string;
 }> {
-  let webhookError: string | null = null;
   const contactName = companyName ? `${client} (${companyName})` : `${client} India`;
+  const lookupKey = userEmail || userId;
+  if (!lookupKey) {
+    return { success: false, error: "Authentication required to access Zoho Books" };
+  }
 
-  // 1. Primary creation via n8n webhook
-  if (N8N_ZOHO_SYNC_WEBHOOK) {
-    try {
-      const res = await fetch(N8N_ZOHO_SYNC_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create_books_contact",
-          client,
-          contactName,
-          companyName: companyName || client,
-        }),
-        signal: AbortSignal.timeout(8000),
-      });
+  // Direct Zoho Books API creation with the user's authenticated OAuth credentials
+  try {
+    const { accessToken, record } = await resolveZohoAccessToken(lookupKey, "books", userId);
+    const booksOrgId = record?.booksOrgId || process.env.ZOHO_BOOKS_ORG_ID;
+    const dc = record?.dataCenter || zohoDataCenter();
+    if (!accessToken || !booksOrgId) {
+      return {
+        success: false,
+        error: "Zoho Books is not connected. Please connect your Zoho account in the Connections tab.",
+      };
+    }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.contactId) {
+    const postUrl = `${zohoApiBase(dc)}/books/v3/contacts?organization_id=${booksOrgId}`;
+    const directRes = await fetch(postUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Zoho-oauthtoken ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contact_name: contactName,
+        company_name: companyName || client,
+        customer_sub_type: "business",
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const directData = await directRes.json().catch(() => ({}));
+    if (directRes.ok && directData.contact?.contact_id) {
+      return {
+        success: true,
+        contactId: String(directData.contact.contact_id),
+        contactName: directData.contact.contact_name || contactName,
+        companyName: directData.contact.company_name || client,
+      };
+    } else if (
+      directData.code === 10001 ||
+      (directData.message && directData.message.toLowerCase().includes("already exists"))
+    ) {
+      const searchRes = await fetch(
+        `${zohoApiBase(dc)}/books/v3/contacts?organization_id=${booksOrgId}&search_text=${encodeURIComponent(client.trim())}`,
+        {
+          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+        }
+      );
+      if (searchRes.ok) {
+        const searchData = await searchRes.json().catch(() => ({}));
+        const existing = searchData.contacts?.[0];
+        if (existing?.contact_id) {
           return {
             success: true,
-            contactId: String(data.contactId),
-            contactName: data.contactName || contactName,
-            companyName: data.companyName || client,
+            contactId: String(existing.contact_id),
+            contactName: existing.contact_name || contactName,
+            companyName: existing.company_name || client,
           };
         }
-        webhookError = data.message || data.error || null;
-      } else {
-        webhookError = `Webhook HTTP ${res.status}`;
       }
-    } catch (err: any) {
-      webhookError = err.message;
-      console.warn("[createZohoBooksContact] n8n webhook create failed, falling back to direct Books API:", err.message);
-    }
-  }
-
-  // 2. Direct Zoho Books API fallback
-  try {
-    const { accessToken, record } = await resolveZohoAccessToken(userEmail, "books", userId);
-    const booksOrgId = record?.booksOrgId || process.env.ZOHO_BOOKS_ORG_ID || ZOHO_LEGACY.booksOrgId;
-    const dc = record?.dataCenter || zohoDataCenter();
-    if (accessToken && booksOrgId) {
-      const postUrl = `${zohoApiBase(dc)}/books/v3/contacts?organization_id=${booksOrgId}`;
-      const directRes = await fetch(postUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contact_name: contactName,
-          company_name: companyName || client,
-          customer_sub_type: "business",
-        }),
-        signal: AbortSignal.timeout(8000),
-      });
-      const directData = await directRes.json().catch(() => ({}));
-      if (directRes.ok && directData.contact?.contact_id) {
-        return {
-          success: true,
-          contactId: String(directData.contact.contact_id),
-          contactName: directData.contact.contact_name || contactName,
-          companyName: directData.contact.company_name || client,
-        };
-      } else if (directData.code === 10001 || (directData.message && directData.message.toLowerCase().includes("already exists"))) {
-        // Contact already exists in Zoho Books, search and return existing contact_id
-        const searchRes = await fetch(`${zohoApiBase(dc)}/books/v3/contacts?organization_id=${booksOrgId}&search_text=${encodeURIComponent(client.trim())}`, {
-          headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-        });
-        if (searchRes.ok) {
-          const searchData = await searchRes.json().catch(() => ({}));
-          const existing = searchData.contacts?.[0];
-          if (existing?.contact_id) {
-            return {
-              success: true,
-              contactId: String(existing.contact_id),
-              contactName: existing.contact_name || contactName,
-              companyName: existing.company_name || client,
-            };
-          }
-        }
-        return { success: false, error: directData.message || "Contact already exists in Zoho Books" };
-      } else {
-        return { success: false, error: directData.message || `Zoho Books API returned HTTP ${directRes.status}` };
-      }
+      return { success: false, error: directData.message || "Contact already exists in Zoho Books" };
+    } else {
+      return { success: false, error: directData.message || `Zoho Books API returned HTTP ${directRes.status}` };
     }
   } catch (directErr: any) {
-    console.warn("[createZohoBooksContact] Direct Books API fallback failed:", directErr);
-    return { success: false, error: directErr.message || webhookError || "Failed to register contact in Zoho Books" };
+    console.warn("[createZohoBooksContact] Direct Books API failed:", directErr);
+    return { success: false, error: directErr.message || "Failed to register contact in Zoho Books" };
   }
-
-  return { success: false, error: webhookError || "Zoho Books credentials not available" };
 }
 
 /**
@@ -518,7 +484,7 @@ async function syncCampaignToZohoCRM(
       invoiceId,
       invoiceUrl: invoiceId ? `https://books.zoho.in/app#/invoices/${invoiceId}` : null,
       projectId,
-      projectUrl: projectId ? `https://projects.zoho.in/portal/enlightlabdotcom#project/${projectId}` : null,
+      projectUrl: projectId ? getZohoProjectUrl(projectId) : null,
       writeStatus: complete ? "ADOPTED_EXISTING" : "ADOPTED_EXISTING_PARTIAL",
     };
   }
@@ -581,7 +547,7 @@ async function syncCampaignToZohoCRM(
 
     const dealUrl = dealId ? (body?.dealUrl || `https://crm.zoho.in/crm/org/tab/Potentials/${dealId}`) : null;
     const invoiceUrl = invoiceId ? (body?.invoiceUrl || `https://books.zoho.in/app#/invoices/${invoiceId}`) : null;
-    const projectUrl = projectId ? (body?.projectUrl || `https://projects.zoho.in/portal/enlightlabdotcom#project/${projectId}`) : null;
+    const projectUrl = projectId ? (body?.projectUrl || getZohoProjectUrl(projectId)) : null;
 
     const writeStatus = dealId ? "SYNCED" : "CREATED_NO_ID";
     const errorDetail = !dealId ? (body?.errors?.crm || body?.error || "Zoho CRM did not return a Deal ID") : undefined;
@@ -756,21 +722,13 @@ export async function reconcileZohoCRMWithSupabase(
       let updatedCount = 0;
       const claimedDealIds = new Set<string>();
 
-      // Native Zoho CRM Campaign module IDs that must always be preserved
-      const nativeZohoCampaignIds = new Set(
-        (process.env.NATIVE_ZOHO_CAMPAIGN_IDS || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      );
-
       for (const camp of existing) {
         // Approval gate: drafts were never pushed to Zoho and must never be auto-linked
         // to live Zoho CRM deals or deleted during Zoho CRM reconciliation.
         if (camp.status === "draft") continue;
 
         const dealIdStr = camp.zoho_crm_deal_id ? String(camp.zoho_crm_deal_id) : "";
-        const isNativeCampaign = nativeZohoCampaignIds.has(dealIdStr) || String(camp.zoho_crm_deal_url || "").includes("/Campaigns/");
+        const isNativeCampaign = String(camp.zoho_crm_deal_url || "").includes("/Campaigns/");
 
         if (isNativeCampaign) {
           claimedDealIds.add(dealIdStr);
@@ -1037,7 +995,7 @@ export async function GET(request: NextRequest) {
       zohoBooks: isConnectorPaused(prefs, "zoho.books"),
     };
 
-    const orgShared = isZohoOrgSharedEnabled();
+    const orgShared = false;
     const anyPaused = connectorPaused.zohoCrm || connectorPaused.zohoProjects || connectorPaused.zohoBooks;
     const crmGranted = crmVerdict?.access === "granted";
     const syncReachable = syncPing.reachable;
@@ -1505,7 +1463,7 @@ export async function POST(request: NextRequest) {
             projects: {
               product: "Zoho Projects",
               projectId: existingRow.zoho_project_id,
-              projectUrl: existingRow.zoho_project_url || `https://projects.zoho.in/portal/enlightlabdotcom#project/${existingRow.zoho_project_id}`,
+              projectUrl: existingRow.zoho_project_url || getZohoProjectUrl(existingRow.zoho_project_id),
               taskCount: (resolvedTasks || []).length,
               writeStatus: "SYNCED",
             },
@@ -1532,7 +1490,7 @@ export async function POST(request: NextRequest) {
           if (created.success && created.contactId) {
             booksCustomerId = created.contactId;
           } else {
-            booksCustomerId = process.env.ZOHO_BOOKS_DEFAULT_CUSTOMER_ID || null;
+            booksCustomerId = null;
           }
         }
       }
@@ -1680,7 +1638,7 @@ export async function POST(request: NextRequest) {
                 client: campaignData.client || targetRow?.client,
                 budget: campaignData.budget || targetRow?.budget,
                 codeVolume: campaignData.codeVolume || targetRow?.code_volume,
-                booksCustomerId: booksCustomerId || targetRow?.books_customer_id || process.env.ZOHO_BOOKS_DEFAULT_CUSTOMER_ID || "",
+                booksCustomerId: booksCustomerId || targetRow?.books_customer_id || undefined,
                 tasks: resolvedTasks,
               }),
               signal: AbortSignal.timeout(20000),
@@ -1690,7 +1648,7 @@ export async function POST(request: NextRequest) {
               const body = await res.json().catch(() => ({}));
               projectId = body?.project_id || body?.projectId || projectId;
               invoiceId = body?.invoice_id || body?.invoiceId || invoiceId;
-              projectUrl = projectId ? `https://projects.zoho.in/portal/enlightlabdotcom#project/${projectId}` : projectUrl;
+              projectUrl = projectId ? getZohoProjectUrl(projectId) : projectUrl;
               invoiceUrl = invoiceId ? `https://books.zoho.in/app#/invoices/${invoiceId}` : invoiceUrl;
               writeStatus = "SYNCED";
             } else {
@@ -2121,7 +2079,7 @@ export async function POST(request: NextRequest) {
                         zoho_books_invoice_id: syncData.invoice_id || null,
                         zoho_books_invoice_url: syncData.invoice_id ? `https://books.zoho.in/app#/invoices/${syncData.invoice_id}` : null,
                         zoho_project_id: syncData.project_id || null,
-                        zoho_project_url: syncData.project_id ? `https://projects.zoho.in/portal/enlightlabdotcom#project/${syncData.project_id}` : null,
+                        zoho_project_url: syncData.project_id ? getZohoProjectUrl(syncData.project_id) : null,
                         zoho_sync_status: "synced",
                         last_zoho_sync: new Date().toISOString(),
                       })

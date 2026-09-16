@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { buildEntitlementSnapshot } from '@/lib/entitlements';
-import { resolveZohoAccessToken, isZohoOrgSharedEnabled, legacyOrgConfig } from '@/lib/zoho';
+import { resolveZohoAccessToken } from '@/lib/zoho';
 import { resolveMicrosoftVaultTokens } from '@/lib/microsoft-vault';
 import { getConnectorPreferences, isConnectorPaused } from '@/lib/connector-preferences';
 import { requireAuth } from '@/lib/auth-helpers';
@@ -26,7 +25,7 @@ import { adminSupabase } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || '';
+const N8N_WEBHOOK_URL = process.env.N8N_COPILOT_WEBHOOK_URL || process.env.N8N_WEBHOOK_URL || '';
 
 const SSE_HEADERS = {
   'Content-Type': 'text/event-stream; charset=utf-8',
@@ -283,12 +282,10 @@ async function streamN8nChat(
   // fall back to the legacy org-shared values only when explicitly enabled.
   const zohoRecord = zohoCrmToken.record || zohoProjectsToken.record || zohoBooksToken.record;
   if (zohoRecord) {
-    orgConfig.dataCenter = zohoRecord.dataCenter || legacyOrgConfig().dataCenter;
+    orgConfig.dataCenter = zohoRecord.dataCenter || "in";
     if (zohoRecord.portalId) orgConfig.portalId = zohoRecord.portalId;
     if (zohoRecord.booksOrgId) orgConfig.organizationId = zohoRecord.booksOrgId;
     if (zohoRecord.crmOrgId) orgConfig.crmOrgId = zohoRecord.crmOrgId;
-  } else if (isZohoOrgSharedEnabled()) {
-    Object.assign(orgConfig, legacyOrgConfig());
   }
 
   const encoder = new TextEncoder();

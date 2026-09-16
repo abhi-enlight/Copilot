@@ -17,7 +17,6 @@ import { adminSupabase } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
 import {
   ZOHO_PRODUCTS,
-  isZohoOrgSharedEnabled,
   resolveZohoAccessToken,
   type ZohoProduct,
 } from "@/lib/zoho";
@@ -272,10 +271,6 @@ function zohoVerdictFor(product: ZohoProduct, zoho: EntitlementSnapshot["zoho"][
       return { access: "granted", reason: `${role === "admin" ? "Admin" : "Owner"} override over failed probe`, viaRoleOverride: true, probeOk: false, probedNow: false };
     }
     return { access: "locked", reason: zoho.detail, viaRoleOverride: false, probeOk: false, probedNow: false };
-  }
-  // Not connected: org-shared fallback keeps legacy access alive
-  if (isZohoOrgSharedEnabled()) {
-    return { access: "granted", reason: "Org-shared Zoho connection (legacy fallback)", viaRoleOverride: false, probeOk: false, probedNow: false };
   }
   void connectorId;
   return { access: "not_connected", reason: "Connect your own Zoho account to enable this connector", viaRoleOverride: false, probeOk: false, probedNow: false };

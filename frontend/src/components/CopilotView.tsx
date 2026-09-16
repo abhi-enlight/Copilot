@@ -974,7 +974,7 @@ export default function CopilotView({
           zohoSync?.projects?.projectUrl ||
           created.zohoProjectUrl ||
           (created as any)?.zoho_project_url ||
-          (projectId ? `https://projects.zoho.in/portal/enlightlabdotcom#project/${projectId}` : undefined);
+          (projectId ? `https://projects.zoho.in/portal/${projectId}#project/${projectId}` : undefined);
         const invoiceId =
           zohoSync?.books?.invoiceId ||
           zohoSync?.booksInvoice?.invoiceId ||

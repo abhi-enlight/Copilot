@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { requireAuth } from "@/lib/auth-helpers";
 import { BIGCITY_TEAM } from "@/utils/planModifier";
 import { getConnectorPreferences, isConnectorPaused } from "@/lib/connector-preferences";
+import { resolveZohoAccessToken } from "@/lib/zoho";
 import {
   generateAIAspectPlan,
   checkZohoBooksContact,
@@ -403,13 +404,22 @@ Return ONLY a valid JSON object matching this schema (no markdown fences, pure J
       });
 
       // Books pre-flight is a live Zoho lookup, skip it entirely when the
-      // user has paused the Zoho Books connection (no ghost prompts).
-      const cookieStore = await cookies();
-      const sessionEmail = cookieStore.get("ms_user_email")?.value || null;
-      const pausePrefs = await getConnectorPreferences(sessionEmail);
-      const booksContact = isConnectorPaused(pausePrefs, "zoho.books")
-        ? { exists: true, contact: undefined, suggestedName: `${fullPlan.client} India` }
-        : await checkZohoBooksContact(fullPlan.client, effectiveOrgId);
+      // user has not connected Zoho Books or has paused the connection (no ghost prompts).
+      const userIdentifier = user.email || user.id;
+      const pausePrefs = await getConnectorPreferences(userIdentifier);
+      const isBooksPaused = isConnectorPaused(pausePrefs, "zoho.books");
+
+      let isBooksConnected = false;
+      if (!isBooksPaused) {
+        try {
+          const zohoToken = await resolveZohoAccessToken(userIdentifier, "books", user.id);
+          isBooksConnected = Boolean(zohoToken.accessToken && zohoToken.record?.booksOrgId);
+        } catch {}
+      }
+
+      const booksContact = (isBooksConnected && !isBooksPaused)
+        ? await checkZohoBooksContact(fullPlan.client, effectiveOrgId, user.email, user.id)
+        : { exists: true, contact: undefined, suggestedName: `${fullPlan.client} India` };
 
       return NextResponse.json({
         success: true,

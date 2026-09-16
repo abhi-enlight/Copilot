@@ -73,14 +73,6 @@ export function zohoProjectsApiBase(dc = zohoDataCenter()): string {
   return `https://projectsapi.zoho.${dc}`;
 }
 
-/** Legacy hard-coded values, used only as org-shared fallback defaults. */
-export const ZOHO_LEGACY = {
-  portalId: "60085935707",
-  booksOrgId: "60085935698",
-  portalName: "enlightlabdotcom",
-  dataCenter: "in",
-};
-
 export function zohoRedirectUri(requestHost: string): string {
   const isLocal = requestHost.includes("localhost") || requestHost.includes("127.0.0.1");
   if (isLocal) {
@@ -553,15 +545,7 @@ export async function resolveZohoAccessToken(
 // ---------------------------------------------------------------------------
 
 export function isZohoOrgSharedEnabled(): boolean {
-  return (process.env.ZOHO_ORG_SHARED || "").toLowerCase() === "true";
-}
-
-export function legacyOrgConfig(): Record<string, string> {
-  return {
-    dataCenter: ZOHO_LEGACY.dataCenter,
-    portalId: ZOHO_LEGACY.portalId,
-    organizationId: ZOHO_LEGACY.booksOrgId,
-  };
+  return false;
 }
 
 // ---------------------------------------------------------------------------
