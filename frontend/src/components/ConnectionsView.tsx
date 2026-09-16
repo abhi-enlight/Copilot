@@ -430,7 +430,7 @@ export default function ConnectionsView() {
               id="microsoft.outlook"
               name="Microsoft Outlook Mail"
               provider="Microsoft 365"
-              description="Read recent emails, search conversations, and generate contextual reply drafts."
+              description="Read, search, and send mail: ask the Copilot to draft an email, review it on the actionable draft card, and send it from your own Outlook account."
               icon={<EnvelopeSimple size={18} weight="duotone" className="text-sky-600" />}
               iconBg="bg-sky-50 border-sky-200"
               isLoading={isInitialLoading}
@@ -440,7 +440,7 @@ export default function ConnectionsView() {
               accessState={access("microsoft.outlook")}
               onToggle={() => guardToggle("microsoft.outlook")}
               account={isOutlookLive ? (userName ? `${userEmail} (${userName})` : userEmail) : undefined}
-              connectHref="/api/integrations/microsoft/connect?preset=mail&returnTo=/"
+              connectHref="/api/integrations/microsoft/connect?preset=mail&mode=write&returnTo=/"
               onDisconnect={handleDisconnectMicrosoft}
             />
 
