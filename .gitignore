@@ -33,3 +33,4 @@ frontend/next-env.d.ts
 # Workflows
 workflows/
 Notes.md
+*.cjs
