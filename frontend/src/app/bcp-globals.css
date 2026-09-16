@@ -119,9 +119,20 @@
   background: #A8A29E;
 }
 
+/* Text selection: subtle brand tint, inherits each element's own text color so
+   selections stay readable on both light and dark surfaces (e.g. chat bubbles). */
 ::selection {
-  background: rgba(161, 98, 7, 0.15);
-  color: #451A03;
+  background: rgba(59, 130, 246, 0.25);
+}
+
+/* Dark surfaces (dark bubbles, code blocks, dark panels): brighten the text so
+   it stays visible over the dark selection tint. */
+.bg-stone-900 ::selection,
+[class*="bg-stone-9"] ::selection,
+[class*="bg-neutral-9"] ::selection,
+[class*="bg-slate-9"] ::selection,
+[class*="bg-zinc-9"] ::selection {
+  color: #ffffff;
 }
 
 /* --- Base --- */

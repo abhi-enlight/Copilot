@@ -20,6 +20,7 @@ import {
   UNKNOWN_EXPIRY_STALENESS_MS,
   getVaultTokensNeedingRefresh,
   persistZohoTokenRefresh,
+  probeZohoProduct,
   refreshZohoToken,
   type ZohoProduct,
 } from "@/lib/zoho";
@@ -121,6 +122,38 @@ async function refreshOne(
     await markError(userEmail, product, persisted.error || "persist_failed", cycleId);
     return "failed";
   }
+
+  // Self-heal: re-probe org IDs after a successful refresh and backfill any
+  // that are missing. A connect-time probe failure (e.g. the token predated a
+  // scope like ZohoProjects.portals.ALL) otherwise leaves the vault row with
+  // null portalId/booksOrgId forever, and every Prism read then refuses with
+  // org_misconfigured even though the connection is healthy.
+  try {
+    if (refreshed.accessToken) {
+      const dc = dataCenter || "in";
+      const probe = await probeZohoProduct(product, refreshed.accessToken, dc);
+      if (probe.ok && (probe.portalId || probe.booksOrgId || probe.crmOrgId)) {
+        const patch: Record<string, string> = {};
+        if (probe.portalId) patch.zoho_portal_id = probe.portalId;
+        if (probe.booksOrgId) patch.zoho_books_org_id = probe.booksOrgId;
+        if (probe.crmOrgId) patch.zoho_crm_org_id = probe.crmOrgId;
+        if (probe.dataCenter) patch.zoho_data_center = probe.dataCenter;
+        if (Object.keys(patch).length > 0) {
+          await supabase
+            .from("user_integrations")
+            .update({ ...patch, updated_at: new Date().toISOString() })
+            .eq("user_email", userEmail)
+            .eq("provider", "zoho")
+            .eq("product", product);
+          console.log(`[token-refresher] backfilled org IDs for ${userEmail}/${product}: ${Object.keys(patch).join(",")}`);
+        }
+      }
+    }
+  } catch (err: unknown) {
+    // Backfill is best-effort; never fail the refresh over it.
+    console.warn("[token-refresher] org ID backfill skipped:", (err as Error)?.message);
+  }
+
   return "refreshed";
 }
 
