@@ -434,3 +434,142 @@ export async function createDraftEmail(
   }
 }
 
+export interface CreateSharePointSiteOptions {
+  name: string;
+  description?: string;
+  webUrl?: string;
+  siteSlug?: string;
+  template?: "sts" | "sitepagepublishing";
+  ownerEmail?: string;
+}
+
+export interface CreateSharePointSiteResult {
+  success: boolean;
+  siteId?: string;
+  webUrl?: string;
+  name?: string;
+  error?: string;
+  code?: string;
+}
+
+/**
+ * Resolves the SharePoint root site webUrl (e.g. https://enlightlab.sharepoint.com)
+ */
+export async function fetchSharePointRootWebUrl(accessToken: string): Promise<string | null> {
+  try {
+    const res = await resilientFetch('https://graph.microsoft.com/v1.0/sites/root?$select=webUrl', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15000),
+    }, {
+      tenantKey: tenantKeyFromToken(accessToken),
+      provider: 'microsoft-graph',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.webUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Creates a new SharePoint Site Collection via Microsoft Graph API.
+ */
+export async function createSharePointSite(
+  accessToken: string,
+  options: CreateSharePointSiteOptions
+): Promise<CreateSharePointSiteResult> {
+  try {
+    if (!options.name || !options.name.trim()) {
+      return { success: false, error: 'Site name is required' };
+    }
+
+    const trimmedName = options.name.trim();
+    let targetWebUrl = options.webUrl?.trim();
+
+    if (!targetWebUrl) {
+      const rootWebUrl = await fetchSharePointRootWebUrl(accessToken);
+      const slug = (options.siteSlug || trimmedName)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      if (rootWebUrl) {
+        targetWebUrl = `${rootWebUrl.replace(/\/$/, '')}/sites/${slug}`;
+      } else {
+        targetWebUrl = `/sites/${slug}`;
+      }
+    }
+
+    const payload: Record<string, any> = {
+      displayName: trimmedName,
+      description: options.description || '',
+      webUrl: targetWebUrl,
+      template: options.template || 'sts',
+    };
+
+    if (options.ownerEmail) {
+      payload.ownerIdentityToResolve = {
+        email: options.ownerEmail,
+      };
+    }
+
+    const res = await resilientFetch('https://graph.microsoft.com/beta/sites', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(30000),
+    }, {
+      tenantKey: tenantKeyFromToken(accessToken),
+      provider: 'microsoft-graph',
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('Microsoft Graph create site error:', res.status, errText);
+
+      let graphCode: string | undefined;
+      let graphMessage: string | undefined;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed?.error) {
+          graphCode = parsed.error.code;
+          graphMessage = parsed.error.message;
+        }
+      } catch {
+        // Not JSON
+      }
+
+      let errorMsg = `Microsoft Graph create site error (${res.status}): ${res.statusText}`;
+      if (graphMessage) {
+        errorMsg = `Microsoft Graph create site error (${res.status}): ${graphMessage}`;
+      } else if (graphCode) {
+        errorMsg = `Microsoft Graph create site error (${res.status}): ${graphCode}`;
+      }
+
+      return {
+        success: false,
+        error: errorMsg,
+        code: graphCode || String(res.status),
+      };
+    }
+
+    const data = await res.json();
+    return {
+      success: true,
+      siteId: data.id,
+      webUrl: data.webUrl || targetWebUrl,
+      name: data.displayName || trimmedName,
+    };
+  } catch (err: unknown) {
+    console.error('Failed to create SharePoint site:', err);
+    const degraded = circuitDegradedMessage(err);
+    const errorDetail = err instanceof Error ? err.message : 'Failed to create SharePoint site';
+    return { success: false, error: degraded || errorDetail };
+  }
+}
+

@@ -101,7 +101,7 @@ export async function GET(request: Request) {
         selectedScopes = [
           ...baseScopes,
           "Mail.Read", "Files.Read", "Files.ReadWrite",
-          "Sites.Read.All", "Sites.ReadWrite.All",
+          "Sites.Read.All", "Sites.ReadWrite.All", "Sites.Create.All", "Sites.Manage.All",
         ];
         break;
       case "dynamics_crm":
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
           ...baseScopes,
           "Mail.Read", "Mail.ReadWrite", "Mail.Send",
           "Files.Read", "Files.ReadWrite",
-          "Sites.Read.All", "Sites.ReadWrite.All",
+          "Sites.Read.All", "Sites.ReadWrite.All", "Sites.Create.All", "Sites.Manage.All",
           crmScope,
         ];
         break;

@@ -204,6 +204,9 @@ export default function ConnectionsView() {
   const isOutlookLive = isM365Authed && Boolean(serverStatus?.outlookConnected);
   const isOneDriveLive = isM365Authed && Boolean(serverStatus?.onedriveConnected);
   const isSharepointSitesGranted = Boolean(serverStatus?.sharepointDrive === "/sites/root/drive");
+  const isSharepointCreateGranted = Boolean(
+    serverStatus?.grantedScopes?.some((s: string) => /sites\.(create|manage|fullcontrol)/i.test(s))
+  );
   const isCrmLive = isM365Authed && access("microsoft.dynamics") === "granted" && Boolean(serverStatus?.crmConnected);
 
   // Discovered Zoho account identity for connected cards
@@ -467,7 +470,7 @@ export default function ConnectionsView() {
                   : undefined
               }
               connectHref={
-                isOneDriveLive && !isSharepointSitesGranted
+                isOneDriveLive && (!isSharepointSitesGranted || !isSharepointCreateGranted)
                   ? "/api/integrations/microsoft/connect?preset=org_sharepoint&prompt=consent&returnTo=/"
                   : "/api/integrations/microsoft/connect?preset=personal_files&returnTo=/"
               }
@@ -482,12 +485,16 @@ export default function ConnectionsView() {
                         label: "Sites Scope",
                         value: isSharepointSitesGranted ? "Granted (Sites.Read)" : "Admin Consent Needed",
                       },
+                      {
+                        label: "Site Creation",
+                        value: isSharepointCreateGranted ? "Granted (Sites.Create)" : "Consent Needed",
+                      },
                     ]
                   : []
               }
               requiresAdminNotice={
-                isOneDriveLive && !isSharepointSitesGranted
-                  ? "Currently scoped to personal OneDrive. To connect company-wide SharePoint team sites and root document libraries, grant Sites.Read.All in Entra ID."
+                isOneDriveLive && (!isSharepointSitesGranted || !isSharepointCreateGranted)
+                  ? "Connect company-wide SharePoint team sites, root document libraries, and site provisioning by granting Sites.Read.All and Sites.Create.All in Entra ID."
                   : undefined
               }
               onAdminApprovalClick={() => setIsAdminApprovalModalOpen(true)}

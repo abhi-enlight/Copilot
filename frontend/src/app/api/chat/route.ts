@@ -327,9 +327,14 @@ async function streamN8nChat(
           .slice(-20)
           .map((m) => ({ role: m.role, content: m.content.slice(0, 8000) }));
 
+        let effectiveChatInput = message;
+        if (/(?:create|provision|setup|set up|new|add)\s+.*sharepoint\s+(?:site|team|portal)|sharepoint\s+(?:site|team|portal)\s+(?:create|provision|setup)/i.test(message)) {
+          effectiveChatInput = `${message}\n\n[INSTRUCTION: The user wants to create a SharePoint site. Output a structured site creation draft block formatted exactly like: [SHAREPOINT_SITE_DRAFT]{"name": "Proposed Site Name", "description": "Brief description", "siteSlug": "site-slug", "template": "sts"}[/SHAREPOINT_SITE_DRAFT] followed by a concise summary. The UI will render this as an interactive SharePoint Site Action Card.]`;
+        }
+
         const n8nPayload: Record<string, unknown> = {
           action: 'sendMessage',
-          chatInput: message,
+          chatInput: effectiveChatInput,
           sessionId: sessionId || `web-${Date.now()}`,
           userId,
           organizationId: orgId,

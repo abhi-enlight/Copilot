@@ -16,6 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import ErrorBoundary from "./ErrorBoundary";
 import EmailDraftCard, { EmailDraftData } from "./EmailDraftCard";
+import SharePointSiteCard, { SharePointSiteDraftData } from "./SharePointSiteCard";
 
 export interface Message {
   id: string;
@@ -63,6 +64,45 @@ function extractEmailDrafts(text: string): { drafts: EmailDraftData[]; contentWi
   return { drafts, contentWithoutDrafts };
 }
 
+function extractSharePointSiteDrafts(text: string): { siteDrafts: SharePointSiteDraftData[]; contentWithoutSiteDrafts: string } {
+  const siteDrafts: SharePointSiteDraftData[] = [];
+  const regex = /(?:```(?:json)?\s*)?\[SHAREPOINT_SITE_DRAFT\]([\s\S]*?)\[\/SHAREPOINT_SITE_DRAFT\](?:\s*```)?/gi;
+
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const rawBlock = match[1].trim();
+    try {
+      const parsed = JSON.parse(rawBlock);
+      if (parsed && (parsed.name || parsed.displayName || parsed.title)) {
+        siteDrafts.push({
+          name: parsed.name || parsed.displayName || parsed.title || "",
+          description: parsed.description || "",
+          siteSlug: parsed.siteSlug || parsed.slug || "",
+          template: parsed.template === "sitepagepublishing" ? "sitepagepublishing" : "sts",
+          webUrl: parsed.webUrl,
+        });
+      }
+    } catch {
+      const nameMatch = rawBlock.match(/(?:name|title):\s*([^\n\r]+)/i);
+      const descMatch = rawBlock.match(/description:\s*([^\n\r]+)/i);
+      const slugMatch = rawBlock.match(/(?:siteSlug|slug):\s*([^\n\r]+)/i);
+      const templateMatch = rawBlock.match(/template:\s*([^\n\r]+)/i);
+
+      if (nameMatch) {
+        siteDrafts.push({
+          name: nameMatch[1].trim(),
+          description: descMatch ? descMatch[1].trim() : "",
+          siteSlug: slugMatch ? slugMatch[1].trim() : undefined,
+          template: templateMatch && /publish|comm/i.test(templateMatch[1]) ? "sitepagepublishing" : "sts",
+        });
+      }
+    }
+  }
+
+  const contentWithoutSiteDrafts = text.replace(regex, "").trim();
+  return { siteDrafts, contentWithoutSiteDrafts };
+}
+
 interface ChatMessageProps {
   message: Message;
   index: number;
@@ -79,9 +119,17 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
         .replace(/^Calling tools?:\s*[\s\S]*?(?=(?:I am|[A-Z][a-z]+))/gi, "")
         .trim();
 
-  const { drafts, contentWithoutDrafts } = !isUser
-    ? extractEmailDrafts(cleanContent)
-    : { drafts: [], contentWithoutDrafts: cleanContent };
+  let drafts: EmailDraftData[] = [];
+  let siteDrafts: SharePointSiteDraftData[] = [];
+  let contentWithoutDrafts = cleanContent;
+
+  if (!isUser) {
+    const emailResult = extractEmailDrafts(cleanContent);
+    drafts = emailResult.drafts;
+    const siteResult = extractSharePointSiteDrafts(emailResult.contentWithoutDrafts);
+    siteDrafts = siteResult.siteDrafts;
+    contentWithoutDrafts = siteResult.contentWithoutSiteDrafts;
+  }
 
   const handleCopy = async () => {
     try {
@@ -378,6 +426,14 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
                   <div className="mt-2 space-y-3 not-prose">
                     {drafts.map((draft, i) => (
                       <EmailDraftCard key={i} draft={draft} />
+                    ))}
+                  </div>
+                )}
+
+                {siteDrafts.length > 0 && (
+                  <div className="mt-2 space-y-3 not-prose">
+                    {siteDrafts.map((siteDraft, i) => (
+                      <SharePointSiteCard key={i} draft={siteDraft} />
                     ))}
                   </div>
                 )}
