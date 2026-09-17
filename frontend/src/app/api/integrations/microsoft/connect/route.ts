@@ -121,7 +121,7 @@ export async function GET(request: Request) {
       default:
         selectedScopes =
           mode === "write"
-            ? [...baseScopes, "Mail.Read", "Files.Read", "Files.ReadWrite"]
+            ? [...baseScopes, "Mail.Read", "Mail.ReadWrite", "Mail.Send", "Files.Read", "Files.ReadWrite"]
             : [...baseScopes, "Mail.Read", "Files.Read"];
         break;
     }
@@ -145,8 +145,11 @@ export async function GET(request: Request) {
   authUrl.searchParams.set("response_mode", "query");
   authUrl.searchParams.set("scope", scopes);
   authUrl.searchParams.set("state", statePayload);
+  const promptParam = searchParams.get("prompt");
   const loginHint = searchParams.get("login_hint");
-  if (loginHint) {
+  if (promptParam) {
+    authUrl.searchParams.set("prompt", promptParam);
+  } else if (loginHint) {
     authUrl.searchParams.set("login_hint", loginHint);
   } else {
     authUrl.searchParams.set("prompt", "select_account");

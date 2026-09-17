@@ -47,14 +47,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 2. Resolve Microsoft OAuth token from user's vault
-  const msVault = await resolveMicrosoftVaultTokens(user.id, userEmail);
+  // 2. Resolve Microsoft OAuth token specifically for mail from user's vault
+  const msVault = await resolveMicrosoftVaultTokens(user.id, userEmail, "mail");
   if (!msVault.accessToken) {
     return NextResponse.json(
       {
         error: "Microsoft Outlook is not connected or requires re-authentication. Please connect Outlook in the Connections tab.",
         code: "NOT_CONNECTED",
         requiresReconnect: true,
+        reconnectUrl: "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/",
+      },
+      { status: 403 }
+    );
+  }
+
+  // Pre-flight check: ensure the token includes Mail.Send permission
+  const hasMailSend =
+    msVault.scopes.length === 0 ||
+    msVault.scopes.some((s) => /mail\.send/i.test(s));
+
+  if (!hasMailSend) {
+    return NextResponse.json(
+      {
+        error:
+          "Your Microsoft account connection is missing email dispatch permissions (Mail.Send). Please authorize Outlook with send access.",
+        code: "INSUFFICIENT_SCOPES",
+        requiresReconnect: true,
+        reconnectUrl: "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/",
       },
       { status: 403 }
     );
@@ -103,12 +122,22 @@ export async function POST(request: NextRequest) {
   }
 
   if (!result.success) {
+    const isPermissionIssue =
+      result.code === "ErrorAccessDenied" ||
+      result.code === "Authorization_RequestDenied" ||
+      result.code === "403" ||
+      /403|Forbidden|Access is denied|privilege|permission/i.test(result.error || "");
+
     return NextResponse.json(
       {
         error: result.error || "Failed to send email via Microsoft Outlook",
-        code: "SEND_FAILED",
+        code: result.code || "SEND_FAILED",
+        requiresReconnect: isPermissionIssue,
+        reconnectUrl: isPermissionIssue
+          ? "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/"
+          : undefined,
       },
-      { status: 502 }
+      { status: isPermissionIssue ? 403 : 502 }
     );
   }
 

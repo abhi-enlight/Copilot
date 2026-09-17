@@ -138,7 +138,15 @@ export default function AdminApprovalModal({
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 hover:border-stone-300 text-stone-700 text-[11px] font-medium transition-colors"
                   >
                     <FolderOpen size={13} />
-                    <span>SharePoint / OneDrive Only</span>
+                    <span>Personal OneDrive Only</span>
+                  </a>
+                  <a
+                    href="/api/integrations/microsoft/connect?preset=org_sharepoint&prompt=consent&returnTo=/"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-800 text-[11px] font-semibold transition-colors"
+                  >
+                    <FolderOpen size={13} weight="bold" />
+                    <span>Authorize Org SharePoint Sites</span>
+                    <ArrowSquareOut size={12} weight="bold" />
                   </a>
                 </div>
               </div>

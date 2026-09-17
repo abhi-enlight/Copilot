@@ -225,6 +225,7 @@ export interface SendEmailResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  code?: string;
 }
 
 export interface DraftEmailResult {
@@ -232,6 +233,7 @@ export interface DraftEmailResult {
   draftId?: string;
   webLink?: string;
   error?: string;
+  code?: string;
 }
 
 /**
@@ -301,7 +303,30 @@ export async function sendUserEmail(
     if (!res.ok) {
       const errText = await res.text();
       console.error('Microsoft Graph /me/sendMail error:', res.status, errText);
-      return { success: false, error: `Microsoft Graph sendMail error (${res.status}): ${res.statusText}` };
+      let graphCode: string | undefined;
+      let graphMessage: string | undefined;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed?.error) {
+          graphCode = parsed.error.code;
+          graphMessage = parsed.error.message;
+        }
+      } catch {
+        // Not JSON
+      }
+
+      let errorMsg = `Microsoft Graph sendMail error (${res.status}): ${res.statusText}`;
+      if (graphMessage) {
+        errorMsg = `Microsoft Graph sendMail error (${res.status}): ${graphMessage}`;
+      } else if (graphCode) {
+        errorMsg = `Microsoft Graph sendMail error (${res.status}): ${graphCode}`;
+      }
+
+      return {
+        success: false,
+        error: errorMsg,
+        code: graphCode || String(res.status),
+      };
     }
 
     return { success: true };
@@ -373,7 +398,30 @@ export async function createDraftEmail(
     if (!res.ok) {
       const errText = await res.text();
       console.error('Microsoft Graph create draft error:', res.status, errText);
-      return { success: false, error: `Microsoft Graph draft error (${res.status}): ${res.statusText}` };
+      let graphCode: string | undefined;
+      let graphMessage: string | undefined;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed?.error) {
+          graphCode = parsed.error.code;
+          graphMessage = parsed.error.message;
+        }
+      } catch {
+        // Not JSON
+      }
+
+      let errorMsg = `Microsoft Graph draft error (${res.status}): ${res.statusText}`;
+      if (graphMessage) {
+        errorMsg = `Microsoft Graph draft error (${res.status}): ${graphMessage}`;
+      } else if (graphCode) {
+        errorMsg = `Microsoft Graph draft error (${res.status}): ${graphCode}`;
+      }
+
+      return {
+        success: false,
+        error: errorMsg,
+        code: graphCode || String(res.status),
+      };
     }
 
     const data = await res.json();

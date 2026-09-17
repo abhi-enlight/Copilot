@@ -23,7 +23,8 @@ const EXPIRY_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before actual expir
  */
 export async function resolveMicrosoftVaultTokens(
   authUserId: string,
-  userEmail?: string | null
+  userEmail?: string | null,
+  product?: "mail" | "sharepoint"
 ): Promise<MicrosoftVaultRecord> {
   if (!authUserId && !userEmail) {
     return {
@@ -42,6 +43,10 @@ export async function resolveMicrosoftVaultTokens(
       .select("*")
       .eq("provider", "microsoft");
 
+    if (product) {
+      query = query.eq("product", product);
+    }
+
     if (authUserId && userEmail) {
       query = query.or(`auth_user_id.eq.${authUserId},user_email.eq.${userEmail.toLowerCase()}`);
     } else if (authUserId) {
@@ -50,7 +55,26 @@ export async function resolveMicrosoftVaultTokens(
       query = query.eq("user_email", userEmail.toLowerCase());
     }
 
-    const { data: records, error } = await query.order("updated_at", { ascending: false }).limit(1);
+    let { data: records, error } = await query.order("updated_at", { ascending: false }).limit(1);
+
+    // Fall back to any active Microsoft integration if specific product wasn't found
+    if ((error || !records || records.length === 0) && product) {
+      let fallbackQuery = adminSupabase
+        .from("user_integrations")
+        .select("*")
+        .eq("provider", "microsoft");
+
+      if (authUserId && userEmail) {
+        fallbackQuery = fallbackQuery.or(`auth_user_id.eq.${authUserId},user_email.eq.${userEmail.toLowerCase()}`);
+      } else if (authUserId) {
+        fallbackQuery = fallbackQuery.eq("auth_user_id", authUserId);
+      } else if (userEmail) {
+        fallbackQuery = fallbackQuery.eq("user_email", userEmail.toLowerCase());
+      }
+      const fallback = await fallbackQuery.order("updated_at", { ascending: false }).limit(1);
+      records = fallback.data;
+      error = fallback.error;
+    }
 
     if (error || !records || records.length === 0) {
       return {
@@ -170,6 +194,7 @@ export async function upsertMicrosoftIntegration(opts: {
   refreshToken?: string | null;
   expiresIn?: number;
   scopes?: string[];
+  product?: "mail" | "sharepoint";
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     const normalizedEmail = opts.userEmail.trim().toLowerCase();
@@ -188,9 +213,31 @@ export async function upsertMicrosoftIntegration(opts: {
     const scopes = opts.scopes || [];
 
     // 2. Products supported by Microsoft integration in user_integrations table: 'mail' and 'sharepoint'
-    const products: ("mail" | "sharepoint")[] = ["mail", "sharepoint"];
+    const products: ("mail" | "sharepoint")[] = opts.product ? [opts.product] : ["mail", "sharepoint"];
 
     for (const product of products) {
+      // Prevent downgrading an existing mail integration that already holds Mail.Send
+      if (product === "mail" && !scopes.some((s) => /mail\.send/i.test(s))) {
+        const { data: existingMail } = await adminSupabase
+          .from("user_integrations")
+          .select("id, scopes, status, access_token_expires_at")
+          .eq("user_email", normalizedEmail)
+          .eq("provider", "microsoft")
+          .eq("product", "mail")
+          .maybeSingle();
+
+        if (
+          existingMail &&
+          existingMail.status === "active" &&
+          Array.isArray(existingMail.scopes) &&
+          existingMail.scopes.some((s: string) => /mail\.send/i.test(s))
+        ) {
+          // Keep existing mail tokens to prevent stripping sendMail privileges
+          console.log("[microsoft-vault] Preserving existing mail integration with Mail.Send scope");
+          continue;
+        }
+      }
+
       const { error } = await adminSupabase.from("user_integrations").upsert(
         {
           auth_user_id: opts.authUserId,

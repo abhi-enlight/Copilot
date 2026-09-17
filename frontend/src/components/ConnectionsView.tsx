@@ -203,6 +203,7 @@ export default function ConnectionsView() {
   const userName = serverStatus?.userName || "";
   const isOutlookLive = isM365Authed && Boolean(serverStatus?.outlookConnected);
   const isOneDriveLive = isM365Authed && Boolean(serverStatus?.onedriveConnected);
+  const isSharepointSitesGranted = Boolean(serverStatus?.sharepointDrive === "/sites/root/drive");
   const isCrmLive = isM365Authed && access("microsoft.dynamics") === "granted" && Boolean(serverStatus?.crmConnected);
 
   // Discovered Zoho account identity for connected cards
@@ -440,7 +441,7 @@ export default function ConnectionsView() {
               accessState={access("microsoft.outlook")}
               onToggle={() => guardToggle("microsoft.outlook")}
               account={isOutlookLive ? (userName ? `${userEmail} (${userName})` : userEmail) : undefined}
-              connectHref="/api/integrations/microsoft/connect?preset=mail&mode=write&returnTo=/"
+              connectHref="/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/"
               onDisconnect={handleDisconnectMicrosoft}
             />
 
@@ -458,8 +459,38 @@ export default function ConnectionsView() {
               isToggling={connectorIdsLoading.has("microsoft.sharepoint")}
               accessState={access("microsoft.sharepoint")}
               onToggle={() => guardToggle("microsoft.sharepoint")}
-              account={isOneDriveLive ? (userEmail || serverStatus?.sharepointDrive || "/me/drive") : undefined}
-              connectHref="/api/integrations/microsoft/connect?preset=personal_files&returnTo=/"
+              account={
+                isOneDriveLive
+                  ? isSharepointSitesGranted
+                    ? `${userEmail} • SharePoint Root Active`
+                    : `${userEmail} • Personal OneDrive Active`
+                  : undefined
+              }
+              connectHref={
+                isOneDriveLive && !isSharepointSitesGranted
+                  ? "/api/integrations/microsoft/connect?preset=org_sharepoint&prompt=consent&returnTo=/"
+                  : "/api/integrations/microsoft/connect?preset=personal_files&returnTo=/"
+              }
+              metrics={
+                isOneDriveLive
+                  ? [
+                      {
+                        label: "Active Drive",
+                        value: isSharepointSitesGranted ? "SharePoint Root" : "Personal OneDrive",
+                      },
+                      {
+                        label: "Sites Scope",
+                        value: isSharepointSitesGranted ? "Granted (Sites.Read)" : "Admin Consent Needed",
+                      },
+                    ]
+                  : []
+              }
+              requiresAdminNotice={
+                isOneDriveLive && !isSharepointSitesGranted
+                  ? "Currently scoped to personal OneDrive. To connect company-wide SharePoint team sites and root document libraries, grant Sites.Read.All in Entra ID."
+                  : undefined
+              }
+              onAdminApprovalClick={() => setIsAdminApprovalModalOpen(true)}
               onDisconnect={handleDisconnectMicrosoft}
             />
           </div>

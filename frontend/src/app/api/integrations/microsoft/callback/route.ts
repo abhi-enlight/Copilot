@@ -38,12 +38,14 @@ export async function GET(request: Request) {
   const issuedNonce = cookieStore.get(MS_OAUTH_STATE_COOKIE)?.value || "";
 
   let stateNonce: string | null = null;
+  let decodedPreset: string | null = null;
   if (rawState) {
     try {
       const decoded = JSON.parse(Buffer.from(rawState, 'base64').toString('utf-8'));
       returnTo = safeReturnTo(decoded.returnTo, returnTo);
       authUserId = decoded.authUserId || null;
       stateNonce = typeof decoded.nonce === 'string' ? decoded.nonce : null;
+      decodedPreset = decoded.preset || null;
     } catch {
       // Use defaults if decoding fails
     }
@@ -169,6 +171,13 @@ export async function GET(request: Request) {
         if (authUserId && userEmail && tokenData.access_token) {
           try {
             const { upsertMicrosoftIntegration } = await import('@/lib/microsoft-vault');
+            const targetProduct: ("mail" | "sharepoint") | undefined =
+              decodedPreset === "mail" || decodedPreset === "mail_readonly"
+                ? "mail"
+                : decodedPreset === "files_readonly" || decodedPreset === "personal_files" || decodedPreset === "org_sharepoint"
+                ? "sharepoint"
+                : undefined;
+
             await upsertMicrosoftIntegration({
               authUserId,
               userEmail,
@@ -178,6 +187,7 @@ export async function GET(request: Request) {
               refreshToken: tokenData.refresh_token || null,
               expiresIn: tokenData.expires_in || 3600,
               scopes: tokenData.scope ? tokenData.scope.split(' ') : [],
+              product: targetProduct,
             });
           } catch (authLinkErr) {
             console.warn('Auth user link failed (non-fatal):', authLinkErr);

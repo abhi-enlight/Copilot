@@ -189,11 +189,15 @@ async function streamN8nChat(
     }
   }
 
-  // Resolve Microsoft tokens strictly from the authenticated user's vault in user_integrations.
+  // Resolve Microsoft tokens strictly from the authenticated user's vault in user_integrations per product.
   // Never read tokens from cookies to prevent cross-user token leaks.
-  const msVault = await resolveMicrosoftVaultTokens(userId, authUserEmail);
-  const msAccessToken = msVault.accessToken || '';
-  const userEmail = authUserEmail || msVault.userEmail || null;
+  const [msMailVault, msSharepointVault] = await Promise.all([
+    resolveMicrosoftVaultTokens(userId, authUserEmail, "mail"),
+    resolveMicrosoftVaultTokens(userId, authUserEmail, "sharepoint"),
+  ]);
+  const mailAccessToken = msMailVault.accessToken || msSharepointVault.accessToken || '';
+  const sharepointAccessToken = msSharepointVault.accessToken || msMailVault.accessToken || '';
+  const userEmail = authUserEmail || msMailVault.userEmail || msSharepointVault.userEmail || null;
 
   // -------------------------------------------------------------------
   // Server-side entitlement engine, the client's toggles can never grant
@@ -233,22 +237,22 @@ async function streamN8nChat(
     'microsoft.outlook': {
       enabled: isOutlookEnabled,
       paused: paused('microsoft.outlook'),
-      entitlement: Boolean(msAccessToken) && can('microsoft.outlook') && !paused('microsoft.outlook'),
-      accessToken: isOutlookEnabled ? msAccessToken : '',
+      entitlement: Boolean(mailAccessToken) && can('microsoft.outlook') && !paused('microsoft.outlook'),
+      accessToken: isOutlookEnabled ? mailAccessToken : '',
       writeEnabled: can('microsoft.outlook') && !paused('microsoft.outlook'),
     },
     'microsoft.sharepoint': {
       enabled: isSharepointEnabled,
       paused: paused('microsoft.sharepoint'),
-      entitlement: Boolean(msAccessToken) && can('microsoft.sharepoint') && !paused('microsoft.sharepoint'),
-      accessToken: isSharepointEnabled ? msAccessToken : '',
+      entitlement: Boolean(sharepointAccessToken) && can('microsoft.sharepoint') && !paused('microsoft.sharepoint'),
+      accessToken: isSharepointEnabled ? sharepointAccessToken : '',
       writeEnabled: can('microsoft.sharepoint') && !paused('microsoft.sharepoint'),
     },
     'microsoft.dynamics': {
       enabled: isDynamicsEnabled,
       paused: paused('microsoft.dynamics'),
-      entitlement: Boolean(msAccessToken) && can('microsoft.dynamics') && !paused('microsoft.dynamics'),
-      accessToken: isDynamicsEnabled ? msAccessToken : '',
+      entitlement: Boolean(sharepointAccessToken || mailAccessToken) && can('microsoft.dynamics') && !paused('microsoft.dynamics'),
+      accessToken: isDynamicsEnabled ? (sharepointAccessToken || mailAccessToken) : '',
       writeEnabled: can('microsoft.dynamics') && !paused('microsoft.dynamics'),
     },
     'zoho.crm': {

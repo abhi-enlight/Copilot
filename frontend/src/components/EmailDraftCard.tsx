@@ -52,6 +52,7 @@ export default function EmailDraftCard({
   const [senderEmail, setSenderEmail] = useState<string | null>(null);
   const [webLink, setWebLink] = useState<string | null>(null);
   const [requiresReconnect, setRequiresReconnect] = useState(false);
+  const [reconnectUrl, setReconnectUrl] = useState<string | null>(null);
 
   const handleSend = async () => {
     if (!to.trim()) {
@@ -85,6 +86,10 @@ export default function EmailDraftCard({
         setStatusMessage(data.error || "Failed to dispatch email via Microsoft Outlook.");
         if (data.requiresReconnect) {
           setRequiresReconnect(true);
+          setReconnectUrl(
+            data.reconnectUrl ||
+              "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/"
+          );
         }
         return;
       }
@@ -129,6 +134,10 @@ export default function EmailDraftCard({
         setStatusMessage(data.error || "Failed to save draft in Microsoft Outlook.");
         if (data.requiresReconnect) {
           setRequiresReconnect(true);
+          setReconnectUrl(
+            data.reconnectUrl ||
+              "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/"
+          );
         }
         return;
       }
@@ -229,16 +238,28 @@ export default function EmailDraftCard({
       {status === "error" && (
         <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-2.5 text-xs">
           <WarningCircle size={16} weight="bold" className="text-rose-600 mt-0.5 flex-shrink-0" />
-          <div className="flex-1 space-y-1">
-            <p className="font-semibold">{statusMessage || "Action failed."}</p>
+          <div className="flex-1 space-y-2">
+            <p className="font-semibold leading-snug">{statusMessage || "Action failed."}</p>
             {requiresReconnect && (
-              <a
-                href="/#connections"
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 hover:text-rose-900 underline"
-              >
-                <span>Go to Connections & Connect Microsoft Outlook</span>
-                <ArrowSquareOut size={11} weight="bold" />
-              </a>
+              <div className="pt-0.5 flex flex-wrap items-center gap-2">
+                <a
+                  href={
+                    reconnectUrl ||
+                    "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/"
+                  }
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-all"
+                >
+                  <ShieldCheck size={13} weight="bold" />
+                  <span>Authorize Outlook to Send Emails</span>
+                  <ArrowSquareOut size={12} weight="bold" />
+                </a>
+                <a
+                  href="/#connections"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-700 hover:text-rose-900 underline"
+                >
+                  <span>Connections tab</span>
+                </a>
+              </div>
             )}
           </div>
         </div>
@@ -342,7 +363,7 @@ export default function EmailDraftCard({
       </div>
 
       {/* Action Footer */}
-      {status === "idle" && (
+      {(status === "idle" || status === "error") && (
         <div className="mt-3 pt-3 border-t border-sky-100 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-[11px] text-stone-400">
             <ShieldCheck size={14} weight="bold" className="text-emerald-500" />
@@ -375,7 +396,7 @@ export default function EmailDraftCard({
               ) : (
                 <PaperPlaneTilt size={13} weight="bold" />
               )}
-              <span>Approve & Send</span>
+              <span>{status === "error" ? "Retry Send" : "Approve & Send"}</span>
             </button>
           </div>
         </div>

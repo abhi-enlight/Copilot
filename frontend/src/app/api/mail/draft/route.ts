@@ -39,14 +39,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolve Microsoft OAuth token from user's vault
-  const msVault = await resolveMicrosoftVaultTokens(user.id, userEmail);
+  // Resolve Microsoft OAuth token from user's vault specifically for mail
+  const msVault = await resolveMicrosoftVaultTokens(user.id, userEmail, "mail");
   if (!msVault.accessToken) {
     return NextResponse.json(
       {
         error: "Microsoft Outlook is not connected or requires re-authentication. Please connect Outlook in the Connections tab.",
         code: "NOT_CONNECTED",
         requiresReconnect: true,
+        reconnectUrl: "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/",
       },
       { status: 403 }
     );
@@ -91,12 +92,22 @@ export async function POST(request: NextRequest) {
   }
 
   if (!result.success) {
+    const isPermissionIssue =
+      result.code === "ErrorAccessDenied" ||
+      result.code === "Authorization_RequestDenied" ||
+      result.code === "403" ||
+      /403|Forbidden|Access is denied|privilege|permission/i.test(result.error || "");
+
     return NextResponse.json(
       {
         error: result.error || "Failed to create draft in Outlook",
-        code: "DRAFT_FAILED",
+        code: result.code || "DRAFT_FAILED",
+        requiresReconnect: isPermissionIssue,
+        reconnectUrl: isPermissionIssue
+          ? "/api/integrations/microsoft/connect?preset=mail&mode=write&prompt=consent&returnTo=/"
+          : undefined,
       },
-      { status: 502 }
+      { status: isPermissionIssue ? 403 : 502 }
     );
   }
 
