@@ -29,6 +29,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "SharePoint site name is required" }, { status: 400 });
   }
 
+  // The site slug is derived from the name when not supplied (in
+  // createSharePointSite); names with no alphanumeric characters (e.g. "!!!")
+  // sanitize to an empty slug, producing an invalid webUrl. Use a dated
+  // fallback so the resulting URL is always valid.
+  const effectiveSlug =
+    siteSlug ||
+    (/[a-z0-9]/i.test(name)
+      ? undefined // let the graph lib slugify the name itself
+      : `site-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`);
+
   // 1. Check connector pause state
   const prefs = await getConnectorPreferences(userEmail || user.id);
   if (isConnectorPaused(prefs, "microsoft.sharepoint")) {
@@ -78,7 +88,7 @@ export async function POST(request: NextRequest) {
     name,
     description,
     webUrl,
-    siteSlug,
+    siteSlug: effectiveSlug,
     template,
     ownerEmail: userEmail || undefined,
   };
