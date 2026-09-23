@@ -65,8 +65,10 @@ export default function PrismApp() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const { activeOrg } = useOrganization();
-  const viewKey = user ? `prism_active_view_${user.id}` : "prism_active_view_guest";
-  const planContextKey = user ? `prism_active_plan_context_${user.id}` : "prism_active_plan_context_guest";
+  const orgSuffix = activeOrg?.id ? `_${activeOrg.id}` : "";
+  const viewKey = user ? `prism_active_view_${user.id}${orgSuffix}` : "prism_active_view_guest";
+  const planContextKey = user ? `prism_active_plan_context_${user.id}${orgSuffix}` : "prism_active_plan_context_guest";
+  const userSessionKey = user ? `prism_copilot_session_${user.id}${orgSuffix}` : "prism_copilot_session_guest";
 
   const [currentView, setCurrentView] = useState<NavView>("home");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -81,6 +83,12 @@ export default function PrismApp() {
     }
   }, [user, isLoading, router]);
 
+  // Cleanly reset active session and plan when switching organizations
+  useEffect(() => {
+    setActiveSessionId(null);
+    setActivePlanForCopilot(null);
+  }, [activeOrg?.id]);
+
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
     handleNavigate("copilot");
@@ -91,13 +99,21 @@ export default function PrismApp() {
     handleNavigate("copilot");
   };
 
-  const handleDeleteSession = (sessionId: string) => {
+  const handleDeleteSession = async (sessionId: string) => {
     if (activeSessionId === sessionId) {
       handleNewChat();
     }
+    // Delete from server
+    try {
+      const headers: Record<string, string> = {};
+      if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
+      await fetch(`/api/chat/sessions/${sessionId}`, { method: "DELETE", headers });
+    } catch (err) {
+      console.warn("[page] Failed to delete session on server:", err);
+    }
+    // Delete from localStorage
     if (typeof window !== "undefined") {
       try {
-        const userSessionKey = user ? `prism_copilot_session_${user.id}` : "prism_copilot_session_guest";
         const saved = localStorage.getItem(userSessionKey);
         if (saved) {
           const parsed = JSON.parse(saved);

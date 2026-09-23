@@ -13,7 +13,7 @@ import {
 import type { NavView } from "@/components/PrismSidebar";
 import EnlightLogo from "@/components/brand/EnlightLogo";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useConnectors } from "@/hooks/useConnectors";
+import { useConnectors, type ConnectorId } from "@/hooks/useConnectors";
 import { useOrganization } from "@/hooks/useOrganization";
 import { getPendingPromptKey } from "@/lib/copilot-storage";
 
@@ -21,25 +21,40 @@ interface HomeViewProps {
   onNavigate: (view: NavView) => void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const QUICK_PROMPTS: { icon: ComponentType<any>; title: string; prompt: string; goTo: NavView }[] = [
+interface QuickPrompt {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: ComponentType<any>;
+  title: string;
+  prompt: string;
+  goTo: NavView;
+  connectorId?: ConnectorId;
+  connectorLabel?: string;
+}
+
+const QUICK_PROMPTS: QuickPrompt[] = [
   {
     icon: EnvelopeSimple,
     title: "What are my recent mails?",
     prompt: "What are my recent mails? Summarize urgent messages and unread threads from the last 24 hours.",
     goTo: "copilot",
+    connectorId: "microsoft.outlook",
+    connectorLabel: "Outlook",
   },
   {
     icon: FolderOpen,
     title: "What files are in SharePoint?",
     prompt: "Search my SharePoint data and list recent documents, briefs, and spreadsheets.",
     goTo: "copilot",
+    connectorId: "microsoft.sharepoint",
+    connectorLabel: "SharePoint",
   },
   {
     icon: Receipt,
     title: "What are my recent invoices?",
     prompt: "What are our recent invoices in Zoho Books? Check open balances and payment statuses.",
     goTo: "copilot",
+    connectorId: "zoho.books",
+    connectorLabel: "Zoho Books",
   },
   {
     icon: Megaphone,
@@ -97,6 +112,35 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           </p>
         </div>
 
+        {/* Zero-State Onboarding Banner when no connectors are enabled */}
+        {!connectorsSyncing && activeConnectors && enabledCount === 0 && (
+          <div className="relative overflow-hidden rounded-2xl border border-sky-200/90 bg-gradient-to-br from-sky-50/90 via-white to-blue-50/40 p-5 lg:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-sky-600/20">
+                  <PlugsConnected size={20} weight="duotone" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Connect your workspace to unlock Copilot
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-1 max-w-xl leading-relaxed">
+                    Link Microsoft 365 (Outlook, SharePoint) and Zoho to let Prism query your live emails, documents, deals, and invoices.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate("connections")}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer flex-shrink-0"
+              >
+                <span>Set up Connections</span>
+                <ArrowRight size={14} weight="bold" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Quick prompts */}
         <div className="space-y-3">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -105,6 +149,9 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {QUICK_PROMPTS.map((q, idx) => {
               const Icon = q.icon;
+              const isConnected = !q.connectorId || Boolean(activeConnectors?.[q.connectorId]);
+              const isPaused = q.connectorId ? pausedConnectorIds.includes(q.connectorId) : false;
+
               return (
                 <button
                   key={idx}
@@ -114,7 +161,7 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
                     // CopilotView consumes it on mount and sends it immediately.
                     if (q.goTo === "copilot" && typeof window !== "undefined") {
                       try {
-                        localStorage.setItem(getPendingPromptKey(user?.id), q.prompt);
+                        localStorage.setItem(getPendingPromptKey(user?.id, activeOrg?.id), q.prompt);
                       } catch {}
                     }
                     onNavigate(q.goTo);
@@ -125,7 +172,22 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
                     <Icon size={17} weight="duotone" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-bold text-slate-900">{q.title}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-bold text-slate-900">{q.title}</span>
+                      {q.connectorLabel && !connectorsSyncing && (
+                        <span
+                          className={`text-[9.5px] font-medium px-1.5 py-0.5 rounded-full border ${
+                            !isConnected
+                              ? "bg-stone-100 text-stone-500 border-stone-200"
+                              : isPaused
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {!isConnected ? `Connect ${q.connectorLabel}` : isPaused ? "Paused" : q.connectorLabel}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11.5px] text-slate-500 mt-0.5 leading-snug line-clamp-2">
                       {q.prompt}
                     </div>

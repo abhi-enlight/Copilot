@@ -88,6 +88,10 @@ export default function UsersAndRolesView() {
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState("");
 
+  // Removal confirmation state
+  const [pendingRemoval, setPendingRemoval] = useState<{ userId: string; email: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
@@ -120,19 +124,27 @@ export default function UsersAndRolesView() {
     }
   };
 
-  const handleRevokeUser = async (userId: string, userEmail: string) => {
+  const handleRevokeUser = (userId: string, userEmail: string) => {
     if (userId === authUser?.id) {
-      alert("You cannot remove yourself from the organization.");
+      showToast("You cannot remove yourself from the organization.");
       return;
     }
+    setPendingRemoval({ userId, email: userEmail });
+  };
 
-    if (confirm(`Remove ${userEmail} from ${activeOrg?.name || "this workspace"}?`)) {
-      const res = await removeMember(userId);
+  const confirmRemoval = async () => {
+    if (!pendingRemoval) return;
+    setIsRemoving(true);
+    try {
+      const res = await removeMember(pendingRemoval.userId);
       if (res.ok) {
-        showToast(`Removed ${userEmail}`);
+        showToast(`Removed ${pendingRemoval.email}`);
       } else {
         showToast(res.error || "Failed to remove member");
       }
+    } finally {
+      setIsRemoving(false);
+      setPendingRemoval(null);
     }
   };
 
@@ -600,6 +612,52 @@ export default function UsersAndRolesView() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Removal Confirmation Modal */}
+      <AnimatePresence>
+        {pendingRemoval && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="w-full max-w-sm rounded-2xl bg-white border border-stone-200 shadow-xl p-5 space-y-4"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                  <Trash size={18} weight="duotone" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900">Remove Team Member</h3>
+                  <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                    Are you sure you want to remove <span className="font-semibold text-stone-700">{pendingRemoval.email}</span> from {activeOrg?.name || "this workspace"}?
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-stone-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={isRemoving}
+                  onClick={() => setPendingRemoval(null)}
+                  className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isRemoving}
+                  onClick={confirmRemoval}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                >
+                  {isRemoving ? "Removing..." : "Remove Member"}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

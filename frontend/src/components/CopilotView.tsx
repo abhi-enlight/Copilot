@@ -102,10 +102,10 @@ interface CopilotViewProps {
 // Key builders live in @/lib/copilot-storage (single source of truth, shared
 // with HomeView and ChatInput so writers and readers never drift apart).
 
-function loadSavedSession(userId?: string | null): Session | null {
+function loadSavedSession(userId?: string | null, orgId?: string | null): Session | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(getCopilotSessionKey(userId));
+    const raw = localStorage.getItem(getCopilotSessionKey(userId, orgId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || !parsed.id || !Array.isArray(parsed.messages)) return null;
@@ -124,10 +124,10 @@ function loadSavedSession(userId?: string | null): Session | null {
   }
 }
 
-function loadSavedWorkingPlan(userId?: string | null): WorkingPlanState | null {
+function loadSavedWorkingPlan(userId?: string | null, orgId?: string | null): WorkingPlanState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(getCopilotWorkingPlanKey(userId));
+    const raw = localStorage.getItem(getCopilotWorkingPlanKey(userId, orgId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && (parsed.tasks || parsed.campaignData)) {
@@ -207,9 +207,9 @@ export default function CopilotView({
   onSessionSelect,
 }: CopilotViewProps) {
   const { user, activeOrg } = useAuth();
-  const userSessionKey = getCopilotSessionKey(user?.id);
-  const userPlanKey = getCopilotWorkingPlanKey(user?.id);
-  const userPanelKey = getCopilotPanelOpenKey(user?.id);
+  const userSessionKey = getCopilotSessionKey(user?.id, activeOrg?.id);
+  const userPlanKey = getCopilotWorkingPlanKey(user?.id, activeOrg?.id);
+  const userPanelKey = getCopilotPanelOpenKey(user?.id, activeOrg?.id);
 
   const apiFetch = useCallback(
     (input: RequestInfo | URL, init?: RequestInit) => {
@@ -223,7 +223,7 @@ export default function CopilotView({
   );
 
   const [session, setSession] = useState<Session>(() => {
-    return loadSavedSession(user?.id) || createSession();
+    return loadSavedSession(user?.id, activeOrg?.id) || createSession();
   });
   const { activeConnectors, hasPausedAny, pausedConnectorIds } = useConnectors();
 
@@ -268,7 +268,7 @@ export default function CopilotView({
   const [dismissedPauseKey, setDismissedPauseKey] = useState<string | null>(null);
   const pausedKey = pausedConnectorIds.length > 0 ? pausedConnectorIds.slice().sort().join("|") : "";
   const [workingPlan, setWorkingPlan] = useState<WorkingPlanState | null>(() => {
-    return loadSavedWorkingPlan(user?.id);
+    return loadSavedWorkingPlan(user?.id, activeOrg?.id);
   });
   const activeWorkingPlanRef = useRef<WorkingPlanState | null>(workingPlan);
 
@@ -276,13 +276,13 @@ export default function CopilotView({
     activeWorkingPlanRef.current = workingPlan;
   }, [workingPlan]);
 
-  // When user changes, reload session and working plan for that user
+  // When user or active organization changes, reload session and working plan for that scope
   useEffect(() => {
     if (!activeSessionId) {
-      setSession(loadSavedSession(user?.id) || createSession());
-      setWorkingPlan(loadSavedWorkingPlan(user?.id));
+      setSession(loadSavedSession(user?.id, activeOrg?.id) || createSession());
+      setWorkingPlan(loadSavedWorkingPlan(user?.id, activeOrg?.id));
     }
-  }, [user?.id, activeSessionId]);
+  }, [user?.id, activeOrg?.id, activeSessionId]);
 
   // Persist session to localStorage across refreshes (scoped per user)
   useEffect(() => {
@@ -357,7 +357,7 @@ export default function CopilotView({
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(userPanelKey);
       if (saved !== null) return saved === "true";
-      const savedPlan = loadSavedWorkingPlan(user?.id);
+      const savedPlan = loadSavedWorkingPlan(user?.id, activeOrg?.id);
       if (savedPlan) return true;
     }
     return false;
@@ -1936,7 +1936,7 @@ export default function CopilotView({
   // so clicking a template *runs* it rather than opening a blank Copilot.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const key = getPendingPromptKey(user?.id);
+    const key = getPendingPromptKey(user?.id, activeOrg?.id);
     let staged: string | null = null;
     try {
       staged = localStorage.getItem(key);
@@ -1951,7 +1951,7 @@ export default function CopilotView({
     return () => clearTimeout(t);
     // Run once per mount / user change only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, activeOrg?.id]);
 
   const handleNewChat = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -1959,9 +1959,13 @@ export default function CopilotView({
         localStorage.removeItem(userSessionKey);
         localStorage.removeItem(userPlanKey);
         localStorage.removeItem(userPanelKey);
-        localStorage.removeItem(getDraftKey(user?.id));
-        localStorage.removeItem(getPendingPromptKey(user?.id));
-        const planContextKey = user ? `prism_active_plan_context_${user.id}` : "prism_active_plan_context";
+        localStorage.removeItem(getDraftKey(user?.id, activeOrg?.id));
+        localStorage.removeItem(getPendingPromptKey(user?.id, activeOrg?.id));
+        const planContextKey = user
+          ? activeOrg?.id
+            ? `prism_active_plan_context_${user.id}_${activeOrg.id}`
+            : `prism_active_plan_context_${user.id}`
+          : "prism_active_plan_context";
         localStorage.removeItem(planContextKey);
       } catch {}
     }
@@ -2188,6 +2192,61 @@ export default function CopilotView({
             workingPlan && isPlanPanelOpen ? "w-full lg:w-[44%] border-r border-stone-200 bg-[#FAFAF9]" : "w-full"
           }`}
         >
+          {/* Active Campaign Plan Context Banner */}
+          {workingPlan && (
+            <div className="bg-sky-50/90 border-b border-sky-200/80 px-4 py-2.5 flex items-center justify-between gap-3 flex-shrink-0 z-10 shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse flex-shrink-0" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-800 flex-shrink-0">
+                  Active Plan:
+                </span>
+                <span className="text-xs font-bold text-stone-900 truncate">
+                  {workingPlan.campaignData?.name || "Campaign Project"}
+                </span>
+                {workingPlan.campaignData?.client && (
+                  <span className="hidden sm:inline-flex text-[11px] px-2 py-0.5 rounded-full bg-white/90 border border-sky-200 text-sky-950 font-medium truncate">
+                    Client: {workingPlan.campaignData.client}
+                  </span>
+                )}
+                <span className="text-[11px] text-sky-700 font-medium flex-shrink-0">
+                  ({workingPlan.tasks?.length || 0} tasks)
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {!isPlanPanelOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPlanPanelOpen(true)}
+                    className="text-xs text-sky-700 hover:text-sky-900 font-medium px-2 py-1 rounded bg-sky-100/70 hover:bg-sky-200/70 transition-colors cursor-pointer"
+                  >
+                    Open Canvas
+                  </button>
+                )}
+                {onViewCampaigns && (
+                  <button
+                    type="button"
+                    onClick={onViewCampaigns}
+                    className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900 font-medium px-2 py-1 rounded hover:bg-sky-100/60 transition-colors cursor-pointer"
+                  >
+                    <span>Campaigns</span>
+                    <ArrowSquareOut size={12} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWorkingPlan(null);
+                    onClearPlanContext?.();
+                  }}
+                  className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-800 font-medium px-2 py-1 rounded hover:bg-stone-200/60 transition-colors cursor-pointer"
+                  title="Detach campaign context from this conversation"
+                >
+                  <X size={12} />
+                  <span className="hidden sm:inline">Clear</span>
+                </button>
+              </div>
+            </div>
+          )}
           {/* Scrollable messages */}
           <div
             ref={scrollContainerRef}
@@ -2345,7 +2404,7 @@ export default function CopilotView({
         </div>
 
         {/* RIGHT PANE: Live Full Plan Canvas & Task Studio */}
-        {workingPlan && (
+        {workingPlan && isPlanPanelOpen && (
           <div className="hidden lg:flex flex-1 flex-col h-full min-h-0 bg-[#FBFBFA] overflow-hidden">
             {/* Header: Campaign Info & Push Action (Clean, uncrowded layout) */}
             <div className="px-6 py-4 border-b border-stone-200/80 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3.5 flex-shrink-0">
