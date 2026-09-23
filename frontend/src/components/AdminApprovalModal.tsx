@@ -99,22 +99,22 @@ export default function AdminApprovalModal({
                 You do not have to wait for IT admin approval to continue your campaign work. You can connect Outlook and SharePoint right now, or use alternative data sources:
               </p>
 
-              {/* Fallback Option 1: Outlook & SharePoint / OneDrive (No Admin Required) */}
+              {/* Fallback Option 1: Outlook & SharePoint / Sites (No Admin Required) */}
               <div className="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-stone-900 font-semibold text-[13px]">
                     <span className="w-5 h-5 rounded-full bg-sky-100 text-sky-700 text-[11px] font-bold flex items-center justify-center">
                       1
                     </span>
-                    <span>Connect Outlook & SharePoint / OneDrive</span>
+                    <span>Connect Outlook, SharePoint & Sites (Standard User Access)</span>
                   </div>
                   <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <ShieldCheck size={11} weight="bold" />
-                    <span>No Admin Needed</span>
+                    <span>No IT Admin Required</span>
                   </span>
                 </div>
                 <p className="text-[11.5px] text-stone-500 leading-relaxed pl-7">
-                  You can connect your <strong className="text-stone-700 font-semibold">Outlook emails</strong> and <strong className="text-stone-700 font-semibold">SharePoint / OneDrive files</strong> right now using standard delegated permissions (<code className="text-[10.5px] bg-white px-1 py-0.5 rounded border border-stone-200">Mail.Read</code> & <code className="text-[10.5px] bg-white px-1 py-0.5 rounded border border-stone-200">Files.Read</code>). Enterprise users can self-consent immediately without waiting for IT.
+                  Non-admin users can connect their <strong className="text-stone-700 font-semibold">Outlook emails</strong>, <strong className="text-stone-700 font-semibold">SharePoint / OneDrive files</strong>, and <strong className="text-stone-700 font-semibold">SharePoint Sites</strong> right now using standard delegated permissions (<code className="text-[10.5px] bg-white px-1 py-0.5 rounded border border-stone-200">Mail.Read</code>, <code className="text-[10.5px] bg-white px-1 py-0.5 rounded border border-stone-200">Files.Read</code> & <code className="text-[10.5px] bg-white px-1 py-0.5 rounded border border-stone-200">Sites.Read.All</code>). All organization members can self-authorize immediately.
                 </p>
                 <div className="pt-1 pl-7 flex flex-wrap items-center gap-2">
                   <a
@@ -123,7 +123,7 @@ export default function AdminApprovalModal({
                   >
                     <EnvelopeSimple size={14} weight="bold" />
                     <FolderOpen size={14} weight="bold" />
-                    <span>Connect Outlook + SharePoint</span>
+                    <span>Connect Outlook + SharePoint & Sites</span>
                     <ArrowSquareOut size={12} weight="bold" />
                   </a>
                   <a
@@ -134,18 +134,11 @@ export default function AdminApprovalModal({
                     <span>Outlook Only</span>
                   </a>
                   <a
-                    href="/api/integrations/microsoft/connect?preset=files_readonly&returnTo=/"
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 hover:border-stone-300 text-stone-700 text-[11px] font-medium transition-colors"
-                  >
-                    <FolderOpen size={13} />
-                    <span>Personal OneDrive Only</span>
-                  </a>
-                  <a
                     href="/api/integrations/microsoft/connect?preset=org_sharepoint&prompt=consent&returnTo=/"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-800 text-[11px] font-semibold transition-colors"
                   >
                     <FolderOpen size={13} weight="bold" />
-                    <span>Authorize Org SharePoint Sites</span>
+                    <span>SharePoint Files & Sites</span>
                     <ArrowSquareOut size={12} weight="bold" />
                   </a>
                 </div>

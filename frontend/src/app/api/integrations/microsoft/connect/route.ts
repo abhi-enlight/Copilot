@@ -85,11 +85,11 @@ export async function GET(request: Request) {
         selectedScopes = [...baseScopes, "Mail.Read"];
         break;
       case "files_readonly":
-        selectedScopes = [...baseScopes, "Files.Read"];
+        selectedScopes = [...baseScopes, "Files.Read", "Sites.Read.All"];
         break;
       case "readonly":
       case "personal_readonly":
-        selectedScopes = [...baseScopes, "Mail.Read", "Files.Read"];
+        selectedScopes = [...baseScopes, "Mail.Read", "Files.Read", "Sites.Read.All"];
         break;
       case "mail":
         selectedScopes =
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
         selectedScopes = [
           ...baseScopes,
           "Mail.Read", "Files.Read", "Files.ReadWrite",
-          "Sites.Read.All", "Sites.ReadWrite.All", "Sites.Create.All", "Sites.Manage.All",
+          "Sites.Read.All", "Sites.ReadWrite.All",
         ];
         break;
       case "dynamics_crm":
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
           ...baseScopes,
           "Mail.Read", "Mail.ReadWrite", "Mail.Send",
           "Files.Read", "Files.ReadWrite",
-          "Sites.Read.All", "Sites.ReadWrite.All", "Sites.Create.All", "Sites.Manage.All",
+          "Sites.Read.All", "Sites.ReadWrite.All",
           crmScope,
         ];
         break;
@@ -121,8 +121,8 @@ export async function GET(request: Request) {
       default:
         selectedScopes =
           mode === "write"
-            ? [...baseScopes, "Mail.Read", "Mail.ReadWrite", "Mail.Send", "Files.Read", "Files.ReadWrite"]
-            : [...baseScopes, "Mail.Read", "Files.Read"];
+            ? [...baseScopes, "Mail.Read", "Mail.ReadWrite", "Mail.Send", "Files.Read", "Files.ReadWrite", "Sites.Read.All"]
+            : [...baseScopes, "Mail.Read", "Files.Read", "Sites.Read.All"];
         break;
     }
   }

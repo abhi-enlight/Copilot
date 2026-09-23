@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   GearSix,
   Buildings,
@@ -10,13 +10,17 @@ import {
   CheckCircle,
   FloppyDisk,
 } from "@phosphor-icons/react";
+import { useOrganization } from "@/hooks/useOrganization";
 
 export default function SettingsView() {
+  const { activeOrg } = useOrganization();
   const [isSaved, setIsSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<"workspace" | "zoho" | "guardrails" | "team">("workspace");
 
+  const storageKey = activeOrg?.id ? `prism_settings_${activeOrg.id}` : "prism_settings_default";
+
   const [settings, setSettings] = useState({
-    orgName: "",
+    orgName: activeOrg?.name || "",
     orgDomain: "",
     portalId: "",
     timezone: "UTC",
@@ -31,7 +35,30 @@ export default function SettingsView() {
     temperature: "0.3",
   });
 
+  // Load stored settings on mount or org change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setSettings((prev) => ({
+          ...prev,
+          ...parsed,
+          orgName: parsed.orgName || activeOrg?.name || prev.orgName,
+        }));
+      } else if (activeOrg?.name) {
+        setSettings((prev) => ({ ...prev, orgName: activeOrg.name }));
+      }
+    } catch {}
+  }, [storageKey, activeOrg?.name]);
+
   const handleSave = () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(settings));
+      } catch {}
+    }
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
   };

@@ -11,6 +11,7 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { List } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import PrismSidebar, { type NavView, NAV_LABELS } from "@/components/PrismSidebar";
@@ -24,6 +25,7 @@ import CampaignsView from "@/components/CampaignsView";
 import ConnectionsView from "@/components/ConnectionsView";
 import UsersAndRolesView from "@/components/UsersAndRolesView";
 import SettingsView from "@/components/SettingsView";
+import LoadingSplash from "@/components/LoadingSplash";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/components/providers/AuthProvider";
 
@@ -60,7 +62,8 @@ const VALID_VIEWS: NavView[] = [
 ];
 
 export default function PrismApp() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
   const { activeOrg } = useOrganization();
   const viewKey = user ? `prism_active_view_${user.id}` : "prism_active_view_guest";
   const planContextKey = user ? `prism_active_plan_context_${user.id}` : "prism_active_plan_context_guest";
@@ -70,6 +73,13 @@ export default function PrismApp() {
   const [activePlanForCopilot, setActivePlanForCopilot] = useState<PlanContextForCopilot | null>(null);
   const [campaignCount, setCampaignCount] = useState<number>(0);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  // Auth redirect effect
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/auth/login");
+    }
+  }, [user, isLoading, router]);
 
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
@@ -117,13 +127,6 @@ export default function PrismApp() {
       } catch {}
     }
     if (initialView && initialView !== "home") {
-      // If returning to a deferred view, gently redirect to home
-      if (initialView === "inbox" || initialView === "documents" || initialView === "settings") {
-        initialView = "home";
-        try {
-          localStorage.setItem(viewKey, "home");
-        } catch {}
-      }
       setCurrentView(initialView);
       window.history.replaceState(null, "", `#${initialView}`);
     }
@@ -232,6 +235,14 @@ export default function PrismApp() {
         return <HomeView onNavigate={handleNavigate} />;
     }
   };
+
+  if (isLoading) {
+    return <LoadingSplash />;
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen bg-[#FAFAF9] text-stone-900 overflow-hidden font-sans antialiased">

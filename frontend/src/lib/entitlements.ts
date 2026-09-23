@@ -294,8 +294,8 @@ export async function buildEntitlementSnapshot(opts: { forceReprobe?: boolean } 
 
   // Microsoft connectors
   const crmProbe = await probeDynamicsCrmAccess(session, { force: opts.forceReprobe });
-  const mailScopeOk = session.grantedScopes.length === 0 || session.grantedScopes.some((s) => /mail\.read/i.test(s));
-  const filesScopeOk = session.grantedScopes.length === 0 || session.grantedScopes.some((s) => /files\.read/i.test(s));
+  const mailScopeOk = session.grantedScopes.length === 0 || session.grantedScopes.some((s) => /mail/i.test(s));
+  const filesScopeOk = session.grantedScopes.length === 0 || session.grantedScopes.some((s) => /files|sites/i.test(s));
 
   const dynamicsVerdict: ConnectorVerdict = (() => {
     if (crmProbe.ok) {

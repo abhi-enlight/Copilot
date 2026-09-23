@@ -480,6 +480,11 @@ export default function PrismSidebar({
                               {campaignCount}
                             </span>
                           )}
+                          {(item.id === "inbox" || item.id === "documents") && (
+                            <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-stone-100 text-stone-400 border border-stone-200/60 flex-shrink-0">
+                              Soon
+                            </span>
+                          )}
                         </span>
                       )}
                     </button>

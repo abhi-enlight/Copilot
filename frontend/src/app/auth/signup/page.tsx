@@ -15,6 +15,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [isEmailVerificationSent, setIsEmailVerificationSent] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password || !displayName.trim()) return;
@@ -54,7 +56,6 @@ export default function SignupPage() {
       }
 
       // Provision app_users row + personal org via API
-      // (server-side with service role to bypass RLS)
       const provisionRes = await fetch("/api/auth/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,6 +70,12 @@ export default function SignupPage() {
         console.warn("[signup] provision failed, continuing anyway");
       }
 
+      // If Supabase email confirmation is enabled, session is null
+      if (!data.session) {
+        setIsEmailVerificationSent(true);
+        return;
+      }
+
       router.push("/");
       router.refresh();
     } catch {
@@ -77,6 +84,28 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  if (isEmailVerificationSent) {
+    return (
+      <div className="w-full max-w-sm text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-50 border border-sky-200 text-sky-600 mb-6">
+          <PrismLogo size={36} variant="tile" />
+        </div>
+        <h2 className="text-xl font-bold text-stone-900">Check your email</h2>
+        <p className="text-sm text-stone-500 mt-2 leading-relaxed">
+          We&apos;ve sent a confirmation link to <span className="font-semibold text-stone-700">{email}</span>. Please verify your email to log in to Prism.
+        </p>
+        <div className="mt-8">
+          <Link
+            href="/auth/login"
+            className="inline-flex items-center justify-center w-full py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold transition"
+          >
+            Back to Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-sm">
