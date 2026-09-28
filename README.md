@@ -1,15 +1,16 @@
-# ⚡ Prism: The Autonomous Enterprise AI Employee
+# ⚡ Prism: The Autonomous Enterprise AI Assistant
 
-> **Not a chat tool. A digital employee that lives across your stack, fetches live communication, proposes actions, and waits for your sign-off before touching what matters.**  
-> Inspired by the executive intelligence model of [viktor.com](https://viktor.com/). Built on **Next.js 16**, **Supabase Multi-Tenant Auth/RLS**, and the **Composio Platform SDK** for 3,200+ enterprise integrations.
+> **A true personal assistant that orchestrates your entire stack. It doesn't just connect to tools; it makes them work *with each other*. Prism fetches live communication, synthesizes cross-platform data, proposes intelligent actions, and waits for your sign-off before touching what matters.**
+> Powered by the **Composio Platform SDK** as the backend engine for 3,200+ integrations, and inspired by the executive intelligence model of [viktor.com](https://viktor.com/). Built on **Next.js 16** and **Supabase Multi-Tenant Auth/RLS**.
 
 ---
 
 ## 🌟 Core Pillars
 
-- **Universal Multi-User Connectivity (Composio Platform)**: Users connect their own accounts across Microsoft Teams, Outlook, Slack, Linear, GitHub, Zoho, and Salesforce via 1-click managed connect links. Zero custom OAuth maintenance.
+- **Cross-Tool Intelligence & Orchestration**: Prism chains multiple tool actions autonomously without needing constant prompts. Connected tools work together — data from one feeds into actions on another. One request can trigger a multi-step workflow across your entire stack, and the agent handles it step by step on its own.
+- **Universal Multi-User Connectivity (Composio Platform)**: Users connect their own accounts across Microsoft Teams, Outlook, Slack, Linear, GitHub, Zoho, and Salesforce via 1-click managed connect links. Composio handles the backend connections while Prism provides the intelligent orchestration. Zero custom OAuth maintenance.
 - **Live Stack Telemetry Radar**: Real-time webhook ingestion for Teams, Outlook, and Slack. Surfaces proactive executive briefings and unread urgency pills into an ambient cockpit HUD.
-- **Sub-Second Streaming Engine**: Direct serverless streaming agent runtime (`/api/agent/chat`). Direct LLM function calling with sub-500ms TTFT (Time-To-First-Token), completely replacing legacy n8n proxying.
+- **Sub-Second Streaming Engine**: Direct serverless streaming agent runtime (`/api/agent/chat`). Proper inline thinking systems and UI that clearly shows when the agent is orchestrating across tools, powered by direct LLM function calling with sub-500ms TTFT.
 - **Autonomous, Not Unsupervised (Action Cards)**: Safe read-tools execute automatically; state-modifying actions (sending emails, updating CRM deals, creating tasks) render interactive **Action Proposal Cards** and require explicit human sign-off before execution.
 - **Bespoke Hardware-Grade Cockpit**: Obsidian/Titanium dark palette, double-bezel concentric chassis cards, Geist typography, and micro-physics animations. Zero generic SaaS templates.
 

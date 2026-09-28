@@ -2,7 +2,7 @@
 
 > **Document Status**: LOCKED FOR MVP  
 > **Target Aesthetic & Model**: Viktor-grade AI Employee Platform ([viktor.com](https://viktor.com/))  
-> **Core Philosophy**: *"Not a chat tool. A digital employee that lives across your stack, fetches live communication, proposes actions, and waits for your sign-off before touching what matters."*
+> **Core Philosophy**: *"Not a chat tool, but an intelligent personal assistant capable of cross-tool orchestration. Connected tools work WITH EACH OTHER as the agent chains multiple actions seamlessly, operating autonomously step-by-step to achieve multi-step goals without requiring constant user prompting."*
 
 ---
 
@@ -14,105 +14,82 @@ The legacy architecture operated as an n8n webhook proxy with custom-built OAuth
 3. **Passive Chatbot UX**: The interface was a standard reactive chat window instead of a proactive operations cockpit that monitors communication across Teams, Outlook, and Slack.
 
 **Prism V2 completely re-architects the system around three modern pillars**:
-1. **Composio Platform SDK**: Universal multi-user integration infrastructure. 3,200+ enterprise tools (Teams, Outlook, Slack, Linear, GitHub, Zoho, Salesforce) accessible with zero custom OAuth boilerplate. User connections are strictly isolated per Supabase user session (`composio.sessions.create(userId)`).
-2. **Direct Edge/Serverless Agent Runtime**: The LLM (Claude 3.7 / GPT-4o / Gemini 2.0) executes tools directly inside Next.js via streaming Server-Sent Events (SSE). Latency drops by 75% with sub-second Time-To-First-Token (TTFT). n8n is completely removed from the real-time chat loop.
-3. **Live Stack Radar & Telemetry**: Composio Webhook Triggers push real-time events (incoming Teams messages, urgent Outlook emails, CRM deals) into Supabase, which live-streams them to an ambient cockpit HUD.
+1. **Cross-Tool Orchestration Intelligence**: The intelligence layer (LLM orchestration) empowers tools to work TOGETHER. By interpreting a single user prompt (e.g., "mail all clients to follow up"), the agent autonomously searches CRM data, drafts messages, and executes emails across multiple integrated tools step-by-step. Visible inline thinking systems guarantee a smooth user experience.
+2. **Composio Platform SDK (Connection Infrastructure)**: Universal multi-user integration infrastructure powering the tool connections. Over 3,200+ enterprise tools are instantly accessible, providing the raw capabilities the intelligent orchestration layer needs, with zero custom OAuth boilerplate.
+3. **Live Stack Radar & Telemetry**: Composio Webhook Triggers push real-time events into Supabase, which live-streams them to an ambient cockpit HUD, allowing the personal assistant to constantly react and orchestrate based on real-world updates.
 
 ---
 
 ## 2. High-Level System Blueprint
 
 ```mermaid
-flowchart TB
-    subgraph ClientLayer["🖥️ Frontend: Hardware-Grade Command Cockpit"]
-        HUD["Telemetry Top-Bar & Workspace Switcher"]
-        Feed["Proactive Stack Radar (Teams / Outlook / Slack)"]
-        Chat["Intelligence Stream & Rich Action Cards"]
-        Modal["Composio Universal 1-Click Connect Drawer"]
+flowchart TD
+    subgraph Client [Prism Cockpit HUD (Next.js)]
+        User[User Input] --> ChatUI[Proactive Chat & Ambient Radar]
+        ChatUI --> Streaming[SSE Streaming / Inline Thinking]
     end
 
-    subgraph AppServer["⚡ Next.js 16 App Router (Clean Edge/Serverless)"]
-        AuthMiddleware["Supabase Auth Session Guard"]
-        AgentEngine["/api/agent/chat (Direct LLM + Tool Stream)"]
-        WebhookIngest["/api/webhooks/composio (Trigger Ingestion)"]
-        ConnectApi["/api/integrations/connect (Connect Links)"]
+    subgraph Prism_Core [Cross-Tool Orchestration Engine]
+        LLM[Agent Intelligence Layer]
+        Planner[Multi-Step Autonomous Planner]
+        Memory[Supabase Vector & Conversational Memory]
+
+        ChatUI --> |User Prompt| LLM
+        LLM <--> Planner
+        Planner <--> Memory
+        LLM --> |Thinking & Streaming| Streaming
     end
 
-    subgraph CoreEngine["🧠 Intelligence & Integration Engine"]
-        LLM["Frontier Model (Claude 3.7 / GPT-4o / Gemini 2.0)"]
-        ComposioCore["@composio/core Platform SDK"]
-        ApprovalGate["Human-in-the-Loop Gatekeeper"]
+    subgraph Tooling [Composio Integration Layer]
+        CompSDK[Composio SDK]
+        GitHub[GitHub Tool]
+        Jira[Jira Tool]
+        CRM[CRM Tool]
+        Email[Email Tool]
+
+        Planner --> |1. Call Tool A| CompSDK
+        Planner --> |2. Call Tool B| CompSDK
+        Planner --> |3. Synthesize Results| LLM
+
+        CompSDK <--> GitHub
+        CompSDK <--> Jira
+        CompSDK <--> CRM
+        CompSDK <--> Email
     end
 
-    subgraph Persistence["🗄️ Supabase Cloud (PostgreSQL 16 + Realtime)"]
-        DB_Users["public.app_users & organizations"]
-        DB_Chat["public.chat_sessions & chat_messages"]
-        DB_Events["public.activity_events (Live Feed)"]
-        DB_Audit["public.agent_audit_logs"]
+    subgraph Examples [Multi-Tool Orchestration Workflows]
+        Ex1[Synthesis: Cross-references data across tools for Unified Reports]
+        Ex2[Batch Action: Extracts lists & autonomously stages multi-step operations]
     end
 
-    subgraph ExternalEcosystem["🌐 Enterprise Stack (3,200+ Integrations via Composio)"]
-        M365["Microsoft Teams & Outlook"]
-        Slack["Slack Channels & Direct Messages"]
-        CRM["Salesforce / Zoho CRM / HubSpot"]
-        DevOps["GitHub / Linear / Jira"]
-    end
-
-    %% Client Interactions
-    HUD --> AuthMiddleware
-    Chat -->|SSE POST message| AgentEngine
-    ConnectModal -->|Request Auth Link| ConnectApi
-    Feed -.->|WebSocket Subscription| DB_Events
-
-    %% Backend Execution
-    AgentEngine --> AuthMiddleware
-    AuthMiddleware --> DB_Users
-    AgentEngine -->|Resolve User Session| ComposioCore
-    ComposioCore -->|Load User Tools| LLM
-    LLM -->|Stream Tokens + Invocations| AgentEngine
-    AgentEngine -->|Tool Approval Check| ApprovalGate
-
-    ApprovalGate -->|Safe Action: Auto-Execute| ComposioCore
-    ApprovalGate -->|State Mutation: Require User Sign-off| Chat
-
-    ComposioCore <--> ExternalEcosystem
-
-    %% Webhook Path
-    ExternalEcosystem -->|Event Triggers| ComposioCore
-    ComposioCore -->|Signed Webhook Payload| WebhookIngest
-    WebhookIngest -->|Insert Normalized Event| DB_Events
-    DB_Events -.->|Push Realtime Event| Feed
+    LLM -.-> Examples
 ```
 
 ---
 
 ## 3. Technology Stack & Role Matrix
 
-| Layer | Selected Technology | Architectural Role | Why It Beats the Legacy Architecture |
-| :--- | :--- | :--- | :--- |
-| **Framework** | **Next.js 16 (App Router)** | Primary full-stack runtime, API routes, Server Actions, edge streaming. | Single, unified TypeScript codebase; avoids dual-dispatch legacy mess. |
-| **Styling & Motion** | **Vanilla Tailwind CSS + Framer Motion** | Obsidian/Titanium hardware aesthetics, fluid micro-interactions, double-bezel nesting. | 100% bespoke design system; zero cookie-cutter AI templates. |
-| **Authentication & DB** | **Supabase Auth + PostgreSQL + Realtime** | Multi-tenant auth, organization membership, RLS policies, live event websockets. | Enterprise-grade isolation with zero credential leakage. |
-| **Tool Execution** | **Composio Platform SDK (`@composio/core`)** | Multi-user session management, 3,200+ pre-built integrations, OAuth connect links. | Replaces manual OAuth & token vault maintenance; adds instant support for all tools. |
-| **Agent Intelligence** | **Frontier LLMs (Claude 3.7 / GPT-4o / Gemini 2.0)** | Direct tool-calling orchestrator with streaming output. | Replaces slow n8n LangChain proxy; reduces TTFT from 3.5s to <500ms. |
-| **Live Telemetry** | **Composio Webhook Triggers + Supabase Realtime** | Real-time event ingestion for Teams, Outlook, Slack, and CRMs. | Enables the Viktor proactive capability without writing custom polling crons. |
+| Component | Technology | Architectural Role (Cross-Tool Orchestration) |
+| :--- | :--- | :--- |
+| **Agent Intelligence** | Next.js Serverless Edge / LangChain | **Primary Differentiator.** Serves as the brain of the platform. Plans and chains multiple tool calls autonomously across different services from a single user instruction. |
+| **Tool Connections** | Composio Platform SDK | The infrastructure layer that provides normalized API connections to 3,200+ tools, enabling the agent to execute actions seamlessly without OAuth boilerplate. |
+| **Database & Memory** | Supabase (PostgreSQL + pgvector) | Stores user states, agent memory, and live telemetry to provide context for long-running, multi-step workflows. |
+| **Frontend Cockpit** | Next.js, React, Tailwind, Framer Motion | Displays the agent's visible inline thinking systems and multi-step progress, transforming a chat interface into a transparent orchestration monitor. |
+| **Live Telemetry** | Webhooks & Realtime Subscriptions | Feeds live events into the agent's context, allowing it to proactively suggest cross-tool actions when external systems change. |
 
 ---
 
 ## 4. The Decision on n8n (Formal Architectural Verdict)
 
-### Why n8n was Retired from the Interactive Agent:
-1. **Middleman Latency**: In the legacy build, every chat message had to hop from browser → Next.js → ngrok/tunnel → n8n → LLM → tool → n8n → Next.js regex scraper → browser. Removing n8n cuts latency by ~70%.
-2. **Regex Parsing Fragility**: The old `/api/chat/route.ts` used 150 lines of complex regular expressions to parse n8n console stdout into SSE frames. Direct LLM tool calling returns structured JSON natively.
-3. **Tunneling & Ops Overhead**: Running a local or cloud n8n instance required public webhook tunneling, separate authentication, and container maintenance.
+The decision to migrate away from n8n is final. While n8n excels at rigid, pre-defined automation rules, it fails to support dynamic agentic workflows where the LLM decides the tool execution order on the fly. 
 
-### Where n8n Remains Optional:
-n8n is strictly relegated to **asynchronous, non-real-time batch operations** (e.g., scheduled weekly data reconciliations or legacy visual workflows for non-developers). It is completely decoupled from the user-facing Copilot.
+By replacing the brittle proxy and ngrok tunnels with direct serverless execution and Composio’s managed auth, the new architecture significantly reduces execution latency, drastically improves reliability, and enables the true step-by-step autonomy required for an AI employee.
 
 ---
 
 ## 5. Security & Boundary Guardrails
 
-1. **Zero Shared Tokens**: No tokens are stored in plain text or shared across users. Composio manages credentials in compliance with SOC 2 / HIPAA.
-2. **Session Scoping**: Every Composio call is isolated using `composio.sessions.create(supabaseUser.id)`. User A cannot see or trigger User B’s tools.
-3. **Approval Gates for Mutations**: Any tool marked as `state_mutation` (e.g., `SEND_MAIL`, `UPDATE_RECORD`, `DELETE_OBJECT`) emits an approval token and is blocked until the user explicitly confirms via the UI.
+Prism V2 operates securely by isolating tenant data and strictly enforcing execution boundaries.
+- **Managed OAuth & Token Security**: All OAuth flows and token refreshing are securely managed by Composio. Prism never stores raw access tokens in its own database.
+- **Human-in-the-Loop (HITL) Execution**: The system implements explicit confirmation boundaries. The agent can read data and propose multi-step actions (e.g., drafting emails), but destructive or externally-facing actions wait for user sign-off before proceeding.
+- **Data Isolation**: All conversational memory, vector embeddings, and telemetry logs in Supabase are strictly partitioned by organization and user using Row Level Security (RLS).

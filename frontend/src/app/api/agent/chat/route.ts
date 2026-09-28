@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { adminSupabase } from "@/lib/supabase-admin";
 import { getComposioSessionForUser } from "@/lib/composio/session";
-import {
-  executeSimulatedAgent,
-  formatSSE,
-  type AgentSSEEvent,
-} from "@/lib/agent/llm";
+import { executeSimulatedAgent, formatSSE, type AgentChatMessage } from "@/lib/agent/llm";
+import type { AgentSSEEvent } from "@/types";
 import type { ActionProposal } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -91,7 +88,30 @@ export async function POST(request: Request) {
       sessionId = newSession.id;
     }
 
-    // 2. Persist User Message
+    // 2. Fetch bounded conversation history BEFORE inserting the user message,
+    // so the window is the most recent turns of prior conversation (newest-first
+    // query, then reversed to chronological order for the LLM).
+    let chatHistory: AgentChatMessage[] = [];
+    if (!isNewSession) {
+      const { data: history } = await adminSupabase
+        .from("chat_messages")
+        .select("role, content")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (history && history.length > 0) {
+        chatHistory = history
+          .slice()
+          .reverse()
+          .map((m: { role: string; content: string | null }) => ({
+            role: m.role as AgentChatMessage["role"],
+            content: m.content || "",
+          }));
+      }
+    }
+
+    // 3. Persist User Message
     await adminSupabase.from("chat_messages").insert({
       session_id: sessionId,
       role: "user",
@@ -101,7 +121,7 @@ export async function POST(request: Request) {
       action_proposals: [],
     });
 
-    // 3. Resolve caller's organization context
+    // 4. Resolve caller's organization context
     const { data: memberRow } = await adminSupabase
       .from("organization_members")
       .select("organization_id")
@@ -111,7 +131,7 @@ export async function POST(request: Request) {
 
     const organizationId = memberRow?.organization_id || null;
 
-    // 4. Retrieve isolated user tool router session
+    // 5. Retrieve isolated user tool router session
     let composioSession = null;
     try {
       const res = await getComposioSessionForUser(user.id);
@@ -120,7 +140,7 @@ export async function POST(request: Request) {
       console.warn("[Agent Chat] Composio session notice:", err);
     }
 
-    // 5. Establish unbuffered SSE stream with 15s keep-alive heartbeats
+    // 6. Establish unbuffered SSE stream with 15s keep-alive heartbeats
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -162,6 +182,7 @@ export async function POST(request: Request) {
             await executeSimulatedAgent({
               userId: user.id,
               message,
+              chatHistory,
               composioSession,
               onEvent: sendEvent,
               signal: request.signal,

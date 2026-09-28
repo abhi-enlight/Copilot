@@ -90,13 +90,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select("role, organizations(id, name, slug, type)")
           .eq("user_id", u.id);
 
-        const orgs: Organization[] = (memberships ?? [])
-          .filter((m: any) => m.organizations)
-          .map((m: any) => ({
+        interface MembershipRecord {
+          role: string;
+          organizations: {
+            id: string;
+            name: string;
+            slug?: string | null;
+            type?: "personal" | "team" | "enterprise" | null;
+          } | null;
+        }
+
+        const orgs: Organization[] = ((memberships as unknown as MembershipRecord[]) ?? [])
+          .filter((m): m is MembershipRecord & { organizations: NonNullable<MembershipRecord["organizations"]> } => Boolean(m.organizations))
+          .map((m) => ({
             id: m.organizations.id,
             name: m.organizations.name,
-            slug: m.organizations.slug,
-            type: m.organizations.type,
+            slug: m.organizations.slug || "",
+            type: m.organizations.type || "team",
             ownerRole: m.role,
           }));
 

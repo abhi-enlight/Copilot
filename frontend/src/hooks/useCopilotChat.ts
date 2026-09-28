@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import type { Message, Tenant } from "@/types";
+import { useState, useRef } from "react";
+import type { Message, ToolStep, Tenant } from "@/types";
 import type { ActionProposal } from "@/types/database";
-import { copyToClipboard } from "@/lib/utils";
 import { getWelcomeMessage } from "@/lib/constants";
 
 export function useCopilotChat(activeTenant?: Tenant) {
@@ -20,33 +19,10 @@ export function useCopilotChat(activeTenant?: Tenant) {
 
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading, scrollToBottom]);
-
-  const handleCopy = async (id: string, text: string) => {
-    const success = await copyToClipboard(text);
-    if (success) {
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    }
-  };
-
-  const handleQuickAction = (prompt: string) => {
-    setInput(prompt);
-    inputRef.current?.focus();
-  };
 
   // ── Native Server-Sent Events (SSE) Streaming Dispatcher ──────────
   const handleSendMessage = async (textToSend?: string) => {
@@ -75,7 +51,7 @@ export function useCopilotChat(activeTenant?: Tenant) {
     setMessages((prev) => [...prev, userMsg, initialAssistantMsg]);
     setInput("");
     setIsLoading(true);
-    setActiveTool("Synthesizing Workspace Context");
+    setToolSteps([]);
 
     try {
       const response = await fetch("/api/agent/chat", {
@@ -106,7 +82,6 @@ export function useCopilotChat(activeTenant?: Tenant) {
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith(":")) {
-            // Heartbeat or comment
             continue;
           }
 
@@ -122,9 +97,27 @@ export function useCopilotChat(activeTenant?: Tenant) {
                 setSessionId(event.sessionId);
               } else if (event.type === "tool_call") {
                 if (event.status === "executing") {
-                  setActiveTool(event.tool);
+                  setToolSteps((prev) => [
+                    ...prev,
+                    {
+                      tool: event.tool,
+                      status: "executing",
+                      startedAt: Date.now(),
+                    },
+                  ]);
                 } else {
-                  setActiveTool(null);
+                  setToolSteps((prev) =>
+                    prev.map((step) =>
+                      step.tool === event.tool && step.status === "executing"
+                        ? {
+                            ...step,
+                            status: event.status,
+                            resultSummary: event.resultSummary,
+                            completedAt: Date.now(),
+                          }
+                        : step
+                    )
+                  );
                 }
               } else if (event.type === "text_delta") {
                 setMessages((prev) =>
@@ -145,7 +138,6 @@ export function useCopilotChat(activeTenant?: Tenant) {
                   })
                 );
               } else if (event.type === "done") {
-                setActiveTool(null);
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMsgId
@@ -177,7 +169,6 @@ export function useCopilotChat(activeTenant?: Tenant) {
       );
     } finally {
       setIsLoading(false);
-      setActiveTool(null);
     }
   };
 
@@ -267,15 +258,11 @@ export function useCopilotChat(activeTenant?: Tenant) {
     input,
     setInput,
     isLoading,
-    activeTool,
+    toolSteps,
     sessionId,
-    copiedId,
-    handleCopy,
-    handleQuickAction,
     handleSendMessage,
     approveAction,
     rejectAction,
-    messagesEndRef,
     inputRef,
   };
 }
