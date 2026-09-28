@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import type { Message, ToolStep, Tenant } from "@/types";
 import type { ActionProposal } from "@/types/database";
-import { copyToClipboard } from "@/lib/utils";
 import { getWelcomeMessage } from "@/lib/constants";
 
 export function useCopilotChat(activeTenant?: Tenant) {
@@ -22,31 +21,8 @@ export function useCopilotChat(activeTenant?: Tenant) {
   const [isLoading, setIsLoading] = useState(false);
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading, scrollToBottom]);
-
-  const handleCopy = async (id: string, text: string) => {
-    const success = await copyToClipboard(text);
-    if (success) {
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    }
-  };
-
-  const handleQuickAction = (prompt: string) => {
-    setInput(prompt);
-    inputRef.current?.focus();
-  };
 
   // ── Native Server-Sent Events (SSE) Streaming Dispatcher ──────────
   const handleSendMessage = async (textToSend?: string) => {
@@ -284,13 +260,9 @@ export function useCopilotChat(activeTenant?: Tenant) {
     isLoading,
     toolSteps,
     sessionId,
-    copiedId,
-    handleCopy,
-    handleQuickAction,
     handleSendMessage,
     approveAction,
     rejectAction,
-    messagesEndRef,
     inputRef,
   };
 }

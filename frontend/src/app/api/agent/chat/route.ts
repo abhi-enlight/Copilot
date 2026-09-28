@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { adminSupabase } from "@/lib/supabase-admin";
 import { getComposioSessionForUser } from "@/lib/composio/session";
-import {
-  executeSimulatedAgent,
-  formatSSE,
-  type AgentSSEEvent,
-} from "@/lib/agent/llm";
+import { executeSimulatedAgent, formatSSE } from "@/lib/agent/llm";
+import type { AgentSSEEvent } from "@/types";
 import type { ActionProposal } from "@/types/database";
 
 export const dynamic = "force-dynamic";

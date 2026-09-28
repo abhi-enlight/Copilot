@@ -19,44 +19,18 @@ export type Message = {
   action_proposals?: ActionProposal[];
 };
 
-export type ChatPayload = {
-  chatInput: string;
-  sessionId: string;
-  tenantId?: string;
-  tenantSlug?: string;
-  userEmail?: string;
-  /** @deprecated legacy v1 parameter */
-  crmConnected?: boolean;
-  /** @deprecated legacy v1 parameter */
-  dynamicsOrg?: string;
-  /** @deprecated legacy v1 parameter */
-  m365Connected?: boolean;
-  /** @deprecated legacy v1 parameter */
-  sharepointDrive?: string;
-};
-
 /**
- * Server-Sent Events (SSE) streaming envelope for /api/agent/chat.
- * Line-buffered JSON events sent from the Next.js agent runtime to the client.
+ * Canonical Server-Sent Events (SSE) contract for /api/agent/chat.
+ * Shared by the agent runtime (server) and the streaming dispatcher
+ * (client); the single source of truth for the wire protocol.
  */
-export type AgentStreamEvent =
-  | { type: 'token'; content: string }
-  | { type: 'tool_start'; tool: string; callId: string }
-  | { type: 'tool_result'; tool: string; callId: string; result: unknown }
-  | { type: 'action_proposal'; proposal: ActionProposal }
-  | { type: 'error'; message: string }
-  | { type: 'done'; messageId: string };
-
-/**
- * Legacy n8n response shape preserved for transitional compatibility.
- * @deprecated Use AgentStreamEvent for V2 streaming agent chat.
- */
-export type N8nChatResponse = {
-  output?: string;
-  response?: string;
-  message?: string;
-  text?: string;
-};
+export type AgentSSEEvent =
+  | { type: "session_meta"; sessionId: string; isNewSession: boolean }
+  | { type: "tool_call"; tool: string; status: "executing" | "complete" | "failed"; resultSummary?: string }
+  | { type: "text_delta"; delta: string }
+  | { type: "action_proposal"; proposal: ActionProposal }
+  | { type: "error"; code: string; message: string }
+  | { type: "done"; fullContent: string; actionProposals: ActionProposal[] };
 
 export interface ToolStep {
   tool: string;

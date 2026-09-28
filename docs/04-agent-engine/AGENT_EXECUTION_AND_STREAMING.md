@@ -63,47 +63,54 @@ flowchart TD
 
 ## 3. Server-Sent Events (SSE) Protocol & Heartbeat Guardrails
 
-To prevent corporate proxies, Cloudflare, and browser timeouts from dropping active streams during complex multi-step tool calls, the engine emits **15-second SSE keep-alive comments**. The stream actively reflects the orchestration loop's state to provide deep visibility into the agent's reasoning.
+To prevent corporate proxies, Cloudflare, and browser timeouts from dropping active streams during complex multi-step tool calls, the engine emits **15-second SSE keep-alive comments**. The stream actively reflects the agent loop's state to provide visibility into tool execution.
+
+The canonical event contract is the `AgentSSEEvent` union in `frontend/src/types/chat.ts` — imported by both the server runtime (`lib/agent/llm.ts`, `app/api/agent/chat/route.ts`) and the client dispatcher (`hooks/useCopilotChat.ts`), so the wire protocol has exactly one definition.
 
 | Event Type | Payload Format | Client UI Behavior |
 | :--- | :--- | :--- |
 | **`heartbeat`** | `: ping\n\n` | Ignored by parser; keeps TCP connection alive across corporate firewalls. |
-| **`orchestrationPlan`** | `data: {"orchestrationPlan": ["Query System A", "Draft Communications"]}` | Shows a high-level roadmap of intended actions to the user. |
-| **`toolStep`** | `data: {"toolStep": {"service": "Zoho CRM", "action": "Querying overdue contacts..."}}` | Displays an animated titanium badge indicating which specific tool from which service is active. |
-| **`thinkingUpdate`** | `data: {"thinkingUpdate": "Found 7 contacts, now drafting emails..."}` | Reveals inline reasoning and synthesis between tool calls. |
-| **`text`** | `data: {"text": "I found 3 relevant emails..."}` | Appends markdown text to the active message bubble with smooth fluid typography. |
-| **`actionProposal`** | `data: {"actionProposal": { "id": "act-1", "type": "EMAIL_SEND", ... }}` | Pauses execution and renders an **Interactive Action Card** awaiting human sign-off. |
-| **`orchestrationComplete`**| `data: {"orchestrationComplete": true}` | Signals the end of the multi-tool reasoning loop, clearing active indicators. |
-| **`error`** | `data: {"error": true, "code": "AUTH_REQUIRED", "connectUrl": "..."}` | Renders an inline action banner inviting the user to authorize the required tool. |
-| **`[DONE]`** | `data: [DONE]` | Closes the stream and commits message history to `public.chat_messages`. |
+| **`session_meta`** | `data: {"type":"session_meta","sessionId":"...","isNewSession":true}` | Client stores the session id so subsequent turns resume the same conversation. |
+| **`tool_call`** | `data: {"type":"tool_call","tool":"outlook_search_emails","status":"executing"\|"complete"\|"failed","resultSummary":"..."}` | Renders an orchestration step pill per tool (spinner → check/cross) with a result summary. |
+| **`text_delta`** | `data: {"type":"text_delta","delta":"I found 3 relevant emails..."}` | Appends streaming markdown text to the active assistant message bubble. |
+| **`action_proposal`** | `data: {"type":"action_proposal","proposal":{"id":"act-1","action_type":"OUTLOOK_SEND_EMAIL",...}}` | Renders an **Interactive Action Card** awaiting human sign-off; the mutation is NOT executed yet. |
+| **`error`** | `data: {"type":"error","code":"EXECUTION_ERROR","message":"..."}` | Surfaces an inline error state on the assistant message. |
+| **`done`** | `data: {"type":"done","fullContent":"...","actionProposals":[...]}` | Final reconciled content + proposal snapshot; clears active indicators. |
+| **`[DONE]`** | `data: [DONE]` | Closes the stream; message history has already been committed to `public.chat_messages` server-side. |
 
 ---
 
-## 4. Core Chat Dispatcher Implementation (`/api/agent/chat/route.ts`)
+## 4. Core Chat Dispatcher (`/api/agent/chat/route.ts`)
+
+The implemented dispatcher is intentionally structured as: authenticate → resolve/create the chat session → persist the user message → open the SSE stream → run the agent loop (`executeSimulatedAgent` in `lib/agent/llm.ts`) → persist proposals + assistant message → `[DONE]`.
 
 ```typescript
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth-helpers';
-import { getComposioSessionForUser } from '@/lib/composio/session';
+import { createClient } from '@/lib/supabase-server';
 import { adminSupabase } from '@/lib/supabase-admin';
+import { getComposioSessionForUser } from '@/lib/composio/session';
+import { executeSimulatedAgent, formatSSE } from '@/lib/agent/llm';
+import type { AgentSSEEvent } from '@/types';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export async function POST(req: Request) {
-  const auth = await requireAuth(req);
-  if (auth instanceof NextResponse) return auth;
-
-  const { message, sessionId } = await req.json();
-  if (!message?.trim()) {
-    return NextResponse.json({ error: 'Message required' }, { status: 400 });
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  // 1. Get Composio session strictly for this user
-  const { session } = await getComposioSessionForUser(auth.user.id);
-  const tools = await session.tools();
+  const { message, sessionId } = await request.json().catch(() => ({}));
+  if (!message?.trim()) {
+    return NextResponse.json({ error: 'bad_request' }, { status: 400 });
+  }
 
-  const encoder = new TextEncoder();
+  // ... resolve or create chat_sessions row (403 if sessionId not owned by user)
+  // ... persist the user message to chat_messages
+  // ... fetch bounded history + user's isolated Composio session
+
   const stream = new ReadableStream({
     async start(controller) {
       // 15-second Keep-Alive Heartbeat Timer
@@ -115,37 +122,31 @@ export async function POST(req: Request) {
         }
       }, 15_000);
 
-      const sendSSE = (obj: any) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-      };
+      const sendEvent = (event: AgentSSEEvent) =>
+        controller.enqueue(encoder.encode(formatSSE(event)));
 
       try {
-        // 2. Multi-Step Orchestration Loop Execution
-        sendSSE({ orchestrationPlan: ['Query System Context', 'Analyze Requirements', 'Draft Response'] });
-        sendSSE({ thinkingUpdate: 'Formulating execution strategy across connected tools...' });
+        sendEvent({ type: 'session_meta', sessionId, isNewSession });
 
-        // Simulate agent reasoning loop across multiple tools
-        const orchestrationSteps = [
-          { service: 'GitHub', action: 'Querying recent pull requests...' },
-          { service: 'Jira', action: 'Fetching sprint ticket status...' }
-        ];
+        const { content, actionProposals } = await executeSimulatedAgent({
+          userId: user.id,
+          message,
+          chatHistory,
+          composioSession,
+          onEvent: sendEvent, // emits tool_call / text_delta / action_proposal events
+          signal: request.signal,
+        });
 
-        for (const step of orchestrationSteps) {
-          sendSSE({ toolStep: step });
-          // Native execution via Composio happens here...
-          sendSSE({ thinkingUpdate: `Synthesizing results from ${step.service}...` });
-        }
-        
-        sendSSE({ text: "Based on the latest PRs and active Jira tickets, here is the synthesis..." });
-        sendSSE({ orchestrationComplete: true });
-
+        // Persist pending proposals to agent_audit_logs (HMAC-signed) and the
+        // assistant response to chat_messages, then:
+        sendEvent({ type: 'done', fullContent: content, actionProposals });
+        controller.enqueue(encoder.encode(formatSSE('[DONE]')));
         clearInterval(heartbeatInterval);
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
-      } catch (err: any) {
+      } catch {
         clearInterval(heartbeatInterval);
-        sendSSE({ error: true, message: err.message });
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        sendEvent({ type: 'error', code: 'EXECUTION_ERROR', message: 'Agent execution failed.' });
+        controller.enqueue(encoder.encode(formatSSE('[DONE]')));
         controller.close();
       }
     },
@@ -161,6 +162,8 @@ export async function POST(req: Request) {
   });
 }
 ```
+
+Inside the agent loop (`lib/agent/llm.ts`), read-only tools execute autonomously against the user's Composio session (with retry/timeout), while mutation tools are converted into HMAC-signed Action Proposals that the loop surfaces as `action_proposal` events — the LLM is told the action is only staged, so it cannot claim execution that has not happened.
 
 ---
 

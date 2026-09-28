@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import OpenAI from "openai";
 import type { ActionProposal } from "@/types/database";
+import type { AgentSSEEvent } from "@/types";
 import { createActionProposal, classifyToolTier } from "./tools";
 
 export interface AgentChatMessage {
@@ -10,13 +11,7 @@ export interface AgentChatMessage {
   tool_call_id?: string;
 }
 
-export type AgentSSEEvent =
-  | { type: "session_meta"; sessionId: string; isNewSession: boolean }
-  | { type: "tool_call"; tool: string; status: "executing" | "complete" | "failed"; resultSummary?: string }
-  | { type: "text_delta"; delta: string }
-  | { type: "action_proposal"; proposal: ActionProposal }
-  | { type: "error"; code: string; message: string }
-  | { type: "done"; fullContent: string; actionProposals: ActionProposal[] };
+export type { AgentSSEEvent };
 
 const MAX_CONTEXT_TURNS = 10;
 const MAX_TOOL_OUTPUT_CHARS = 2000;
