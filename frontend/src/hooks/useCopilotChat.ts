@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import type { Message, Tenant } from "@/types";
+import type { Message, ToolStep, Tenant } from "@/types";
 import type { ActionProposal } from "@/types/database";
 import { copyToClipboard } from "@/lib/utils";
 import { getWelcomeMessage } from "@/lib/constants";

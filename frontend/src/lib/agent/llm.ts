@@ -85,7 +85,7 @@ async function executeToolWithRetry(
         }) : new Promise(() => {}),
       ]);
       return result;
-    } catch {
+    } catch (err: unknown) {
       if (signal?.aborted) throw err;
       if (attempt === maxRetries) throw err;
       await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // exponential backoff
@@ -127,7 +127,7 @@ export async function executeSimulatedAgent(params: {
       // If tools are not already in OpenAI format, this might fail, but Composio SDK usually handles it via its wrapper or tools list.
       openAITools = tools;
     }
-  } catch {
+  } catch (err: unknown) {
     console.warn("[Agent] Failed to load tools:", err);
   }
 
@@ -209,7 +209,7 @@ export async function executeSimulatedAgent(params: {
             result = { error: "No tool execution session available." };
           }
           onEvent({ type: "tool_call", tool: tc.name, status: "complete", resultSummary: summarizeResult(result) });
-        } catch {
+        } catch (err: unknown) {
           result = { error: err instanceof Error ? err.message : String(err) };
           onEvent({ type: "tool_call", tool: tc.name, status: "failed", resultSummary: result.error });
         }
