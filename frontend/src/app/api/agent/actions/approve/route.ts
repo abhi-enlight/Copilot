@@ -121,31 +121,45 @@ export async function POST(request: Request) {
     }
 
     // 5. Tool Execution via User's Isolated Session
-    let executionResult: Record<string, unknown> = {
-      delivered: true,
-      timestamp: new Date().toISOString(),
-    };
+    let executionResult: Record<string, unknown>;
 
     try {
       const { session } = await getComposioSessionForUser(user.id);
-      if (session && typeof session.execute === "function") {
-        const res = await session.execute(
-          action.tool_slug,
-          action.request_payload as Record<string, unknown>
-        );
-        executionResult = (res as Record<string, unknown>) || executionResult;
+      if (!session || typeof session.execute !== "function") {
+        throw new Error("Tool execution session is unavailable for this account");
       }
-    } catch (execErr: unknown) {
-      const errorMsg = execErr instanceof Error ? execErr.message : String(execErr);
-      console.warn("[Action Approval] Execution notice:", errorMsg);
-      executionResult = {
-        delivered: true,
-        notice: "Dispatched to operational gateway",
-        detail: errorMsg,
+      const res = await session.execute(
+        action.tool_slug,
+        action.request_payload as Record<string, unknown>
+      );
+      executionResult = (res as Record<string, unknown>) || {
+        executed: true,
+        timestamp: new Date().toISOString(),
       };
+    } catch (execErr: unknown) {
+      // Fail loudly: a real execution failure must never surface to the user
+      // (or the audit ledger) as a successful delivery.
+      const errorMsg = execErr instanceof Error ? execErr.message : String(execErr);
+      console.error("[Action Approval] Execution failed:", errorMsg);
+
+      await adminSupabase
+        .from("agent_audit_logs")
+        .update({
+          status: "failed",
+          execution_result: { error: errorMsg },
+        })
+        .eq("id", actionId);
+
+      return NextResponse.json(
+        {
+          error: "execution_failed",
+          detail: errorMsg || "The approved action failed to execute",
+        },
+        { status: 502 }
+      );
     }
 
-    // 6. Record Final Execution Status in Audit Log
+    // 6. Record Successful Execution in Audit Log
     await adminSupabase
       .from("agent_audit_logs")
       .update({
