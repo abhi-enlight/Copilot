@@ -1,60 +1,74 @@
-# 🔷 Prism, One Interface, Every System
+# ⚡ Prism: The Autonomous Enterprise AI Employee
 
-> **Prism** is the merged product: the former *Operations Cockpit* (Microsoft Outlook / SharePoint / Dynamics 365 CRM) unified with *BCP Assist* (Zoho CRM / Projects / Books) into a single AI productivity copilot, with **n8n as the execution backend**.
->
-> Connectors are permission-honest: Outlook, OneDrive, and Calendar connect per user with minimal scopes (no admin rights needed), while CRM and tenant-wide connectors appear only for users the provider's own permission model entitles them to.
-
----
-
-## 📚 Documentation
-
-- **`docs/PRISM_PRODUCT_AND_MERGE_PLAN.md`**, master product, merge & architecture plan (audit, connector spec + permission matrix, n8n workflow catalog, UI/UX design system, brand kit, feature roadmap, phases, risks, and the ready-to-copy prompt for the n8n-MCP agent).
-- **`docs/FUTURE_IMPLEMENTATIONS_AND_PRODUCTIVITY_PLAN.md`**, granular toggles & non-admin enablement design study (feeds Prism's connector architecture).
-- **`docs/ARCHITECTURE.md`**, **`docs/MULTI_TENANT_ARCHITECTURE_AND_PLAN.md`**, multi-tenant foundation.
+> **Not a chat tool. A digital employee that lives across your stack, fetches live communication, proposes actions, and waits for your sign-off before touching what matters.**  
+> Inspired by the executive intelligence model of [viktor.com](https://viktor.com/). Built on **Next.js 16**, **Supabase Multi-Tenant Auth/RLS**, and the **Composio Platform SDK** for 3,200+ enterprise integrations.
 
 ---
 
-## 🚀 Features
+## 🌟 Core Pillars
 
-- **Multi-Source Telemetry HUD**: Live indicators and status telemetry for connected enterprise data sources.
-- **Unified Chat Stream**: Powered by Google Gemini via n8n webhook orchestration.
-- **Quick Action Triggers**: Instant one-click triggers for Outlook emails, SharePoint documents, and database records.
-- **Dynamic Source Badging**: Auto-categorizes responses with visual source tags.
-- **Hardware-Grade UI**: Double-bezel cockpit aesthetics with Framer Motion animations and ⌘K hotkey focus.
-- **Connector Hub**: Add, toggle, and health-check Microsoft & Zoho connectors one by one, respecting each platform's real permissions. CRM connections (Dynamics 365 and Zoho CRM) are **entitlement-gated**: users without CRM access see a locked toggle and a "You don't have access to the CRM." popup; Admin/Owner app roles override failed probes, and a post-login re-check unlocks access the moment a license/role is granted.
-- **Multi-tenant Zoho**: every user connects their own Zoho account via OAuth (per-product scopes for CRM / Projects / Books). Org IDs and data center are discovered from the user's account at connect time, the legacy hard-coded org is only a fallback when `ZOHO_ORG_SHARED=true`.
-- **Read + write with approvals**: Microsoft scopes now include `Mail.Send` / `Mail.ReadWrite` / `Files.ReadWrite` and Zoho scopes are write-capable; every AI write passes a human approval modal and is recorded in `agent_audit_logs`.
+- **Universal Multi-User Connectivity (Composio Platform)**: Users connect their own accounts across Microsoft Teams, Outlook, Slack, Linear, GitHub, Zoho, and Salesforce via 1-click managed connect links. Zero custom OAuth maintenance.
+- **Live Stack Telemetry Radar**: Real-time webhook ingestion for Teams, Outlook, and Slack. Surfaces proactive executive briefings and unread urgency pills into an ambient cockpit HUD.
+- **Sub-Second Streaming Engine**: Direct serverless streaming agent runtime (`/api/agent/chat`). Direct LLM function calling with sub-500ms TTFT (Time-To-First-Token), completely replacing legacy n8n proxying.
+- **Autonomous, Not Unsupervised (Action Cards)**: Safe read-tools execute automatically; state-modifying actions (sending emails, updating CRM deals, creating tasks) render interactive **Action Proposal Cards** and require explicit human sign-off before execution.
+- **Bespoke Hardware-Grade Cockpit**: Obsidian/Titanium dark palette, double-bezel concentric chassis cards, Geist typography, and micro-physics animations. Zero generic SaaS templates.
 
 ---
 
-## 🛠️ Getting Started
+## 📚 Master Documentation Suite (Categorized & Locked for MVP)
+
+All system architecture, design specifications, and migration guides are organized in [`docs/`](./docs):
+
+- 🏛️ **[01. Architecture](./docs/01-architecture/)**
+  - [`SYSTEM_ARCHITECTURE.md`](./docs/01-architecture/SYSTEM_ARCHITECTURE.md) — Complete V2 blueprint, Next.js + Supabase + Composio, and n8n retirement verdict.
+  - [`DATABASE_AND_TENANCY.md`](./docs/01-architecture/DATABASE_AND_TENANCY.md) — Multi-tenant schema, RLS policies, session models, and audit logs.
+  - [`INTEGRATIONS_AND_COMPOSIO.md`](./docs/01-architecture/INTEGRATIONS_AND_COMPOSIO.md) — Composio Platform SDK, multi-user sessions, and 1-click connect flow.
+
+- 🎨 **[02. UI/UX Design System](./docs/02-ui-ux-design/)**
+  - [`DESIGN_SYSTEM_AND_TOKENS.md`](./docs/02-ui-ux-design/DESIGN_SYSTEM_AND_TOKENS.md) — "Anti-AI-Slop" agency design system, double-bezel concentric curves, and motion tokens.
+  - [`CLIENT_EXPERIENCE_AND_FLOWS.md`](./docs/02-ui-ux-design/CLIENT_EXPERIENCE_AND_FLOWS.md) — Client-side user journey, 3-panel command cockpit, and proactive briefings.
+  - [`COMPONENT_SPECIFICATIONS.md`](./docs/02-ui-ux-design/COMPONENT_SPECIFICATIONS.md) — TypeScript props contracts and structural breakdowns for all UI components.
+
+- 📡 **[03. Live Stack Telemetry](./docs/03-live-stack-telemetry/)**
+  - [`PROACTIVE_FEED_AND_WEBHOOKS.md`](./docs/03-live-stack-telemetry/PROACTIVE_FEED_AND_WEBHOOKS.md) — Ingesting live updates from Teams, Outlook, and Slack via webhooks.
+  - [`EVENT_SCHEMA_AND_DISPATCH.md`](./docs/03-live-stack-telemetry/EVENT_SCHEMA_AND_DISPATCH.md) — Unified event schema and priority scoring engine.
+
+- ⚡ **[04. Agent Intelligence Engine](./docs/04-agent-engine/)**
+  - [`AGENT_EXECUTION_AND_STREAMING.md`](./docs/04-agent-engine/AGENT_EXECUTION_AND_STREAMING.md) — Native streaming runtime, token-by-token SSE, and tool calling lifecycle.
+  - [`HUMAN_IN_THE_LOOP_APPROVALS.md`](./docs/04-agent-engine/HUMAN_IN_THE_LOOP_APPROVALS.md) — Two-tier tool security model, action proposal cards, and audit logging.
+
+- 🔒 **[05. MVP Roadmap & GitOps](./docs/05-mvp-roadmap-and-gitops/)**
+  - [`MVP_SPECIFICATION_LOCKED.md`](./docs/05-mvp-roadmap-and-gitops/MVP_SPECIFICATION_LOCKED.md) — Firm, locked-in scope, acceptance criteria, and deferred features.
+  - [`GITOPS_AND_MIGRATION_PLAN.md`](./docs/05-mvp-roadmap-and-gitops/GITOPS_AND_MIGRATION_PLAN.md) — Phased migration runbook for retiring legacy endpoints cleanly.
+
+---
+
+## 🛠️ Quick Start
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Configure Environment
-Create a `.env.local` file (see `.env.example` for the full set, Supabase, Microsoft, Zoho, token vault encryption, and background token refresh):
+### 2. Environment Variables
+Create a `.env.local` file with your credentials:
+```bash
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Composio Platform
+COMPOSIO_API_KEY=ak_...
+
+# LLM Provider (Choose one or more)
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+```
 
 ### 3. Run Development Server
 ```bash
 npm run dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### 4. Database Migrations
-Apply the SQL files in `database/migrations/` in order (01 → 02 → 03). Migration 03 adds the
-expiry columns that power the background token-refresh job, users' Zoho connections stay
-valid without re-connecting, and rejected refresh tokens surface as **Reconnection required**
-in the Connections view.
-
-### 5. Background Token Refresh
-The Next.js server automatically refreshes per-user Zoho vault tokens before they expire
-(via `src/instrumentation.ts`; every 15 minutes by default, `TOKEN_REFRESH_INTERVAL_MS`).
-For serverless or slept deployments, trigger it from cron instead:
-```bash
-curl -X POST https://<your-app>/api/integrations/refresh-tokens \
-  -H "x-refresh-secret: $TOKEN_REFRESH_SECRET"
-```
+Open [http://localhost:3000](http://localhost:3000) to view the Prism Command Cockpit.

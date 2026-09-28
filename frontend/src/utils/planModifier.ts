@@ -1,4 +1,4 @@
-import { type AspectTask, type Campaign } from "@/types/campaign";
+import { type AspectTask } from "@/types/campaign";
 
 export interface TeamMember {
   name: string;
@@ -91,7 +91,7 @@ export const BIGCITY_TEAM: TeamMember[] = [
 export interface PlanModificationResult {
   hasModifications: boolean;
   updatedTasks: AspectTask[];
-  updatedCampaignData: any;
+  updatedCampaignData: Record<string, unknown>;
   modifiedTaskIds: string[];
   summaryMarkdown: string;
   actionType:
@@ -186,12 +186,12 @@ export function findTeamMember(query: string): TeamMember | null {
  */
 export function applyPlanModifications(
   currentTasks: AspectTask[],
-  campaignData: any,
+  campaignData: Record<string, unknown>,
   input: string
 ): PlanModificationResult {
   const lower = input.toLowerCase().trim();
   let tasks = [...currentTasks];
-  let updatedCampaign = { ...campaignData };
+  const updatedCampaign = { ...campaignData };
   const modifiedTaskIds: string[] = [];
   const changesSummary: string[] = [];
   let actionType: PlanModificationResult["actionType"] = "none";
@@ -224,7 +224,7 @@ export function applyPlanModifications(
     updatedCampaign.rewardType = newRewardType;
 
     // Update campaign name to reflect the new theme/mechanic
-    const oldName = updatedCampaign.name || "";
+    const oldName = typeof updatedCampaign.name === "string" ? updatedCampaign.name : "";
     let newName = oldName;
     const mechanicWords = ["Cashback", "Scratch & Win", "Scratch and Win", "EGV", "Gift Card", "Merchandise", "Voucher"];
     let replaced = false;
@@ -236,7 +236,8 @@ export function applyPlanModifications(
       }
     }
     if (!replaced) {
-      newName = `${updatedCampaign.client || "Brand"} ${newRewardType} Campaign`;
+      const clientStr = typeof updatedCampaign.client === "string" ? updatedCampaign.client : "Brand";
+      newName = `${clientStr} ${newRewardType} Campaign`;
     }
     updatedCampaign.name = newName;
 
@@ -1153,7 +1154,7 @@ export function applyPlanModifications(
       input.match(/(?:rename(?:\s+the)?(?:\s+campaign)?(?:\s+name)?|change(?:\s+the)?(?:\s+campaign)?\s+name|set(?:\s+the)?(?:\s+campaign)?\s+name|update(?:\s+the)?(?:\s+campaign)?\s+name|call\s+it|name\s+it)\s+(?:of\s+[\w\s\u20b9₹-]+\s+)?(?:to|as|=|is)\s+["']?([^"'\n.]+?)["']?$/i) ||
       input.match(/(?:rename|change\s+name|update\s+name)\s+(?:to|as)\s+["']?([^"'\n]+?)["']?$/i);
     if (nameMatch && nameMatch[1]) {
-      const oldName = updatedCampaign.name;
+      const oldName = typeof updatedCampaign.name === "string" ? updatedCampaign.name : "";
       const newName = nameMatch[1].trim();
       if (newName && newName.length >= 3) {
         updatedCampaign.name = newName;
@@ -1262,7 +1263,7 @@ export function syncTasksFromAIResponse(
     return { updatedTasks: currentTasks, modifiedIds: [] };
   }
 
-  let tasks = [...currentTasks];
+  const tasks = [...currentTasks];
   const modifiedIds: string[] = [];
 
   const lines = responseText.split("\n");
@@ -1471,8 +1472,8 @@ function isInvalidCampaignName(candidate: string): boolean {
  */
 export function syncCampaignDataFromAIResponse(
   responseText: string,
-  currentCampaign: any
-): { updatedCampaign: any; changed: boolean } {
+  currentCampaign: Record<string, unknown>
+): { updatedCampaign: Record<string, unknown>; changed: boolean } {
   if (!responseText || responseText.length < 20) {
     return { updatedCampaign: currentCampaign, changed: false };
   }
@@ -1586,19 +1587,22 @@ export function syncCampaignDataFromAIResponse(
   }
 
   // 5. Keep name in sync with rewardType changes (e.g. Jaguar Scratch & Win -> Jaguar Cashback)
-  if (updated.rewardType && updated.name) {
+  const currentRewardType = typeof updated.rewardType === "string" ? updated.rewardType : "";
+  const currentName = typeof updated.name === "string" ? updated.name : "";
+  if (currentRewardType && currentName) {
     const mechanicKeywords = ["Scratch & Win", "Scratch and Win", "EGV", "Gift Card", "Merchandise", "Cashback"];
     for (const mk of mechanicKeywords) {
-      if (mk !== updated.rewardType && new RegExp(`\\b${mk}\\b`, "i").test(updated.name)) {
-        updated.name = updated.name.replace(new RegExp(`\\b${mk}\\b`, "gi"), updated.rewardType);
+      if (mk !== currentRewardType && new RegExp(`\\b${mk}\\b`, "i").test(currentName)) {
+        updated.name = currentName.replace(new RegExp(`\\b${mk}\\b`, "gi"), currentRewardType);
         changed = true;
         break;
       }
     }
     // If name is invalid or generic, synthesize proper brand name
-    if (isInvalidCampaignName(updated.name) || updated.name === "New Campaign Plan" || updated.name === "Campaign") {
-      const clientLabel = updated.client && !/^(client|enterprise client|unknown)$/i.test(updated.client) ? updated.client : "Promotional";
-      updated.name = `${clientLabel} ${updated.rewardType} Campaign`;
+    const activeName = typeof updated.name === "string" ? updated.name : currentName;
+    if (isInvalidCampaignName(activeName) || activeName === "New Campaign Plan" || activeName === "Campaign") {
+      const clientLabel = typeof updated.client === "string" && !/^(client|enterprise client|unknown)$/i.test(updated.client) ? updated.client : "Promotional";
+      updated.name = `${clientLabel} ${currentRewardType} Campaign`;
       changed = true;
     }
   }

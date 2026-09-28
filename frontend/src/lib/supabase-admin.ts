@@ -66,8 +66,8 @@ export interface CampaignRow {
   end_date: string;
   brief: string;
   status: "draft" | "live";
-  tasks: any[];
-  aspect_summary: any;
+  tasks: Record<string, unknown>[];
+  aspect_summary: Record<string, unknown> | null;
 
   // Zoho CRM, Deals module
   zoho_crm_deal_id: string | null;

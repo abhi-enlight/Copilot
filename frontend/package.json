@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@composio/core": "^0.17.0",
     "@phosphor-icons/react": "^2.1.10",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.112.4",

@@ -7,11 +7,19 @@
  * return values (activeTenant, isAuthenticated, handleLogout, etc.).
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/components/providers/AuthProvider';
 import type { Tenant } from '@/types';
 
-function buildTenantFromStatus(data: any, base: Tenant): Tenant {
+interface ServerStatusResponse {
+  m365Connected?: boolean;
+  crmConnected?: boolean;
+  userEmail?: string;
+  userName?: string;
+  sharepointDrive?: string;
+}
+
+function buildTenantFromStatus(data: ServerStatusResponse, base: Tenant): Tenant {
   const isPersonal = /@(outlook|hotmail|live|msn|gmail|yahoo)\.com$/i.test(data.userEmail || '');
   const name = data.userName
     ? `${data.userName}'s Workspace`
@@ -28,22 +36,10 @@ function buildTenantFromStatus(data: any, base: Tenant): Tenant {
   };
 }
 
-const DEFAULT_TENANT: Tenant = {
-  id: 'personal',
-  name: 'Personal Workspace',
-  slug: 'personal',
-  role: 'Owner',
-  userEmail: undefined,
-  userName: undefined,
-  m365Connected: false,
-  crmConnected: false,
-};
-
 export function useTenantContext() {
   const { user, profile, activeOrg, signOut } = useAuth();
 
-  // Derive a Tenant shape from the Supabase auth context
-  const [activeTenant, setActiveTenant] = useState<Tenant>(DEFAULT_TENANT);
+  const [serverStatus, setServerStatus] = useState<ServerStatusResponse | null>(null);
   const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showConsentSuccess, setShowConsentSuccess] = useState(false);
@@ -55,45 +51,60 @@ export function useTenantContext() {
   const isAuthenticated = !!user;
 
   // Sync tenant state from server status (for legacy MS connection info)
-  const syncServerStatus = async () => {
+  const syncServerStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/tenant/status');
       if (res.ok) {
-        const data = await res.json();
-        if (data.m365Connected && data.userEmail) {
-          setActiveTenant((prev) => buildTenantFromStatus(data, prev));
-        } else {
-          setActiveTenant((prev) => ({
-            ...prev,
-            m365Connected: false,
-            crmConnected: false,
-          }));
-        }
+        const data: ServerStatusResponse = await res.json();
+        setServerStatus(data);
       }
     } catch (err) {
       console.warn('Failed to sync server status:', err);
     }
-  };
-
-  // Update activeTenant when the org context changes
-  useEffect(() => {
-    if (activeOrg) {
-      setActiveTenant((prev) => ({
-        ...prev,
-        id: activeOrg.id,
-        name: activeOrg.name,
-        slug: activeOrg.slug,
-        userName: profile?.displayName ?? undefined,
-        userEmail: profile?.email ?? undefined,
-      }));
-    }
-  }, [activeOrg, profile]);
+  }, []);
 
   // Sync MS connection status on mount
   useEffect(() => {
-    if (user) syncServerStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+    let isMounted = true;
+    if (!user) return;
+
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/tenant/status');
+        if (res.ok && isMounted) {
+          const data: ServerStatusResponse = await res.json();
+          setServerStatus(data);
+        }
+      } catch (err) {
+        console.warn('Failed to sync server status:', err);
+      }
+    }
+
+    void loadStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Derive activeTenant using useMemo to avoid cascading render cycles
+  const activeTenant: Tenant = useMemo(() => {
+    const base: Tenant = {
+      id: activeOrg?.id ?? 'personal',
+      name: activeOrg?.name ?? 'Personal Workspace',
+      slug: activeOrg?.slug ?? 'personal',
+      role: 'Owner',
+      userEmail: profile?.email ?? undefined,
+      userName: profile?.displayName ?? undefined,
+      m365Connected: false,
+      crmConnected: false,
+    };
+
+    if (serverStatus?.m365Connected && serverStatus?.userEmail) {
+      return buildTenantFromStatus(serverStatus, base);
+    }
+
+    return base;
+  }, [activeOrg, profile, serverStatus]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -108,29 +119,30 @@ export function useTenantContext() {
 
   const handleLogout = async () => {
     try {
-      await signOut(); // Supabase signOut + clears legacy cookies
-    } catch (e) {
-      console.error('Logout error:', e);
+      await signOut();
+    } catch (err) {
+      console.error('Logout error:', err);
     }
-    setActiveTenant(DEFAULT_TENANT);
-    setIsTenantDropdownOpen(false);
   };
 
-  // Legacy shim: kept for backward compat with pages that call handleLogin
-  const handleLogin = () => {
-    // no-op: login is now driven by /auth/login page + Supabase
+  const handleAdminConsentSuccess = () => {
+    setShowConsentModal(false);
+    setShowConsentSuccess(true);
+    void syncServerStatus();
   };
 
-  const handleSelectTenant = (tenant: Tenant) => {
-    setActiveTenant(tenant);
+  const handleDisconnect = async () => {
+    try {
+      await fetch('/api/integrations/microsoft/disconnect', { method: 'POST' });
+      setServerStatus(null);
+    } catch (err) {
+      console.error('Failed to disconnect:', err);
+    }
   };
 
   return {
     activeTenant,
-    setActiveTenant,
-    handleSelectTenant,
     isAuthenticated,
-    setIsAuthenticated: () => {}, // no-op: state comes from Supabase
     isTenantDropdownOpen,
     setIsTenantDropdownOpen,
     showConsentModal,
@@ -141,6 +153,8 @@ export function useTenantContext() {
     setShowIntegrationsModal,
     tenantDropdownRef,
     handleLogout,
-    handleLogin,
+    handleAdminConsentSuccess,
+    handleDisconnect,
+    syncServerStatus,
   };
 }

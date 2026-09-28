@@ -63,6 +63,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/integrations") || // OAuth callbacks provide their own tokens/state
+    pathname.startsWith("/api/webhooks") || // External webhooks carry cryptographic HMAC signatures
+    pathname.startsWith("/integrations/callback") || // Popup completion window
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/icon") ||

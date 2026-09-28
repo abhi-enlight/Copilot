@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth, type Organization } from "@/components/providers/AuthProvider";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export interface OrgMember {
   userId: string;
@@ -13,7 +13,8 @@ export interface OrgMember {
 }
 
 export function useOrganization() {
-  const { user, activeOrg, userOrgs, switchOrg, refreshOrgs } = useAuth();
+  const { activeOrg, userOrgs, switchOrg, refreshOrgs } = useAuth();
+  const activeOrgId = activeOrg?.id ?? null;
 
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [callerRole, setCallerRole] = useState<string | null>(null);
@@ -21,18 +22,16 @@ export function useOrganization() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchMembers = useCallback(async () => {
-    if (!activeOrg?.id) {
-      setMembers([]);
-      setCallerRole(null);
+    if (!activeOrgId) {
       return;
     }
 
     setIsLoadingMembers(true);
     setError(null);
     try {
-      const res = await fetch(`/api/organizations/${activeOrg.id}/members`, {
+      const res = await fetch(`/api/organizations/${activeOrgId}/members`, {
         headers: {
-          "x-active-org-id": activeOrg.id,
+          "x-active-org-id": activeOrgId,
         },
       });
 
@@ -49,11 +48,37 @@ export function useOrganization() {
     } finally {
       setIsLoadingMembers(false);
     }
-  }, [activeOrg?.id]);
+  }, [activeOrgId]);
 
   useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
+    let isMounted = true;
+    if (!activeOrgId) return;
+
+    const orgId = activeOrgId;
+    async function initialLoad() {
+      try {
+        const res = await fetch(`/api/organizations/${orgId}/members`, {
+          headers: {
+            "x-active-org-id": orgId,
+          },
+        });
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setMembers(data.members ?? []);
+          setCallerRole(data.myRole ?? null);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          setError((err as Error)?.message || "Failed to load members");
+        }
+      }
+    }
+
+    void initialLoad();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeOrgId]);
 
   const createOrg = async (name: string, type: "team" | "enterprise" = "team") => {
     try {
@@ -80,14 +105,14 @@ export function useOrganization() {
   };
 
   const inviteMember = async (email: string, role: "owner" | "admin" | "member" = "member") => {
-    if (!activeOrg?.id) return { ok: false, error: "No active organization" };
+    if (!activeOrgId) return { ok: false, error: "No active organization" };
 
     try {
-      const res = await fetch(`/api/organizations/${activeOrg.id}/members`, {
+      const res = await fetch(`/api/organizations/${activeOrgId}/members`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-active-org-id": activeOrg.id,
+          "x-active-org-id": activeOrgId,
         },
         body: JSON.stringify({ email, role }),
       });
@@ -105,15 +130,15 @@ export function useOrganization() {
   };
 
   const removeMember = async (userId: string) => {
-    if (!activeOrg?.id) return { ok: false, error: "No active organization" };
+    if (!activeOrgId) return { ok: false, error: "No active organization" };
 
     try {
       const res = await fetch(
-        `/api/organizations/${activeOrg.id}/members?userId=${encodeURIComponent(userId)}`,
+        `/api/organizations/${activeOrgId}/members?userId=${encodeURIComponent(userId)}`,
         {
           method: "DELETE",
           headers: {
-            "x-active-org-id": activeOrg.id,
+            "x-active-org-id": activeOrgId,
           },
         }
       );
@@ -130,17 +155,43 @@ export function useOrganization() {
     }
   };
 
+  const updateMemberRole = async (userId: string, newRole: "owner" | "admin" | "member") => {
+    if (!activeOrgId) return { ok: false, error: "No active organization" };
+
+    try {
+      const res = await fetch(`/api/organizations/${activeOrgId}/members`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-active-org-id": activeOrgId,
+        },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || "Failed to update member role");
+      }
+
+      await fetchMembers();
+      return { ok: true };
+    } catch (err: unknown) {
+      return { ok: false, error: (err as Error)?.message || "Role update failed" };
+    }
+  };
+
   return {
-    activeOrg,
-    userOrgs,
-    members,
-    callerRole,
+    members: activeOrgId ? members : [],
+    callerRole: activeOrgId ? callerRole : null,
     isLoadingMembers,
     error,
+    activeOrg,
+    userOrgs,
     switchOrg,
     createOrg,
     inviteMember,
     removeMember,
+    updateMemberRole,
     refreshMembers: fetchMembers,
   };
 }

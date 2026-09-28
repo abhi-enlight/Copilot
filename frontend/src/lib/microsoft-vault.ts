@@ -1,4 +1,4 @@
-import { adminSupabase } from "@/lib/supabase-admin";
+ import { adminSupabase } from "@/lib/supabase-admin";
 import { encryptToken, decryptToken } from "@/lib/zoho";
 import { refreshMicrosoftToken } from "@/lib/microsoft-graph";
 import { ensureAppUserByAuthId } from "@/lib/auth-helpers";
@@ -265,9 +265,9 @@ export async function upsertMicrosoftIntegration(opts: {
     }
 
     return { ok: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[microsoft-vault] upsertMicrosoftIntegration exception:", err);
-    return { ok: false, error: err?.message || "Failed to save Microsoft integration" };
+    return { ok: false, error: (err as Error)?.message || "Failed to save Microsoft integration" };
   }
 }
 
