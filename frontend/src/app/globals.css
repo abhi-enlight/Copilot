@@ -81,6 +81,23 @@ body {
   background-size: 20px 20px;
 }
 
+/* Soft-Edge CSS Gradient Masks for conversation stream */
+.stream-mask-light {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+}
+
+/* Double-bezel floating input dock */
+.input-dock-light {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 
+    0 0 0 1px rgba(15, 23, 42, 0.08),
+    0 12px 36px -4px rgba(15, 23, 42, 0.06),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 1);
+}
+
 /* ==========================================================================
    🔷 PRISM Brand Layer (Phase 3 design system)
    Palette: sky #0284C7 → blue #2563EB on cool paper #F8FAFC

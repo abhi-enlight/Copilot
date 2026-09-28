@@ -57,3 +57,11 @@ export type N8nChatResponse = {
   message?: string;
   text?: string;
 };
+
+export interface ToolStep {
+  tool: string;
+  status: "executing" | "complete" | "failed";
+  resultSummary?: string;
+  startedAt: number;
+  completedAt?: number;
+}

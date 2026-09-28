@@ -141,11 +141,11 @@ export default function ChatMessage({ message, index }: ChatMessageProps) {
     }
   };
 
-  const parseTextContent = (children: any): string => {
+  const parseTextContent = (children: unknown): string => {
     if (typeof children === "string") return children;
     if (Array.isArray(children)) {
       return children
-        .map((c) => (typeof c === "string" ? c : typeof c === "object" && c?.props?.children ? parseTextContent(c.props.children) : ""))
+        .map((c) => (typeof c === "string" ? c : typeof c === "object" && c && "props" in c && (c as { props?: { children?: unknown } }).props?.children ? parseTextContent((c as { props: { children?: unknown } }).props.children) : ""))
         .join("");
     }
     return "";

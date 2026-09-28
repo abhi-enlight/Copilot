@@ -120,6 +120,25 @@ export async function POST(request: Request) {
       console.warn("[Agent Chat] Composio session notice:", err);
     }
 
+    // Fetch history
+    let chatHistory: any[] = [];
+    if (!isNewSession) {
+      const { data: history } = await adminSupabase
+        .from("chat_messages")
+        .select("role, content")
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true })
+        .limit(21);
+      
+      if (history && history.length > 0) {
+        // Exclude the most recent message because we just inserted it
+        chatHistory = history.slice(0, -1).map((m: any) => ({
+          role: m.role,
+          content: m.content || "",
+        }));
+      }
+    }
+
     // 5. Establish unbuffered SSE stream with 15s keep-alive heartbeats
     const encoder = new TextEncoder();
 
@@ -162,6 +181,7 @@ export async function POST(request: Request) {
             await executeSimulatedAgent({
               userId: user.id,
               message,
+              chatHistory,
               composioSession,
               onEvent: sendEvent,
               signal: request.signal,

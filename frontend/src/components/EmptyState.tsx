@@ -22,7 +22,7 @@ interface EmptyStateProps {
 
 interface SuggestionItem {
   connectorId?: ConnectorId;
-  icon: any;
+  icon: React.ElementType;
   label: string;
   tag: string;
   color: string;

@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Sparkle,
   SidebarSimple,
   Megaphone,
   PlugsConnected,
   Users,
-  Buildings,
   Robot,
   User,
 } from "@phosphor-icons/react";

@@ -116,6 +116,7 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
   const prefSaveInFlightRef = useRef(false);
 
   const syncStatus = useCallback(async (opts: { keepToggles?: boolean } = {}) => {
+    await Promise.resolve();
     if (hasSyncedOnceRef.current) setIsSyncing(true);
     try {
       const [statusRes, entRes, prefRes] = await Promise.all([
@@ -165,8 +166,63 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void syncStatus();
-  }, [syncStatus]);
+    let isMounted = true;
+
+    async function initialFetch() {
+      try {
+        const [statusRes, entRes, prefRes] = await Promise.all([
+          fetch("/api/tenant/status"),
+          fetch("/api/tenant/entitlements"),
+          fetch("/api/connectors/preferences"),
+        ]);
+        if (!isMounted) return;
+
+        let anyOk = false;
+        if (statusRes.ok) {
+          setServerStatus(await statusRes.json());
+          setStatusError(false);
+          anyOk = true;
+        }
+
+        if (entRes.ok) {
+          const data = await entRes.json();
+          if (data.connectors) setEntitlements(data.connectors as Record<ConnectorId, ConnectorVerdict>);
+          anyOk = true;
+        }
+
+        if (prefRes.ok) {
+          const data = await prefRes.json();
+          const prefs = (data.preferences || {}) as Record<string, boolean>;
+          setActiveConnectors(() => {
+            const merged = { ...DEFAULT_CONNECTORS } as Record<ConnectorId, boolean>;
+            for (const key of Object.keys(merged) as ConnectorId[]) {
+              if (key in prefs) merged[key] = prefs[key] !== false;
+            }
+            return merged;
+          });
+          anyOk = true;
+        }
+
+        if (!anyOk) setStatusError(true);
+        setLastCheckedAt(new Date());
+      } catch (err) {
+        if (isMounted) {
+          console.warn("Failed to sync tenant status:", err);
+          setStatusError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsSyncing(false);
+          hasSyncedOnceRef.current = true;
+        }
+      }
+    }
+
+    void initialFetch();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const toggleConnector = useCallback(
     async (id: ConnectorId, overrideValue?: boolean) => {

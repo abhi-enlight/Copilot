@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import OpenAI from "openai";
 import type { ActionProposal } from "@/types/database";
-import { createActionProposal } from "./tools";
+import { createActionProposal, classifyToolTier } from "./tools";
 
 export interface AgentChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  tool_calls?: any[];
+  tool_call_id?: string;
 }
 
 export type AgentSSEEvent =
@@ -18,9 +21,6 @@ export type AgentSSEEvent =
 const MAX_CONTEXT_TURNS = 10;
 const MAX_TOOL_OUTPUT_CHARS = 2000;
 
-/**
- * Truncates raw tool outputs so they do not blow past context token ceilings.
- */
 export function truncateToolOutput(output: unknown): string {
   const str = typeof output === "string" ? output : JSON.stringify(output);
   if (str.length > MAX_TOOL_OUTPUT_CHARS) {
@@ -29,189 +29,203 @@ export function truncateToolOutput(output: unknown): string {
   return str;
 }
 
-/**
- * Bounds the chat history to the most recent turns.
- */
-export function boundChatHistory(
-  messages: AgentChatMessage[]
-): AgentChatMessage[] {
+export function boundChatHistory(messages: AgentChatMessage[]): AgentChatMessage[] {
   return messages.slice(-MAX_CONTEXT_TURNS);
 }
 
-/**
- * Formats an SSE event payload into a standard text chunk.
- */
 export function formatSSE(event: AgentSSEEvent | string): string {
-  if (typeof event === "string") {
-    return `data: ${event}\n\n`;
-  }
-  return `data: ${JSON.stringify(event)}\n\n`;
+  if (typeof event === "string") return `data: ${event}
+
+`;
+  return `data: ${JSON.stringify(event)}
+
+`;
 }
 
-/**
- * Returns a configured OpenAI client if an API key is provided.
- */
 export function getOpenAIClient(): OpenAI | null {
   const apiKey =
     process.env.OPENAI_API_KEY ||
-    (process.env.GEMINI_API_KEY
-      ? process.env.GEMINI_API_KEY
-      : null);
+    (process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY : null);
 
   if (!apiKey) return null;
 
-  const baseURL = process.env.OPENAI_BASE_URL || (process.env.GEMINI_API_KEY
-    ? "https://generativelanguage.googleapis.com/v1beta/openai/"
-    : undefined);
+  const baseURL = process.env.OPENAI_BASE_URL ||
+    (process.env.GEMINI_API_KEY ? "https://generativelanguage.googleapis.com/v1beta/openai/" : undefined);
 
-  return new OpenAI({
-    apiKey,
-    baseURL,
-  });
+  return new OpenAI({ apiKey, baseURL });
 }
 
-/**
- * Fallback Executive Simulation Engine.
- * Formulates realistic executive responses, executes live read-only tools,
- * and generates compliant action proposals when frontier LLM keys are unset.
- */
+const SYSTEM_PROMPT = `You are Prism, an intelligent personal assistant. The user has connected several work tools to you. Your job is to help them get things done across all of their connected tools.
+
+IMPORTANT RULES:
+1. When a user asks something that spans multiple tools, use them together. Don't ask which tool to use — figure it out from context.
+2. Work step by step. Call one tool, analyze the result, then decide if you need to call another. Don't stop halfway — complete the full task.
+3. When you find information from one tool that's relevant to another, connect the dots. Synthesize. Don't just dump raw data.
+4. For any action that MODIFIES data (sending emails, creating tickets, updating records, posting messages), you MUST use the corresponding tool call. Never claim you did something without actually calling the tool.
+5. If a tool call fails, explain what happened and suggest alternatives. Don't silently skip it.
+6. Keep your responses concise and actionable. The user is busy.`;
+
+async function executeToolWithRetry(
+  session: any,
+  toolName: string,
+  args: any,
+  signal?: AbortSignal,
+  maxRetries = 2,
+  timeoutMs = 15000,
+): Promise<any> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await Promise.race([
+        session.execute(toolName, args),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Tool "${toolName}" timed out after ${timeoutMs}ms`)), timeoutMs)
+        ),
+        signal ? new Promise((_, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("Aborted")), { once: true });
+        }) : new Promise(() => {}),
+      ]);
+      return result;
+    } catch {
+      if (signal?.aborted) throw err;
+      if (attempt === maxRetries) throw err;
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // exponential backoff
+    }
+  }
+}
+
+function summarizeResult(result: any): string {
+  if (!result) return "No results.";
+  if (result.error) return `Error: ${result.error}`;
+  if (Array.isArray(result)) return `Returned ${result.length} items.`;
+  if (typeof result === "object" && result.data && Array.isArray(result.data)) {
+    return `Returned ${result.data.length} items.`;
+  }
+  return "Executed successfully.";
+}
+
 export async function executeSimulatedAgent(params: {
   userId: string;
   message: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  chatHistory?: AgentChatMessage[];
   composioSession: any;
   onEvent: (event: AgentSSEEvent) => void;
   signal?: AbortSignal;
 }): Promise<{ content: string; actionProposals: ActionProposal[] }> {
-  const { userId, message, composioSession, onEvent, signal } = params;
-  const lowerMsg = message.toLowerCase();
+  const { userId, message, chatHistory = [], composioSession, onEvent, signal } = params;
+
+  const client = getOpenAIClient();
+  if (!client) {
+    onEvent({ type: "error", code: "NO_LLM", message: "No LLM API key configured." });
+    return { content: "No LLM configured.", actionProposals: [] };
+  }
+
+  // Load tools
+  let openAITools: any[] = [];
+  try {
+    if (composioSession) {
+      const tools = await composioSession.tools();
+      // If tools are not already in OpenAI format, this might fail, but Composio SDK usually handles it via its wrapper or tools list.
+      openAITools = tools;
+    }
+  } catch {
+    console.warn("[Agent] Failed to load tools:", err);
+  }
+
+  const messages: any[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...boundChatHistory(chatHistory),
+    { role: "user", content: message },
+  ];
 
   const proposals: ActionProposal[] = [];
-  let accumulatedText = "";
+  let fullContent = "";
+  let loopCount = 0;
+  const MAX_LOOPS = 10;
 
-  // Check for Outlook Email Intent
-  if (lowerMsg.includes("email") || lowerMsg.includes("outlook") || lowerMsg.includes("inbox")) {
-    if (lowerMsg.includes("send") || lowerMsg.includes("reply") || lowerMsg.includes("draft")) {
-      onEvent({
-        type: "tool_call",
-        tool: "outlook_search_emails",
-        status: "executing",
-      });
-
-      // Try live search if session exists
-      try {
-        if (composioSession && typeof composioSession.execute === "function") {
-          await composioSession.execute("outlook_search_emails", { query: "recent" }, { signal });
-        }
-      } catch {
-        // Fallback gracefully
-      }
-
-      onEvent({
-        type: "tool_call",
-        tool: "outlook_search_emails",
-        status: "complete",
-        resultSummary: "Located relevant email thread.",
-      });
-
-      const proposal = createActionProposal({
-        userId,
-        toolSlug: "outlook_send_email",
-        payload: {
-          to: "alex.mercer@acmecorp.com",
-          subject: "Re: Q3 Operations Review & Roadmap Update",
-          body: "Alex, I've reviewed the operational scorecard. We are on track for Phase 3 deployment. Let's sync tomorrow at 10 AM EST.",
-        },
-      });
-
-      proposals.push(proposal);
-      onEvent({ type: "action_proposal", proposal });
-
-      accumulatedText =
-        "I analyzed your Outlook inbox and drafted a response to Alex regarding the Q3 Operations Review. " +
-        "Because this will send an email from your executive account, I've staged an Action Proposal above for your sign-off.";
-
-      // Stream text tokens with realistic typing cadence
-      for (const token of accumulatedText.split(" ")) {
-        if (signal?.aborted) break;
-        onEvent({ type: "text_delta", delta: token + " " });
-        await new Promise((r) => setTimeout(r, 20));
-      }
-
-      return { content: accumulatedText, actionProposals: proposals };
-    }
-  }
-
-  // Check for Linear Issue Intent
-  if (lowerMsg.includes("linear") || lowerMsg.includes("ticket") || lowerMsg.includes("issue")) {
-    if (lowerMsg.includes("create") || lowerMsg.includes("file") || lowerMsg.includes("open")) {
-      const proposal = createActionProposal({
-        userId,
-        toolSlug: "linear_create_issue",
-        payload: {
-          title: "Optimize Telemetry Reconnection High-Watermark Catchup",
-          description: "Ensure WebSocket reconnect syncs all unread activity_events without duplication.",
-          priority: 2,
-        },
-      });
-
-      proposals.push(proposal);
-      onEvent({ type: "action_proposal", proposal });
-
-      accumulatedText =
-        "I prepared a high-priority Linear issue based on our current task. " +
-        "Please review the proposal above and click Approve to publish it to your team's Linear backlog.";
-
-      for (const token of accumulatedText.split(" ")) {
-        if (signal?.aborted) break;
-        onEvent({ type: "text_delta", delta: token + " " });
-        await new Promise((r) => setTimeout(r, 20));
-      }
-
-      return { content: accumulatedText, actionProposals: proposals };
-    }
-  }
-
-  // Check for Slack Message Intent
-  if (lowerMsg.includes("slack") || lowerMsg.includes("channel") || lowerMsg.includes("post")) {
-    if (lowerMsg.includes("send") || lowerMsg.includes("post") || lowerMsg.includes("notify")) {
-      const proposal = createActionProposal({
-        userId,
-        toolSlug: "slack_post_message",
-        payload: {
-          channel: "executive-ops",
-          text: "🚀 Prism V2 Phase 3: Direct Streaming Agent Runtime is live. All 5 connected tools operational.",
-        },
-      });
-
-      proposals.push(proposal);
-      onEvent({ type: "action_proposal", proposal });
-
-      accumulatedText =
-        "I've drafted the announcement for the #executive-ops Slack channel. " +
-        "Review the proposed card above and approve whenever you're ready to dispatch.";
-
-      for (const token of accumulatedText.split(" ")) {
-        if (signal?.aborted) break;
-        onEvent({ type: "text_delta", delta: token + " " });
-        await new Promise((r) => setTimeout(r, 20));
-      }
-
-      return { content: accumulatedText, actionProposals: proposals };
-    }
-  }
-
-  // Default Executive Intelligence Response
-  accumulatedText =
-    `I am actively monitoring your connected operational stack (Microsoft Outlook, Microsoft Teams, Slack, Linear, and Zoho CRM). ` +
-    `You can instruct me to search your emails, triage team channels, query CRM deal pipelines, or draft communications. ` +
-    `Any state-modifying action will always be presented as an interactive Action Proposal Card for your explicit authorization.`;
-
-  for (const token of accumulatedText.split(" ")) {
+  while (loopCount < MAX_LOOPS) {
     if (signal?.aborted) break;
-    onEvent({ type: "text_delta", delta: token + " " });
-    await new Promise((r) => setTimeout(r, 25));
+    loopCount++;
+
+    const response = await client.chat.completions.create({
+      model: process.env.LLM_MODEL || "gpt-4o",
+      messages,
+      tools: openAITools.length > 0 ? openAITools : undefined,
+      stream: true,
+    });
+
+    const currentToolCalls = new Map<number, { id: string, name: string, args: string }>();
+    let hasToolCalls = false;
+
+    for await (const chunk of response) {
+      if (signal?.aborted) break;
+      const delta = chunk.choices[0]?.delta;
+      if (!delta) continue;
+
+      if (delta.content) {
+        fullContent += delta.content;
+        onEvent({ type: "text_delta", delta: delta.content });
+      }
+
+      if (delta.tool_calls) {
+        hasToolCalls = true;
+        for (const tc of delta.tool_calls) {
+          if (!currentToolCalls.has(tc.index)) {
+            currentToolCalls.set(tc.index, { id: tc.id || "", name: tc.function?.name || "", args: "" });
+          }
+          const acc = currentToolCalls.get(tc.index)!;
+          if (tc.id) acc.id = tc.id;
+          if (tc.function?.name) acc.name = tc.function.name;
+          if (tc.function?.arguments) acc.args += tc.function.arguments;
+        }
+      }
+    }
+
+    if (!hasToolCalls) break;
+
+    const assistantToolCallsMsg: any = { role: "assistant", content: null, tool_calls: [] };
+    
+    for (const [, tc] of currentToolCalls) {
+      assistantToolCallsMsg.tool_calls.push({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } });
+    }
+    messages.push(assistantToolCallsMsg);
+
+    for (const [, tc] of currentToolCalls) {
+      let parsedArgs: any = {};
+      try {
+        parsedArgs = JSON.parse(tc.args || "{}");
+      } catch {
+        messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ error: "Invalid JSON arguments generated by LLM" }) });
+        continue;
+      }
+
+      const tier = classifyToolTier(tc.name);
+      if (tier === "read_only") {
+        onEvent({ type: "tool_call", tool: tc.name, status: "executing" });
+        let result: any;
+        try {
+          if (composioSession) {
+            result = await executeToolWithRetry(composioSession, tc.name, parsedArgs, signal);
+          } else {
+            result = { error: "No tool execution session available." };
+          }
+          onEvent({ type: "tool_call", tool: tc.name, status: "complete", resultSummary: summarizeResult(result) });
+        } catch {
+          result = { error: err instanceof Error ? err.message : String(err) };
+          onEvent({ type: "tool_call", tool: tc.name, status: "failed", resultSummary: result.error });
+        }
+        messages.push({ role: "tool", tool_call_id: tc.id, content: truncateToolOutput(result) });
+      } else {
+        const proposal = createActionProposal({ userId, toolSlug: tc.name, payload: parsedArgs });
+        proposals.push(proposal);
+        onEvent({ type: "action_proposal", proposal });
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({ status: "pending_approval", message: "Action staged for user sign-off. Do NOT claim you executed this yet." })
+        });
+      }
+    }
   }
 
-  return { content: accumulatedText, actionProposals: proposals };
+  return { content: fullContent, actionProposals: proposals };
 }

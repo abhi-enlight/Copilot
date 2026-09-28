@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  GearSix,
   Buildings,
   ShieldCheck,
   Key,
@@ -38,19 +37,26 @@ export default function SettingsView() {
   // Load stored settings on mount or org change
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setSettings((prev) => ({
-          ...prev,
-          ...parsed,
-          orgName: parsed.orgName || activeOrg?.name || prev.orgName,
-        }));
-      } else if (activeOrg?.name) {
-        setSettings((prev) => ({ ...prev, orgName: activeOrg.name }));
-      }
-    } catch {}
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setSettings((prev) => ({
+            ...prev,
+            ...parsed,
+            orgName: parsed.orgName || activeOrg?.name || prev.orgName,
+          }));
+        } else if (activeOrg?.name) {
+          setSettings((prev) => ({ ...prev, orgName: activeOrg.name }));
+        }
+      } catch {}
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [storageKey, activeOrg?.name]);
 
   const handleSave = () => {

@@ -37,11 +37,18 @@ export default function ChatInput({
 
   // Restore draft from localStorage when user/key changes
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(draftKey);
-      lastRestoredRef.current = saved || "";
-      setInput(saved || "");
-    } catch {}
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      try {
+        const saved = localStorage.getItem(draftKey);
+        lastRestoredRef.current = saved || "";
+        setInput(saved || "");
+      } catch {}
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [draftKey]);
 
   // Sync draft to localStorage
@@ -101,8 +108,26 @@ export default function ChatInput({
       return;
     }
 
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    type SpeechEvent = { results: { [key: number]: { [key: number]: { transcript: string } } } };
+    type SpeechRecognitionInstance = {
+      continuous: boolean;
+      interimResults: boolean;
+      lang: string;
+      start: () => void;
+      stop: () => void;
+      onresult: ((event: SpeechEvent) => void) | null;
+      onerror: (() => void) | null;
+      onend: (() => void) | null;
+    };
+    type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+    const win = window as unknown as {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -111,7 +136,7 @@ export default function ChatInput({
     if (!isListening) {
       setIsListening(true);
       recognition.start();
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechEvent) => {
         const transcript = event.results[0][0].transcript;
         setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
         setIsListening(false);

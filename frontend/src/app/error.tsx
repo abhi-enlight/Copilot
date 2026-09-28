@@ -12,6 +12,7 @@
 // =============================================================================
 
 import { useEffect } from "react";
+import Link from "next/link";
 import PrismLogo from "@/components/brand/PrismLogo";
 import { ArrowsClockwise, Warning } from "@phosphor-icons/react";
 
@@ -72,12 +73,12 @@ export default function GlobalError({ error, retry }: ErrorProps) {
             <ArrowsClockwise size={15} />
             Try again
           </button>
-          <a
+          <Link
             href="/"
             className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-stone-200 hover:border-stone-300 text-stone-700 text-sm font-semibold transition-colors duration-150"
           >
             Go to Home
-          </a>
+          </Link>
         </div>
 
         <p className="text-[11px] text-stone-400">

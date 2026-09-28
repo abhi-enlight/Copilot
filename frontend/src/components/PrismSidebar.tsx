@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type ComponentType } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   House,
@@ -9,7 +9,6 @@ import {
   PlugsConnected,
   Users,
   SidebarSimple,
-  Buildings,
   X,
   Plus,
   SignOut,
@@ -18,9 +17,10 @@ import {
   ChatCircle,
   Trash,
   ArrowsClockwise,
+  type Icon,
 } from "@phosphor-icons/react";
 import PrismLogo from "@/components/brand/PrismLogo";
-import { useAuth, type Organization } from "@/components/providers/AuthProvider";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export type NavView =
   | "home"
@@ -35,7 +35,7 @@ export type NavView =
 interface NavItem {
   id: NavView;
   label: string;
-  icon: ComponentType<any>;
+  icon: Icon;
 }
 
 interface NavGroup {
@@ -118,7 +118,7 @@ export default function PrismSidebar({
   const [orgCreateError, setOrgCreateError] = useState("");
 
   const [sessions, setSessions] = useState<ChatSessionItem[]>([]);
-  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [, setLoadingSessions] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
@@ -142,12 +142,12 @@ export default function PrismSidebar({
 
   // Fetch recent chat sessions for the current user and active org
   useEffect(() => {
-    if (!user) {
-      setSessions([]);
-      return;
-    }
     let cancelled = false;
     const fetchSessions = async () => {
+      if (!user) {
+        setSessions([]);
+        return;
+      }
       setLoadingSessions(true);
       try {
         const headers: Record<string, string> = {};
@@ -167,7 +167,7 @@ export default function PrismSidebar({
     return () => {
       cancelled = true;
     };
-  }, [user?.id, activeOrg?.id, activeSessionId, sessionRefreshKey]);
+  }, [user, activeOrg?.id, activeSessionId, sessionRefreshKey]);
 
   // Listen for global session update/delete events across views
   useEffect(() => {

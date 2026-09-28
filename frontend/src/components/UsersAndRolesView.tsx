@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { AnimatedErrorBanner } from "@/components/ui/ErrorInlineBanner";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useOrganization, type OrgMember } from "@/hooks/useOrganization";
+import { useOrganization } from "@/hooks/useOrganization";
 import {
   UserPlus,
   Crown,

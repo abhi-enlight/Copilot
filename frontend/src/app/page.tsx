@@ -1,322 +1,232 @@
 "use client";
 
-// =============================================================================
-// 🔷 Prism, unified app shell (Phase 3)
-//
-// Root page of the merged product. The 8-view sidebar shell hosts both feature
-// sets: Workspace (Home / Copilot / Inbox / Documents), Operations (Campaigns /
-// Connections) and Administration (Users & Roles / Settings). The legacy
-// Microsoft cockpit remains mounted at /cockpit until its flows migrate onto
-// the connector architecture (Phase 4).
-// =============================================================================
-
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { List } from "@phosphor-icons/react";
-import { motion, AnimatePresence } from "motion/react";
-import PrismSidebar, { type NavView, NAV_LABELS } from "@/components/PrismSidebar";
-import PrismLogo from "@/components/brand/PrismLogo";
-import EnlightLogo from "@/components/brand/EnlightLogo";
-import HomeView from "@/components/views/HomeView";
-import InboxView from "@/components/views/InboxView";
-import DocumentsView from "@/components/views/DocumentsView";
-import CopilotView from "@/components/CopilotView";
-import CampaignsView from "@/components/CampaignsView";
-import ConnectionsView from "@/components/ConnectionsView";
-import UsersAndRolesView from "@/components/UsersAndRolesView";
-import SettingsView from "@/components/SettingsView";
-import LoadingSplash from "@/components/LoadingSplash";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useAuth } from "@/components/providers/AuthProvider";
+import {
+  Plus,
+  ChatCircle,
+  PlugsConnected,
+  Pulse,
+  SidebarSimple,
+} from "@phosphor-icons/react";
+import CockpitHeader from "@/components/copilot/CockpitHeader";
+import IntelligenceStream from "@/components/copilot/IntelligenceStream";
+import HardwareInputBar from "@/components/copilot/HardwareInputBar";
+import LiveStackRadar from "@/components/copilot/LiveStackRadar";
+import ToolDrawer from "@/components/copilot/drawers/ToolDrawer";
+import RadarDrawer from "@/components/copilot/drawers/RadarDrawer";
+import { useCopilotChat } from "@/hooks/useCopilotChat";
+import { useLiveStackRadar } from "@/hooks/useLiveStackRadar";
+import type { ToolConnectionStatus } from "@/types/integrations";
 
-const pageVariants = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -4 },
-};
-
+// Legacy compatibility interface for CopilotView
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface PlanContextForCopilot {
   campaignData: {
     name: string;
     client: string;
-    rewardType: string;
-    budget: string;
-    codeVolume: string;
-    startDate?: string;
-    endDate?: string;
-    brief: string;
-    brandColor?: string;
+    budget?: string;
+    codeVolume?: string;
+    objective?: string;
+    targetAudience?: string;
+    channels?: string[];
+    [key: string]: any;
   };
   plan: any;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
-const VALID_VIEWS: NavView[] = [
-  "home",
-  "copilot",
-  "inbox",
-  "documents",
-  "campaigns",
-  "connections",
-  "users",
-  "settings",
-];
+export default function CockpitPage() {
+  // Chat agent runtime hook
+  const {
+    messages,
+    input,
+    setInput,
+    isLoading,
+    toolSteps,
+    handleSendMessage,
+    approveAction,
+    rejectAction,
+    inputRef,
+  } = useCopilotChat();
 
-export default function PrismApp() {
-  const router = useRouter();
-  const { user, isLoading } = useAuth();
-  const { activeOrg } = useOrganization();
-  const orgSuffix = activeOrg?.id ? `_${activeOrg.id}` : "";
-  const viewKey = user ? `prism_active_view_${user.id}${orgSuffix}` : "prism_active_view_guest";
-  const planContextKey = user ? `prism_active_plan_context_${user.id}${orgSuffix}` : "prism_active_plan_context_guest";
-  const userSessionKey = user ? `prism_copilot_session_${user.id}${orgSuffix}` : "prism_copilot_session_guest";
+  // Telemetry radar hook
+  const { unreadCount } = useLiveStackRadar();
 
-  const [currentView, setCurrentView] = useState<NavView>("home");
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [activePlanForCopilot, setActivePlanForCopilot] = useState<PlanContextForCopilot | null>(null);
-  const [campaignCount, setCampaignCount] = useState<number>(0);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  // UI state
+  const [isToolDrawerOpen, setIsToolDrawerOpen] = useState(false);
+  const [isRadarOpen, setIsRadarOpen] = useState(true);
+  const [isMobileRadarOpen, setIsMobileRadarOpen] = useState(false);
+  const [isNavRailCollapsed, setIsNavRailCollapsed] = useState(false);
+  const [connectedToolsCount, setConnectedToolsCount] = useState(0);
 
-  // Auth redirect effect
+  // Fetch initial tool count
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.replace("/auth/login");
-    }
-  }, [user, isLoading, router]);
-
-  // Cleanly reset active session and plan when switching organizations
-  useEffect(() => {
-    setActiveSessionId(null);
-    setActivePlanForCopilot(null);
-  }, [activeOrg?.id]);
-
-  const handleSelectSession = (sessionId: string) => {
-    setActiveSessionId(sessionId);
-    handleNavigate("copilot");
-  };
-
-  const handleNewChat = () => {
-    setActiveSessionId(null);
-    handleNavigate("copilot");
-  };
-
-  const handleDeleteSession = async (sessionId: string) => {
-    if (activeSessionId === sessionId) {
-      handleNewChat();
-    }
-    // Delete from server
-    try {
-      const headers: Record<string, string> = {};
-      if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
-      await fetch(`/api/chat/sessions/${sessionId}`, { method: "DELETE", headers });
-    } catch (err) {
-      console.warn("[page] Failed to delete session on server:", err);
-    }
-    // Delete from localStorage
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(userSessionKey);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed?.id === sessionId) {
-            localStorage.removeItem(userSessionKey);
-          }
-        }
-      } catch {}
-    }
-  };
-
-  // Restore navigation view and active plan context on mount or user change
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // 1. Resolve view from URL hash or localStorage
-    const hash = window.location.hash.replace("#", "") as NavView;
-    let initialView: NavView | null = null;
-    if (VALID_VIEWS.includes(hash)) {
-      initialView = hash;
-    } else {
-      try {
-        const savedView = localStorage.getItem(viewKey) as NavView;
-        if (VALID_VIEWS.includes(savedView)) {
-          initialView = savedView;
-        }
-      } catch {}
-    }
-    if (initialView && initialView !== "home") {
-      setCurrentView(initialView);
-      window.history.replaceState(null, "", `#${initialView}`);
-    }
-
-    // 2. Resolve active plan context
-    try {
-      const savedPlan = localStorage.getItem(planContextKey);
-      if (savedPlan) {
-        const parsed = JSON.parse(savedPlan);
-        if (parsed && parsed.campaignData) {
-          setActivePlanForCopilot(parsed);
-        }
-      } else {
-        setActivePlanForCopilot(null);
-      }
-    } catch {}
-
-    // 3. Listen to hashchange for browser back/forward buttons and in-page
-    // navigation links (e.g. `/#connections` deep links from error banners).
-    const handleHashChange = () => {
-      const currentHash = window.location.hash.replace("#", "") as NavView;
-      if (VALID_VIEWS.includes(currentHash)) {
-        setCurrentView(currentHash);
-        try {
-          localStorage.setItem(viewKey, currentHash);
-        } catch {}
-      }
-    };
-    handleHashChange();
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [viewKey, planContextKey]);
-
-  const handleNavigate = (view: NavView) => {
-    setCurrentView(view);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(viewKey, view);
-        window.history.replaceState(null, "", `#${view}`);
-      } catch {}
-    }
-  };
-
-  useEffect(() => {
-    const headers: Record<string, string> = {};
-    if (activeOrg?.id) headers["x-active-org-id"] = activeOrg.id;
-
-    fetch("/api/campaigns", { headers })
-      .then((res) => (res.ok ? res.json() : { campaigns: [] }))
+    let ignore = false;
+    fetch("/api/integrations/status")
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (Array.isArray(data.campaigns)) {
-          setCampaignCount(data.campaigns.length);
+        if (!ignore && data?.tools && Array.isArray(data.tools)) {
+          const count = data.tools.filter((t: ToolConnectionStatus) => t.isConnected).length;
+          setConnectedToolsCount(count);
         }
       })
       .catch(() => {});
-  }, [currentView, activeOrg?.id]);
 
-  const handleModifyInCopilot = (campaignData: any, plan: any) => {
-    const planContext = { campaignData, plan };
-    setActivePlanForCopilot(planContext);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(planContextKey, JSON.stringify(planContext));
-      } catch {}
-    }
-    handleNavigate("copilot");
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleStatusChange = (tools: ToolConnectionStatus[]) => {
+    const count = tools.filter((t) => t.isConnected).length;
+    setConnectedToolsCount(count);
   };
 
-  const handleClearPlanContext = () => {
-    setActivePlanForCopilot(null);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem(planContextKey);
-      } catch {}
+  const handleToggleRadar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1280) {
+      setIsMobileRadarOpen((prev) => !prev);
+    } else {
+      setIsRadarOpen((prev) => !prev);
     }
   };
 
-  const renderView = () => {
-    switch (currentView) {
-      case "home":
-        return <HomeView onNavigate={handleNavigate} />;
-      case "copilot":
-        return (
-          <CopilotView
-            initialPlanContext={activePlanForCopilot}
-            onClearPlanContext={handleClearPlanContext}
-            onViewCampaigns={() => handleNavigate("campaigns")}
-            onNavigateToConnections={() => handleNavigate("connections")}
-            activeSessionId={activeSessionId}
-            onSessionSelect={handleSelectSession}
-          />
-        );
-      case "inbox":
-        return <InboxView />;
-      case "documents":
-        return <DocumentsView />;
-      case "campaigns":
-        return <CampaignsView onModifyInCopilot={handleModifyInCopilot} />;
-      case "connections":
-        return <ConnectionsView />;
-      case "users":
-        return <UsersAndRolesView />;
-      case "settings":
-        return <SettingsView />;
-      default:
-        return <HomeView onNavigate={handleNavigate} />;
-    }
+  const handleInvestigatePrompt = (prompt: string) => {
+    setInput(prompt);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
   };
-
-  if (isLoading) {
-    return <LoadingSplash />;
-  }
-
-  if (!user) {
-    return null;
-  }
 
   return (
-    <div className="flex h-screen bg-[#FAFAF9] text-stone-900 overflow-hidden font-sans antialiased">
-      {/* Persistent Prism Sidebar */}
-      <PrismSidebar
-        currentView={currentView}
-        onViewChange={handleNavigate}
-        isMobileOpen={isMobileSidebarOpen}
-        onMobileClose={() => setIsMobileSidebarOpen(false)}
-        campaignCount={campaignCount}
-        activeSessionId={activeSessionId}
-        onSelectSession={handleSelectSession}
-        onNewChat={handleNewChat}
-        onDeleteSession={handleDeleteSession}
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAF9] text-slate-900 font-sans select-none">
+      {/* Top Telemetry Header */}
+      <CockpitHeader
+        connectedToolsCount={connectedToolsCount}
+        onOpenToolDrawer={() => setIsToolDrawerOpen(true)}
+        unreadRadarCount={unreadCount}
+        onToggleRadar={handleToggleRadar}
+        isRadarOpen={isRadarOpen || isMobileRadarOpen}
       />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        {/* Mobile Top Bar */}
-        <div className="lg:hidden h-12 border-b border-stone-200/60 bg-white px-4 flex items-center justify-between flex-shrink-0 z-30">
-          <div className="flex items-center gap-2.5">
+      {/* Main 3-Panel Cockpit Chassis */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left HUD: Navigation & Session Rail */}
+        <nav
+          className={`h-full bg-white border-r border-slate-200/80 transition-all duration-200 flex flex-col justify-between p-3 flex-shrink-0 ${
+            isNavRailCollapsed ? "w-16" : "w-56"
+          } hidden md:flex`}
+        >
+          {/* Top Section */}
+          <div className="space-y-4">
+            {/* New Session Action */}
             <button
               type="button"
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="p-1.5 rounded-lg text-stone-500 hover:bg-stone-100 cursor-pointer"
-              aria-label="Open navigation"
+              onClick={() => window.location.reload()}
+              className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer active:scale-98 ${
+                isNavRailCollapsed ? "justify-center px-0" : ""
+              }`}
             >
-              <List size={17} weight="bold" />
+              <Plus size={15} weight="bold" />
+              {!isNavRailCollapsed && <span>New Session</span>}
             </button>
-            <div className="flex items-center gap-2">
-              <PrismLogo size={20} variant="tile" className="rounded-lg shrink-0" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-[12.5px] font-bold text-stone-900">Prism</span>
-                <span className="text-[10px] text-stone-300">·</span>
-                <span className="text-[11.5px] text-stone-500 font-medium capitalize">
-                  {NAV_LABELS[currentView]}
-                </span>
-              </div>
+
+            {/* Nav Links */}
+            <div className="space-y-1">
+              <button
+                type="button"
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-900 bg-slate-100 transition cursor-pointer ${
+                  isNavRailCollapsed ? "justify-center px-0" : ""
+                }`}
+              >
+                <ChatCircle size={16} weight="bold" className="text-slate-900" />
+                {!isNavRailCollapsed && <span>Operations Stream</span>}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsToolDrawerOpen(true)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer ${
+                  isNavRailCollapsed ? "justify-center px-0" : ""
+                }`}
+              >
+                <PlugsConnected size={16} weight="bold" className="text-slate-500" />
+                {!isNavRailCollapsed && <span>Connect Hub</span>}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleRadar}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition cursor-pointer xl:hidden ${
+                  isNavRailCollapsed ? "justify-center px-0" : ""
+                }`}
+              >
+                <Pulse size={16} weight="bold" className="text-slate-500" />
+                {!isNavRailCollapsed && <span>Telemetry Radar</span>}
+              </button>
             </div>
           </div>
-          <div className="w-8" />
-        </div>
 
-        {/* Animated View Switcher */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="flex-1 flex flex-col min-h-0 overflow-hidden"
-          >
-            {renderView()}
-          </motion.div>
-        </AnimatePresence>
+          {/* Bottom Section */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setIsNavRailCollapsed(!isNavRailCollapsed)}
+              title={isNavRailCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+            >
+              <SidebarSimple size={16} />
+            </button>
+
+            {!isNavRailCollapsed && (
+              <span className="text-[10px] font-mono text-slate-400">Prism V2.0</span>
+            )}
+          </div>
+        </nav>
+
+        {/* Center Panel: Intelligence Stream & Floating Input Bar */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[#FAFAF9] overflow-hidden relative">
+          <IntelligenceStream
+            messages={messages}
+            isLoading={isLoading}
+            toolSteps={toolSteps}
+            onApproveAction={approveAction}
+            onRejectAction={rejectAction}
+            onQuickPrompt={(prompt) => {
+              setInput(prompt);
+              inputRef.current?.focus();
+            }}
+          />
+
+          <HardwareInputBar
+            input={input}
+            setInput={setInput}
+            onSubmit={handleSendMessage}
+            isLoading={isLoading}
+            inputRef={inputRef}
+          />
+        </main>
+
+        {/* Right Panel: Live Stack Radar (Desktop >= 1280px) */}
+        {isRadarOpen && (
+          <div className="hidden xl:block w-80 h-full flex-shrink-0 animate-fade-in">
+            <LiveStackRadar onInvestigate={handleInvestigatePrompt} />
+          </div>
+        )}
       </div>
+
+      {/* Slide-out Tool Connection Hub Drawer */}
+      <ToolDrawer
+        isOpen={isToolDrawerOpen}
+        onClose={() => setIsToolDrawerOpen(false)}
+        onStatusChange={handleStatusChange}
+      />
+
+      {/* Slide-out Mobile Telemetry Radar Drawer (< 1280px) */}
+      <RadarDrawer
+        isOpen={isMobileRadarOpen}
+        onClose={() => setIsMobileRadarOpen(false)}
+        onInvestigate={handleInvestigatePrompt}
+      />
     </div>
   );
 }

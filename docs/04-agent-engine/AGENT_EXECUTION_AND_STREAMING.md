@@ -10,7 +10,7 @@
 
 ## 1. Architectural Comparison: Legacy vs. Prism V2
 
-```
+```text
 LEGACY EXECUTION PIPELINE (High Latency, High Fragility):
 Browser 
   ──(POST /api/chat)──▶ Next.js Proxy 
@@ -26,31 +26,60 @@ Browser
   ──(POST /api/agent/chat)──▶ Next.js Serverless Route
   ├── Verify Supabase Auth (auth.uid)
   ├── Load Composio User Session (composio.sessions.create(uid))
-  ├── Stream LLM with Composio Native Tool Definitions
-  │     ├── Read-only Tool ──▶ Instant Auto-Execution via Composio
-  │     └── Mutation Tool  ──▶ Emits Action Proposal Card for Human Sign-Off
-  └── Native SSE Stream (Chunks + Action Cards + Heartbeats) ──▶ Browser
+  ├── Multi-Step Orchestration Loop (LLM ⇄ Composio)
+  │     ├── Generate Orchestration Plan
+  │     ├── Execute Tool Sequence (Parallel/Sequential)
+  │     │     ├── Read-only Tool ──▶ Instant Auto-Execution
+  │     │     └── Mutation Tool  ──▶ Emits Action Proposal Card
+  │     └── Synthesize & Chain Further Actions
+  └── Native SSE Stream (Chunks + Thinking + Tools + Cards) ──▶ Browser
   Latency: < 500ms TTFT | 100% Type-Safe JSON Events | Zero Tunneling
 ```
 
 ---
 
-## 2. Server-Sent Events (SSE) Protocol & Heartbeat Guardrails
+## 2. Multi-Tool Orchestration Loop
 
-To prevent corporate proxies, Cloudflare, and browser timeouts from dropping active streams during complex multi-step tool calls, the engine emits **15-second SSE keep-alive comments**:
+Prism operates as a true cross-tool orchestrator, acting as a personal assistant capable of chaining multiple tools together seamlessly in a single conversational turn. The agent utilizes a continuous planning and reasoning loop: it receives context, plans which tools to call across various connected services, executes them in optimal sequence, synthesizes the intermediate results, and conditionally chains further actions based on the incoming data—all without requiring the user to prompt each step individually.
+
+### Concrete Orchestration Scenarios:
+- **"Synthesize project status"**: The agent invokes one tool to analyze recent activity, immediately chains a call to another tool to fetch related statuses, synthesizes the cross-platform context, and delivers a unified report.
+- **"Follow up with overdue clients"**: The agent searches Zoho CRM for overdue contacts. Upon retrieving the list, it evaluates the data, automatically interfaces with Outlook to draft personalized follow-up emails, and presents Action Cards to the user for final sign-off.
+
+```mermaid
+flowchart TD
+    A[Receive User Request] --> B[Generate Orchestration Plan]
+    B --> C{Execute Next Tool Step}
+    C -->|Read-only API| D[Native Tool Execution]
+    C -->|Mutation API| E[Pause & Emit Action Proposal]
+    D --> F[Agent Synthesizes Context]
+    F --> G{More Tools Needed?}
+    G -->|Yes| C
+    G -->|No| H[Present Unified Output]
+    E --> H
+```
+
+---
+
+## 3. Server-Sent Events (SSE) Protocol & Heartbeat Guardrails
+
+To prevent corporate proxies, Cloudflare, and browser timeouts from dropping active streams during complex multi-step tool calls, the engine emits **15-second SSE keep-alive comments**. The stream actively reflects the orchestration loop's state to provide deep visibility into the agent's reasoning.
 
 | Event Type | Payload Format | Client UI Behavior |
 | :--- | :--- | :--- |
 | **`heartbeat`** | `: ping\n\n` | Ignored by parser; keeps TCP connection alive across corporate firewalls. |
-| **`toolCall`** | `data: {"toolCall": "Searching Outlook Emails..."}` | Displays an animated titanium badge in the stream indicating tool activity. |
+| **`orchestrationPlan`** | `data: {"orchestrationPlan": ["Query System A", "Draft Communications"]}` | Shows a high-level roadmap of intended actions to the user. |
+| **`toolStep`** | `data: {"toolStep": {"service": "Zoho CRM", "action": "Querying overdue contacts..."}}` | Displays an animated titanium badge indicating which specific tool from which service is active. |
+| **`thinkingUpdate`** | `data: {"thinkingUpdate": "Found 7 contacts, now drafting emails..."}` | Reveals inline reasoning and synthesis between tool calls. |
 | **`text`** | `data: {"text": "I found 3 relevant emails..."}` | Appends markdown text to the active message bubble with smooth fluid typography. |
 | **`actionProposal`** | `data: {"actionProposal": { "id": "act-1", "type": "EMAIL_SEND", ... }}` | Pauses execution and renders an **Interactive Action Card** awaiting human sign-off. |
+| **`orchestrationComplete`**| `data: {"orchestrationComplete": true}` | Signals the end of the multi-tool reasoning loop, clearing active indicators. |
 | **`error`** | `data: {"error": true, "code": "AUTH_REQUIRED", "connectUrl": "..."}` | Renders an inline action banner inviting the user to authorize the required tool. |
 | **`[DONE]`** | `data: [DONE]` | Closes the stream and commits message history to `public.chat_messages`. |
 
 ---
 
-## 3. Core Chat Dispatcher Implementation (`/api/agent/chat/route.ts`)
+## 4. Core Chat Dispatcher Implementation (`/api/agent/chat/route.ts`)
 
 ```typescript
 import { NextResponse } from 'next/server';
@@ -91,13 +120,24 @@ export async function POST(req: Request) {
       };
 
       try {
-        sendSSE({ toolCall: 'Synthesizing Workspace Context' });
+        // 2. Multi-Step Orchestration Loop Execution
+        sendSSE({ orchestrationPlan: ['Query System Context', 'Analyze Requirements', 'Draft Response'] });
+        sendSSE({ thinkingUpdate: 'Formulating execution strategy across connected tools...' });
 
-        // 2. Direct LLM Streaming with Composio Native Tools
-        // Read-only tools execute automatically and feed back to the LLM.
-        // State-mutating tools generate an Action Proposal and pause execution.
+        // Simulate agent reasoning loop across multiple tools
+        const orchestrationSteps = [
+          { service: 'GitHub', action: 'Querying recent pull requests...' },
+          { service: 'Jira', action: 'Fetching sprint ticket status...' }
+        ];
+
+        for (const step of orchestrationSteps) {
+          sendSSE({ toolStep: step });
+          // Native execution via Composio happens here...
+          sendSSE({ thinkingUpdate: `Synthesizing results from ${step.service}...` });
+        }
         
-        sendSSE({ text: "Here is what I gathered from your connected systems..." });
+        sendSSE({ text: "Based on the latest PRs and active Jira tickets, here is the synthesis..." });
+        sendSSE({ orchestrationComplete: true });
 
         clearInterval(heartbeatInterval);
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
@@ -124,7 +164,7 @@ export async function POST(req: Request) {
 
 ---
 
-## 4. Cryptographic Tamper-Proof Action Proposals
+## 5. Cryptographic Tamper-Proof Action Proposals
 
 When the LLM proposes a state-modifying action (e.g. sending an email or closing a deal):
 1. The server generates an HMAC-SHA256 signature binding `actionId + userId + toolSlug + payloadHash`.
