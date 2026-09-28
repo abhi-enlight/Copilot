@@ -13,7 +13,6 @@ import {
 } from "@phosphor-icons/react";
 import PrismLogo from "@/components/brand/PrismLogo";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { useOrganization } from "@/hooks/useOrganization";
 
 interface CockpitHeaderProps {
   connectedToolsCount?: number;
@@ -34,7 +33,7 @@ export default function CockpitHeader({
 }: CockpitHeaderProps) {
   const router = useRouter();
   const { user, profile, signOut } = useAuth();
-  const { userOrgs, activeOrg, switchOrg } = useOrganization();
+  const { userOrgs, activeOrg, switchOrg } = useAuth();
 
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
@@ -108,7 +107,7 @@ export default function CockpitHeader({
             <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
               Select Workspace
             </div>
-            {userOrgs.map((org) => (
+            {userOrgs.map((org: { id: string; name: string }) => (
               <button
                 key={org.id}
                 type="button"
