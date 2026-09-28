@@ -13,9 +13,11 @@ import {
   ChatsCircle,
   Kanban,
   Briefcase,
+  PlugsConnected,
 } from "@phosphor-icons/react";
 import ActionCard from "@/components/copilot/cards/ActionCard";
 import PrismLogo from "@/components/brand/PrismLogo";
+import { TOTAL_COCKPIT_TOOLS } from "@/lib/constants";
 import type { Message } from "@/types";
 import type { ActionProposal } from "@/types/database";
 
@@ -23,6 +25,9 @@ interface IntelligenceStreamProps {
   messages: Message[];
   isLoading: boolean;
   toolSteps?: import("@/types").ToolStep[];
+  connectedToolsCount?: number;
+  totalToolsCount?: number;
+  onOpenConnectHub?: () => void;
   onApproveAction: (actionId: string) => Promise<{ success: boolean; error?: string; result?: unknown } | void>;
   onRejectAction: (actionId: string, reason?: string) => Promise<{ success: boolean; error?: string } | void>;
   onQuickPrompt?: (prompt: string) => void;
@@ -32,6 +37,9 @@ export default function IntelligenceStream({
   messages,
   isLoading,
   toolSteps,
+  connectedToolsCount = 0,
+  totalToolsCount = TOTAL_COCKPIT_TOOLS,
+  onOpenConnectHub,
   onApproveAction,
   onRejectAction,
   onQuickPrompt,
@@ -118,9 +126,26 @@ export default function IntelligenceStream({
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">
               Good morning. Prism is ready.
             </h2>
-            <p className="text-sm text-slate-500 mt-1.5 max-w-md leading-relaxed">
-              Your autonomous executive employee connected to Outlook, Teams, Slack, Linear, and Zoho CRM.
-            </p>
+            {connectedToolsCount > 0 ? (
+              <p className="text-sm text-slate-500 mt-1.5 max-w-md leading-relaxed">
+                Connected to {connectedToolsCount} of {totalToolsCount} tools across your stack. Ask Prism to review, synthesize, or execute.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-500 mt-1.5 max-w-md leading-relaxed">
+                No tools connected yet. Connect Outlook, Teams, Slack, Linear, or Zoho CRM and Prism will work across all of them.
+              </p>
+            )}
+
+            {connectedToolsCount === 0 && (
+              <button
+                type="button"
+                onClick={() => onOpenConnectHub?.()}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer active:scale-98"
+              >
+                <PlugsConnected size={14} weight="bold" />
+                <span>Connect your first tool</span>
+              </button>
+            )}
 
             {/* Quick Starters Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mt-8 text-left">

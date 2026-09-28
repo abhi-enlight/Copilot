@@ -18,23 +18,6 @@ import { useCopilotChat } from "@/hooks/useCopilotChat";
 import { useLiveStackRadar } from "@/hooks/useLiveStackRadar";
 import type { ToolConnectionStatus } from "@/types/integrations";
 
-// Legacy compatibility interface for CopilotView
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export interface PlanContextForCopilot {
-  campaignData: {
-    name: string;
-    client: string;
-    budget?: string;
-    codeVolume?: string;
-    objective?: string;
-    targetAudience?: string;
-    channels?: string[];
-    [key: string]: any;
-  };
-  plan: any;
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
 export default function CockpitPage() {
   // Chat agent runtime hook
   const {
@@ -189,6 +172,8 @@ export default function CockpitPage() {
             messages={messages}
             isLoading={isLoading}
             toolSteps={toolSteps}
+            connectedToolsCount={connectedToolsCount}
+            onOpenConnectHub={() => setIsToolDrawerOpen(true)}
             onApproveAction={approveAction}
             onRejectAction={rejectAction}
             onQuickPrompt={(prompt) => {

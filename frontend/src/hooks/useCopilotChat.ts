@@ -1,16 +1,14 @@
 import { useState, useRef } from "react";
-import type { Message, ToolStep, Tenant } from "@/types";
+import type { Message, ToolStep } from "@/types";
 import type { ActionProposal } from "@/types/database";
-import { getWelcomeMessage } from "@/lib/constants";
 
-export function useCopilotChat(activeTenant?: Tenant) {
+export function useCopilotChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
-      content: activeTenant
-        ? getWelcomeMessage(activeTenant)
-        : "Welcome to Prism Operations Cockpit. Connected tools: Microsoft Outlook, Microsoft Teams, Slack, Linear, and Zoho CRM. What would you like to review or execute?",
+      content:
+        "Welcome to Prism Operations. Connect your tools from the Connect Hub, then ask me to review, synthesize, or execute across them.",
       sourceBadges: ["Prism Operations"],
       timestamp: "Just now",
       action_proposals: [],
