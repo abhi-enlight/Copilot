@@ -38,6 +38,21 @@ export function formatSSE(event: AgentSSEEvent | string): string {
 `;
 }
 
+export function resolveModelName(): string {
+  const custom = process.env.LLM_MODEL?.trim();
+  const isGemini = Boolean(process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY);
+
+  if (custom) {
+    if (isGemini && custom.toLowerCase().startsWith("gpt")) {
+      console.warn(`[Agent] Model "${custom}" requested with GEMINI_API_KEY. Defaulting to gemini-2.5-flash.`);
+      return "gemini-2.5-flash";
+    }
+    return custom;
+  }
+
+  return isGemini ? "gemini-2.5-flash" : "gpt-4o";
+}
+
 export function getOpenAIClient(): OpenAI | null {
   const apiKey =
     process.env.OPENAI_API_KEY ||
@@ -189,7 +204,7 @@ export async function executeSimulatedAgent(params: {
     loopCount++;
 
     const response = await client.chat.completions.create({
-      model: process.env.LLM_MODEL || "gpt-4o",
+      model: resolveModelName(),
       messages,
       tools: openAITools.length > 0 ? openAITools : undefined,
       stream: true,

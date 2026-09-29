@@ -221,6 +221,20 @@ export function humanizeError(
       };
     }
 
+    if (
+      normalized.includes("no llm") ||
+      (normalized.includes("api key") && !normalized.includes("valid")) ||
+      (normalized.includes("model") && normalized.includes("not found"))
+    ) {
+      return {
+        title: "AI Model Service Unavailable",
+        description:
+          "The AI language model is temporarily unreachable or misconfigured. Please check your API key in environment settings.",
+        referenceId,
+        isRetryable: false,
+      };
+    }
+
     return {
       title: "Assistant Temporarily Paused",
       description:

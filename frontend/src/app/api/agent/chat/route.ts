@@ -231,7 +231,7 @@ export async function POST(request: Request) {
           sendEvent({
             type: "error",
             code: "EXECUTION_ERROR",
-            message: "An error occurred while generating the operational response.",
+            message: errorMsg || "An error occurred while generating the operational response.",
           });
 
           controller.enqueue(encoder.encode(formatSSE("[DONE]")));
