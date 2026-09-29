@@ -39,18 +39,42 @@ export function formatSSE(event: AgentSSEEvent | string): string {
 }
 
 export function resolveModelName(): string {
-  const custom = process.env.LLM_MODEL?.trim();
+  let custom = (process.env.LLM_MODEL || "").trim();
   const isGemini = Boolean(process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY);
 
-  if (custom) {
-    if (isGemini && custom.toLowerCase().startsWith("gpt")) {
-      console.warn(`[Agent] Model "${custom}" requested with GEMINI_API_KEY. Defaulting to gemini-2.5-flash.`);
-      return "gemini-2.5-flash";
+  if (isGemini) {
+    if (!custom || custom.toLowerCase().startsWith("gpt")) {
+      return "gemini-flash-latest";
     }
+
+    if (custom.startsWith("models/")) {
+      custom = custom.replace("models/", "");
+    }
+
+    const lower = custom.toLowerCase();
+    // Normalize deprecated Gemini model identifiers to active stable endpoints
+    if (
+      lower === "gemini-1.5-flash" ||
+      lower === "gemini-2.0-flash" ||
+      lower === "gemini-2.0-flash-exp" ||
+      lower === "gemini-flash"
+    ) {
+      return "gemini-flash-latest";
+    }
+
+    if (
+      lower === "gemini-1.5-pro" ||
+      lower === "gemini-2.0-pro" ||
+      lower === "gemini-2.0-pro-exp" ||
+      lower === "gemini-pro"
+    ) {
+      return "gemini-pro-latest";
+    }
+
     return custom;
   }
 
-  return isGemini ? "gemini-2.5-flash" : "gpt-4o";
+  return custom || "gpt-4o";
 }
 
 export function getOpenAIClient(): OpenAI | null {
@@ -203,20 +227,56 @@ export async function executeSimulatedAgent(params: {
     if (signal?.aborted) break;
     loopCount++;
 
-    const response = await client.chat.completions.create({
-      model: resolveModelName(),
-      messages,
-      tools: openAITools.length > 0 ? openAITools : undefined,
-      stream: true,
-    });
+    const isGemini = Boolean(process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY);
+    const modelToUse = resolveModelName();
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model: modelToUse,
+        messages,
+        tools: openAITools.length > 0 ? openAITools : undefined,
+        stream: true,
+      });
+    } catch (err: any) {
+      const isModelNotFound =
+        err?.status === 404 ||
+        err?.message?.includes("not found") ||
+        err?.message?.includes("no longer available");
 
-    const currentToolCalls = new Map<number, { id: string, name: string, args: string }>();
+      if (isModelNotFound && isGemini) {
+        console.warn(
+          `[Agent] Model "${modelToUse}" failed (${err?.message}). Retrying with "gemini-flash-latest"...`
+        );
+        response = await client.chat.completions.create({
+          model: "gemini-flash-latest",
+          messages,
+          tools: openAITools.length > 0 ? openAITools : undefined,
+          stream: true,
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    const currentToolCalls = new Map<
+      number,
+      { id: string; name: string; args: string; extra_content?: any }
+    >();
     let hasToolCalls = false;
+    let messageExtraContent: any = null;
 
     for await (const chunk of response) {
       if (signal?.aborted) break;
-      const delta = chunk.choices[0]?.delta;
+      const choice = chunk.choices[0];
+      const delta = choice?.delta;
       if (!delta) continue;
+
+      if ((choice as any)?.extra_content) {
+        messageExtraContent = (choice as any).extra_content;
+      }
+      if ((delta as any)?.extra_content) {
+        messageExtraContent = (delta as any).extra_content;
+      }
 
       if (delta.content) {
         fullContent += delta.content;
@@ -225,14 +285,22 @@ export async function executeSimulatedAgent(params: {
 
       if (delta.tool_calls) {
         hasToolCalls = true;
-        for (const tc of delta.tool_calls) {
-          if (!currentToolCalls.has(tc.index)) {
-            currentToolCalls.set(tc.index, { id: tc.id || "", name: tc.function?.name || "", args: "" });
+        for (let i = 0; i < delta.tool_calls.length; i++) {
+          const tc = delta.tool_calls[i];
+          const tcIndex = typeof tc.index === "number" ? tc.index : i;
+          if (!currentToolCalls.has(tcIndex)) {
+            currentToolCalls.set(tcIndex, {
+              id: tc.id || "",
+              name: tc.function?.name || "",
+              args: "",
+              extra_content: (tc as any).extra_content,
+            });
           }
-          const acc = currentToolCalls.get(tc.index)!;
+          const acc = currentToolCalls.get(tcIndex)!;
           if (tc.id) acc.id = tc.id;
           if (tc.function?.name) acc.name = tc.function.name;
           if (tc.function?.arguments) acc.args += tc.function.arguments;
+          if ((tc as any).extra_content) acc.extra_content = (tc as any).extra_content;
         }
       }
     }
@@ -240,9 +308,20 @@ export async function executeSimulatedAgent(params: {
     if (!hasToolCalls) break;
 
     const assistantToolCallsMsg: any = { role: "assistant", content: null, tool_calls: [] };
-    
+    if (messageExtraContent) {
+      assistantToolCallsMsg.extra_content = messageExtraContent;
+    }
+
     for (const [, tc] of currentToolCalls) {
-      assistantToolCallsMsg.tool_calls.push({ id: tc.id, type: "function", function: { name: tc.name, arguments: tc.args } });
+      const tcItem: any = {
+        id: tc.id,
+        type: "function",
+        function: { name: tc.name, arguments: tc.args },
+      };
+      if (tc.extra_content) {
+        tcItem.extra_content = tc.extra_content;
+      }
+      assistantToolCallsMsg.tool_calls.push(tcItem);
     }
     messages.push(assistantToolCallsMsg);
 
