@@ -8,7 +8,11 @@ export type SupportedToolSlug =
   | 'microsoft_teams'
   | 'slack'
   | 'linear'
-  | 'zoho';
+  | 'zoho'
+  | 'github'
+  | 'gmail'
+  | 'googlecalendar'
+  | 'notion';
 
 export type ToolConnectionState = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'ERROR';
 

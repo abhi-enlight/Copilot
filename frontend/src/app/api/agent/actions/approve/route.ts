@@ -128,9 +128,13 @@ export async function POST(request: Request) {
       if (!session || typeof session.execute !== "function") {
         throw new Error("Tool execution session is unavailable for this account");
       }
+      const reqPayload = (action.request_payload as Record<string, unknown>) || {};
+      const toolToExecute = (reqPayload._raw_tool_slug as string) || action.tool_slug;
+      const payloadToExecute = (reqPayload._raw_payload as Record<string, unknown>) || reqPayload;
+
       const res = await session.execute(
-        action.tool_slug,
-        action.request_payload as Record<string, unknown>
+        toolToExecute,
+        payloadToExecute
       );
       executionResult = (res as Record<string, unknown>) || {
         executed: true,

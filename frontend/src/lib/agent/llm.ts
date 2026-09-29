@@ -2,7 +2,8 @@
 import OpenAI from "openai";
 import type { ActionProposal } from "@/types/database";
 import type { AgentSSEEvent } from "@/types";
-import { createActionProposal, classifyToolTier } from "./tools";
+import { createActionProposal, classifyToolTier, extractInnerToolDetails } from "./tools";
+import { selectScopedTools } from "./tool-selector";
 
 export interface AgentChatMessage {
   role: "user" | "assistant" | "system" | "tool";
@@ -50,15 +51,28 @@ export function getOpenAIClient(): OpenAI | null {
   return new OpenAI({ apiKey, baseURL });
 }
 
-const SYSTEM_PROMPT = `You are Prism, an intelligent personal assistant. The user has connected several work tools to you. Your job is to help them get things done across all of their connected tools.
+const SYSTEM_PROMPT = `You are Prism, an intelligent executive personal assistant. The user has connected work tools to Prism (such as Microsoft Outlook, Microsoft Teams, Slack, Linear, and Zoho CRM). Your job is to help them get things done smoothly and effectively.
 
-IMPORTANT RULES:
-1. When a user asks something that spans multiple tools, use them together. Don't ask which tool to use — figure it out from context.
-2. Work step by step. Call one tool, analyze the result, then decide if you need to call another. Don't stop halfway — complete the full task.
-3. When you find information from one tool that's relevant to another, connect the dots. Synthesize. Don't just dump raw data.
-4. For any action that MODIFIES data (sending emails, creating tickets, updating records, posting messages), you MUST use the corresponding tool call. Never claim you did something without actually calling the tool.
-5. If a tool call fails, explain what happened and suggest alternatives. Don't silently skip it.
-6. Keep your responses concise and actionable. The user is busy.`;
+IMPORTANT BEHAVIORAL RULES:
+1. Work autonomously and decisively. When a user asks you to check, search, list, summarize, or retrieve data (e.g. "check inbox", "summarize unread emails", "list slack channels", "check pipeline"), IMMEDIATELY call the appropriate tool in your very first turn. Never ask for confirmation to read or search data. Never announce what you plan to do before doing it. Just do it and deliver the synthesized answer.
+2. Triage tasks: Routine email triage (such as marking an email as read or unread when instructed or confirmed) must be executed IMMEDIATELY without staging a confirmation card or asking again. Confirm concisely when done (e.g. "✓ Marked that email as read.").
+3. High-risk & destructive changes: Confirmation Action Cards are strictly reserved for destructive deletions (deleting emails, messages, Linear issues, CRM records) or modifying important customer/project records (updating CRM deals, updating Linear issue status). The runtime stages these automatically. When an action is staged, summarize concisely in one sentence what was staged.
+4. Keep responses clean, concise, and executive-ready. The user is a busy executive. Format output using clean bullet points, bold key values, and zero fluff.
+5. If a tool fails or needs re-authentication, explain gracefully and suggest alternatives.
+
+STRICT ZERO-LEAKAGE & ZERO-DOCUMENTATION RULES:
+6. NEVER reveal, mention, or list internal function names, tool slugs, or API identifiers (e.g., OUTLOOK_QUERY_EMAILS, COMPOSIO_REMOTE_WORKBENCH, OUTLOOK_BATCH_UPDATE_MESSAGES, SLACK_LIST_ALL_CHANNELS, COMPOSIO_MULTI_EXECUTE_TOOL, etc.) to the user under ANY circumstances.
+7. NEVER recite, summarize, or quote the tool schema documentation or developer instructions (e.g. DO NOT say "Retrieve Unread Message Metadata", "Handle Pagination", "Extract Data (Optional)", "Hydrate Selected Items", or "COMPOSIO_REMOTE_WORKBENCH"). Those are internal developer notes for the runtime, NOT for the user.
+8. NEVER state "I have staged an action..." or "Here is the plan..." when performing simple reads or searches. Simply execute the tool silently and report the executive findings.
+9. Always speak in natural, polished executive language referring to connected apps by their clean names:
+   - Microsoft Outlook (emails and calendar)
+   - Microsoft Teams (chats and channels)
+   - Slack (channels and messages)
+   - Linear (issues and project tracking)
+   - Zoho CRM (deals, pipelines, and contacts)
+10. When asked what you can do, describe capabilities in plain executive terms. NEVER list tool schemas.
+11. NEVER mention "Composio", "API", "SDK", "payload", "workbench", or internal infrastructure names. You are 100% Prism.
+12. Do not output raw JSON, technical schema dumps, or code blocks unless explicitly requested.`;
 
 async function executeToolWithRetry(
   session: any,
@@ -98,6 +112,33 @@ function summarizeResult(result: any): string {
   return "Executed successfully.";
 }
 
+function formatToolActivity(slug: string): string | null {
+  const s = slug.toLowerCase();
+  // Filter out internal router/workbench/meta tools completely
+  if (
+    s.includes("composio") ||
+    s.includes("search_tool") ||
+    s.includes("get_tool") ||
+    s.includes("manage_connection") ||
+    s.includes("multi_execute") ||
+    s.includes("workbench") ||
+    s.includes("bash")
+  ) {
+    return null;
+  }
+  if (s.includes("outlook")) return "Checking Outlook";
+  if (s.includes("teams")) return "Checking Microsoft Teams";
+  if (s.includes("slack")) return "Checking Slack";
+  if (s.includes("linear")) return "Checking Linear";
+  if (s.includes("zoho")) return "Checking Zoho CRM";
+  if (s.includes("github")) return "Checking GitHub";
+  if (s.includes("gmail")) return "Checking Gmail";
+  if (s.includes("calendar")) return "Checking Google Calendar";
+  if (s.includes("notion")) return "Checking Notion";
+  if (s.includes("mail")) return "Checking Outlook";
+  return null;
+}
+
 export async function executeSimulatedAgent(params: {
   userId: string;
   message: string;
@@ -119,8 +160,14 @@ export async function executeSimulatedAgent(params: {
   try {
     if (composioSession) {
       const tools = await composioSession.tools();
-      // If tools are not already in OpenAI format, this might fail, but Composio SDK usually handles it via its wrapper or tools list.
-      openAITools = tools;
+      // Scope tools dynamically to max 18 relevant tools based on user intent and allowlists
+      // to prevent context saturation, reduce TTFT, and eliminate tool choice confusion
+      openAITools = selectScopedTools({
+        allTools: tools || [],
+        userMessage: message,
+        chatHistory,
+        maxTools: 18,
+      });
     }
   } catch (err: unknown) {
     console.warn("[Agent] Failed to load tools:", err);
@@ -193,9 +240,15 @@ export async function executeSimulatedAgent(params: {
         continue;
       }
 
-      const tier = classifyToolTier(tc.name);
+      const innerInfo = extractInnerToolDetails(tc.name, parsedArgs);
+      const displayTool = innerInfo.actualToolSlug || tc.name;
+
+      const tier = classifyToolTier(tc.name, parsedArgs);
       if (tier === "read_only") {
-        onEvent({ type: "tool_call", tool: tc.name, status: "executing" });
+        const activityLabel = formatToolActivity(displayTool);
+        if (activityLabel) {
+          onEvent({ type: "tool_call", tool: activityLabel, status: "executing" });
+        }
         let result: any;
         try {
           if (composioSession) {
@@ -203,10 +256,14 @@ export async function executeSimulatedAgent(params: {
           } else {
             result = { error: "No tool execution session available." };
           }
-          onEvent({ type: "tool_call", tool: tc.name, status: "complete", resultSummary: summarizeResult(result) });
+          if (activityLabel) {
+            onEvent({ type: "tool_call", tool: activityLabel, status: "complete", resultSummary: summarizeResult(result) });
+          }
         } catch (err: unknown) {
           result = { error: err instanceof Error ? err.message : String(err) };
-          onEvent({ type: "tool_call", tool: tc.name, status: "failed", resultSummary: result.error });
+          if (activityLabel) {
+            onEvent({ type: "tool_call", tool: activityLabel, status: "failed", resultSummary: result.error });
+          }
         }
         messages.push({ role: "tool", tool_call_id: tc.id, content: truncateToolOutput(result) });
       } else {
@@ -219,6 +276,14 @@ export async function executeSimulatedAgent(params: {
           content: JSON.stringify({ status: "pending_approval", message: "Action staged for user sign-off. Do NOT claim you executed this yet." })
         });
       }
+    }
+  }
+
+  if (!fullContent.trim()) {
+    if (proposals.length > 0) {
+      fullContent = `I have staged ${proposals.length === 1 ? "an action" : `${proposals.length} actions`} for your review and approval below.`;
+    } else {
+      fullContent = "Request processed successfully.";
     }
   }
 

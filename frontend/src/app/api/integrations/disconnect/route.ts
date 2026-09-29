@@ -20,8 +20,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
     const body = await request.json().catch(() => ({}));
-    const { app, accountId } = body;
+    const app = body.app || url.searchParams.get("app");
+    const accountId = body.accountId || url.searchParams.get("accountId");
 
     if (!app && !accountId) {
       return NextResponse.json(

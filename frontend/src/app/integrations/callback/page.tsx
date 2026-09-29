@@ -1,134 +1,208 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Check, Warning, SpinnerGap } from "@phosphor-icons/react";
+import type { ToolConnectionStatus } from "@/types/integrations";
 
-export default function IntegrationsCallbackPage() {
+function CallbackContent() {
+  const searchParams = useSearchParams();
+  const appParam = searchParams.get("app") || searchParams.get("toolkit");
+  const errorParam =
+    searchParams.get("error_description") ||
+    searchParams.get("error") ||
+    searchParams.get("message");
+  const rawStatus = (searchParams.get("status") || "").toLowerCase();
+  const isSuccessParam = searchParams.get("is_success");
+
+  const isExplicitFail = Boolean(
+    errorParam || rawStatus === "failed" || rawStatus === "error" || isSuccessParam === "false"
+  );
+
+  const [statusState, setStatusState] = useState<"verifying" | "success" | "failed">(
+    isExplicitFail ? "failed" : "verifying"
+  );
+  const [errorMessage, setErrorMessage] = useState<string>(
+    isExplicitFail ? (errorParam || "Authorization was denied or failed in the provider.") : ""
+  );
   const [closed, setClosed] = useState(false);
 
   useEffect(() => {
-    // Notify the parent window immediately via postMessage
-    try {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(
-          { type: 'PRISM_AUTH_COMPLETE', timestamp: Date.now() },
-          window.location.origin
-        );
-      }
-    } catch {
-      // Ignored if cross-origin boundary prevents message
+    if (isExplicitFail) {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(
+            {
+              type: "PRISM_AUTH_FAILED",
+              error: errorMessage || "Authorization was denied or failed in the provider.",
+              timestamp: Date.now(),
+            },
+            window.location.origin
+          );
+        }
+      } catch {}
+      return;
     }
 
-    // Attempt automatic window closure after short visual confirmation
-    const timer = setTimeout(() => {
-      try {
-        window.close();
-        setClosed(true);
-      } catch {
-        setClosed(false);
-      }
-    }, 1400);
+    // Active verification: check /api/integrations/status
+    let attempts = 0;
+    const maxAttempts = 4;
+    let timerId: NodeJS.Timeout | null = null;
+    let isCancelled = false;
 
-    return () => clearTimeout(timer);
-  }, []);
+    const verifyActiveConnection = async () => {
+      attempts++;
+      try {
+        const queryUrl = appParam
+          ? `/api/integrations/status?app=${encodeURIComponent(appParam)}&refresh=true`
+          : `/api/integrations/status?refresh=true`;
+        const res = await fetch(queryUrl);
+        if (!isCancelled && res.ok) {
+          const data = await res.json();
+          const tools: ToolConnectionStatus[] = data.tools || [];
+
+          let isTargetConnected = false;
+          if (appParam) {
+            if (data.isConnected === true) {
+              isTargetConnected = true;
+            } else {
+              const match = tools.find((t) => t.slug === appParam);
+              isTargetConnected = match?.isConnected === true;
+            }
+          } else {
+            isTargetConnected = tools.some((t) => t.isConnected);
+          }
+
+          if (isTargetConnected) {
+            setStatusState("success");
+            try {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage(
+                  { type: "PRISM_AUTH_SUCCESS", app: appParam, timestamp: Date.now() },
+                  window.location.origin
+                );
+              }
+            } catch {}
+
+            timerId = setTimeout(() => {
+              try {
+                window.close();
+                setClosed(true);
+              } catch {}
+            }, 1500);
+            return;
+          }
+        }
+      } catch {}
+
+      if (!isCancelled) {
+        if (attempts < maxAttempts) {
+          timerId = setTimeout(verifyActiveConnection, 1200);
+        } else {
+          const failMsg =
+            "Authorization could not be confirmed. The connection was cancelled or incomplete.";
+          setStatusState("failed");
+          setErrorMessage(failMsg);
+
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage(
+                { type: "PRISM_AUTH_FAILED", error: failMsg, timestamp: Date.now() },
+                window.location.origin
+              );
+            }
+          } catch {}
+        }
+      }
+    };
+
+    void verifyActiveConnection();
+
+    return () => {
+      isCancelled = true;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [isExplicitFail, errorMessage, appParam]);
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#0B0D13',
-        color: '#F4F4F5',
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-        padding: '24px',
-        margin: 0,
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '420px',
-          textAlign: 'center',
-          backgroundColor: '#12151E',
-          borderRadius: '16px',
-          border: '1px solid #1E2330',
-          boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.7)',
-          padding: '40px 32px',
-        }}
-      >
-        {/* Glowing Emerald Status Badge */}
-        <div
-          style={{
-            width: '56px',
-            height: '56px',
-            margin: '0 auto 20px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(16, 185, 129, 0.25)',
-          }}
-        >
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#10B981"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-[#FAFAF9] p-6 font-sans">
+      <div className="w-full max-w-sm text-center bg-white rounded-2xl border border-black/[0.07] shadow-[0_8px_24px_rgba(0,0,0,0.06),0_16px_48px_rgba(0,0,0,0.04)] p-8">
+        {statusState === "verifying" && (
+          <>
+            <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 mx-auto mb-4 flex items-center justify-center">
+              <SpinnerGap size={28} className="animate-spin" />
+            </div>
+            <h1 className="text-base font-bold text-stone-900 tracking-tight mb-1">
+              Verifying Authorization…
+            </h1>
+            <p className="text-xs text-stone-500 leading-relaxed">
+              Confirming credentials with the Prism Sovereign Vault gateway.
+            </p>
+          </>
+        )}
 
-        <h1
-          style={{
-            fontSize: '19px',
-            fontWeight: 600,
-            letterSpacing: '-0.02em',
-            margin: '0 0 8px',
-            color: '#FFFFFF',
-          }}
-        >
-          Prism Connected
-        </h1>
-        <p
-          style={{
-            fontSize: '13px',
-            color: '#8E95A5',
-            lineHeight: 1.5,
-            margin: '0 0 24px',
-          }}
-        >
-          Authorization was granted successfully. You can return to the Prism Operations Cockpit.
-        </p>
+        {statusState === "success" && (
+          <>
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 mx-auto mb-4 flex items-center justify-center">
+              <Check size={28} weight="bold" />
+            </div>
+            <h1 className="text-base font-bold text-stone-900 tracking-tight mb-1">
+              Prism Connected
+            </h1>
+            <p className="text-xs text-stone-500 leading-relaxed mb-6">
+              Authorization was confirmed successfully. Returning to the Prism Operations Cockpit…
+            </p>
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="w-full py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+            >
+              {closed ? "Window Closing…" : "Close Window"}
+            </button>
+          </>
+        )}
 
-        <button
-          onClick={() => window.close()}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '10px 24px',
-            fontSize: '13px',
-            fontWeight: 500,
-            borderRadius: '8px',
-            backgroundColor: '#181B26',
-            color: '#E4E4E7',
-            border: '1px solid #272B38',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          {closed ? 'Window Closing…' : 'Close Window'}
-        </button>
+        {statusState === "failed" && (
+          <>
+            <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-200 text-red-600 mx-auto mb-4 flex items-center justify-center">
+              <Warning size={28} weight="bold" />
+            </div>
+            <h1 className="text-base font-bold text-stone-900 tracking-tight mb-1">
+              Connection Incomplete
+            </h1>
+            <p className="text-xs text-stone-600 leading-relaxed mb-2">
+              {errorMessage}
+            </p>
+            <p className="text-[11px] text-stone-400 mb-6">
+              No changes were made to your workspace. You can retry from the Connect Hub.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="w-full py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+            >
+              Close Window
+            </button>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function IntegrationsCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#FAFAF9] p-6 font-sans">
+          <div className="w-full max-w-sm text-center bg-white rounded-2xl p-8 border border-stone-200">
+            <SpinnerGap size={24} className="animate-spin text-stone-400 mx-auto mb-2" />
+            <p className="text-xs text-stone-500">Loading…</p>
+          </div>
+        </div>
+      }
+    >
+      <CallbackContent />
+    </Suspense>
   );
 }

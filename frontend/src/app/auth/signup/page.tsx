@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 import PrismLogo from "@/components/brand/PrismLogo";
+import { humanizeError } from "@/lib/errors/humanize";
+
+const inputClass =
+  "w-full px-4 py-3 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all duration-150";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -45,13 +49,13 @@ export default function SignupPage() {
         if (signUpError.message.includes("already registered")) {
           setError("An account with this email already exists. Sign in instead.");
         } else {
-          setError(signUpError.message);
+          setError(humanizeError(signUpError, "auth").description);
         }
         return;
       }
 
       if (!data.user) {
-        setError("Signup failed. Please try again.");
+        setError("Account creation could not be completed. Please try again.");
         return;
       }
 
@@ -87,18 +91,18 @@ export default function SignupPage() {
 
   if (isEmailVerificationSent) {
     return (
-      <div className="w-full max-w-sm text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-50 border border-sky-200 text-sky-600 mb-6">
+      <div className="w-full text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-6">
           <PrismLogo size={36} variant="tile" />
         </div>
-        <h2 className="text-xl font-bold text-stone-900">Check your email</h2>
+        <h2 className="text-[24px] font-bold text-stone-900 tracking-[-0.02em]">Check your email</h2>
         <p className="text-sm text-stone-500 mt-2 leading-relaxed">
-          We&apos;ve sent a confirmation link to <span className="font-semibold text-stone-700">{email}</span>. Please verify your email to log in to Prism.
+          We&apos;ve sent a confirmation link to <span className="font-semibold text-stone-800">{email}</span>. Please verify your email to log in to Prism.
         </p>
         <div className="mt-8">
           <Link
             href="/auth/login"
-            className="inline-flex items-center justify-center w-full py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold transition"
+            className="inline-flex items-center justify-center w-full py-3 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold transition-all duration-150 active:scale-[0.98]"
           >
             Back to Sign In
           </Link>
@@ -108,35 +112,32 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="w-full max-w-sm">
-      {/* Brand lockup */}
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-2.5 mb-5">
-          <PrismLogo size={36} variant="tile" />
-          <div className="text-left">
-            <div className="text-[14px] font-bold text-stone-900 leading-none">
-              Prism
-            </div>
-            <div className="text-[10.5px] text-stone-400 leading-none mt-1">
-              by{" "}
-              <span className="text-blue-600 font-semibold">Enlight Lab</span>
-            </div>
-          </div>
+    <div className="w-full">
+      {/* Brand lockup (mobile only) */}
+      <div className="lg:hidden flex items-center gap-2.5 mb-8">
+        <PrismLogo size={32} variant="tile" />
+        <div>
+          <div className="text-[14px] font-bold text-stone-900 leading-none">Prism</div>
+          <div className="text-[10.5px] text-stone-400 mt-0.5">Operations Platform</div>
         </div>
-        <h1 className="text-xl font-bold text-stone-900">Create account</h1>
-        <p className="text-sm text-stone-500 mt-1">
-          Your workspace will be set up automatically
+      </div>
+
+      <div className="mb-8">
+        <h1 className="text-[26px] font-bold text-stone-900 tracking-[-0.025em] leading-tight">
+          Create account
+        </h1>
+        <p className="text-sm text-stone-500 mt-1.5">
+          Your workspace and operational telemetry will be set up automatically.
         </p>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label
             htmlFor="displayName"
-            className="block text-xs font-semibold text-stone-700 mb-1.5"
+            className="block text-[12px] font-semibold text-stone-700 mb-1.5 tracking-wide uppercase"
           >
-            Your name
+            Full Name
           </label>
           <input
             id="displayName"
@@ -145,17 +146,17 @@ export default function SignupPage() {
             required
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Enter your name"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
+            placeholder="Jane Doe"
+            className={inputClass}
           />
         </div>
 
         <div>
           <label
             htmlFor="email"
-            className="block text-xs font-semibold text-stone-700 mb-1.5"
+            className="block text-[12px] font-semibold text-stone-700 mb-1.5 tracking-wide uppercase"
           >
-            Email
+            Work Email
           </label>
           <input
             id="email"
@@ -164,15 +165,15 @@ export default function SignupPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
+            placeholder="jane@company.com"
+            className={inputClass}
           />
         </div>
 
         <div>
           <label
             htmlFor="password"
-            className="block text-xs font-semibold text-stone-700 mb-1.5"
+            className="block text-[12px] font-semibold text-stone-700 mb-1.5 tracking-wide uppercase"
           >
             Password
           </label>
@@ -185,12 +186,13 @@ export default function SignupPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="At least 6 characters"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
+            className={inputClass}
           />
         </div>
 
         {error && (
-          <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-2.5 text-sm text-rose-700">
+          <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+            <span className="text-red-500 mt-0.5">⚠</span>
             {error}
           </div>
         )}
@@ -198,24 +200,27 @@ export default function SignupPage() {
         <button
           type="submit"
           disabled={loading || !email || !password || !displayName}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer"
           style={{
             background:
               loading || !email || !password || !displayName
-                ? "#a78bfa"
-                : "linear-gradient(135deg, #0369a1 0%, #2563eb 100%)",
+                ? "#94a3b8"
+                : "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+            boxShadow:
+              !loading && email && password && displayName
+                ? "0 2px 8px rgba(99, 102, 241, 0.3)"
+                : "none",
           }}
         >
-          {loading ? "Creating account…" : "Create account"}
+          {loading ? "Creating account…" : "Create account →"}
         </button>
       </form>
 
-      {/* Footer */}
-      <p className="mt-6 text-center text-xs text-stone-500">
+      <p className="mt-6 text-center text-[12.5px] text-stone-400">
         Already have an account?{" "}
         <Link
           href="/auth/login"
-          className="text-sky-600 font-semibold hover:text-sky-700"
+          className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors"
         >
           Sign in
         </Link>

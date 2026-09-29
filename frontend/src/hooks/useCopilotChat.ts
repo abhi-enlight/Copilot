@@ -1,6 +1,78 @@
 import { useState, useRef } from "react";
 import type { Message, ToolStep } from "@/types";
 import type { ActionProposal } from "@/types/database";
+import { humanizeError } from "@/lib/errors/humanize";
+import { reportError } from "@/lib/errors/monitor";
+
+function formatApprovalOutcome(proposalTitle: string, result: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = result as any;
+  if (!res) {
+    return `✓ **${proposalTitle}** executed successfully.`;
+  }
+
+  // Check if result has Slack channels (as in the screenshot)
+  const channels =
+    res?.data?.results?.[0]?.response?.data?.channels ||
+    res?.results?.[0]?.response?.data?.channels ||
+    res?.channels;
+
+  if (Array.isArray(channels) && channels.length > 0) {
+    const list = channels
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => `• **#${c.name}**${c.is_general ? " *(general)*" : ""}`)
+      .join("\n");
+    return `✓ **${proposalTitle}** executed successfully.\n\n**Channels Found (${channels.length}):**\n${list}`;
+  }
+
+  // Check if result has emails / messages
+  const emails =
+    res?.data?.results?.[0]?.response?.data?.value ||
+    res?.results?.[0]?.response?.data?.value ||
+    res?.value;
+
+  if (Array.isArray(emails) && emails.length > 0) {
+    const list = emails
+      .slice(0, 5)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((m: any) => `• **${m.subject || "Untitled Email"}** — from *${m.from?.emailAddress?.name || m.from?.emailAddress?.address || "Sender"}*`)
+      .join("\n");
+    return `✓ **${proposalTitle}** executed successfully.\n\n**Retrieved Items (${emails.length}):**\n${list}`;
+  }
+
+  // Check if result has Linear issues
+  const issues =
+    res?.data?.results?.[0]?.response?.data?.nodes ||
+    res?.results?.[0]?.response?.data?.nodes ||
+    res?.nodes;
+
+  if (Array.isArray(issues) && issues.length > 0) {
+    const list = issues
+      .slice(0, 5)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((i: any) => `• **${i.identifier || i.title}**: ${i.title}`)
+      .join("\n");
+    return `✓ **${proposalTitle}** executed successfully.\n\n**Issues (${issues.length}):**\n${list}`;
+  }
+
+  // Check if result has Outlook batch update results
+  const totalSucceeded = res?.data?.total_succeeded ?? res?.total_succeeded;
+  if (typeof totalSucceeded === "number") {
+    return `✓ **${proposalTitle}** completed successfully (${totalSucceeded} item${totalSucceeded === 1 ? "" : "s"} updated).`;
+  }
+
+  // Check if message or status is present
+  const msg =
+    res?.data?.results?.[0]?.response?.data?.message ||
+    res?.data?.message ||
+    res?.message;
+
+  if (typeof msg === "string" && msg.trim()) {
+    return `✓ **${proposalTitle}** executed successfully.\n\n${msg}`;
+  }
+
+  return `✓ **${proposalTitle}** executed and verified via Prism.`;
+}
 
 export function useCopilotChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -135,7 +207,22 @@ export function useCopilotChat() {
                     return { ...msg, action_proposals: [...existing, proposal] };
                   })
                 );
+              } else if (event.type === "error") {
+                const humanized = humanizeError(event.message || event.code, "agent");
+                reportError(event.message || event.code, { category: "agent" });
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMsgId
+                      ? {
+                          ...msg,
+                          content: `⚠️ **${humanized.title}**\n\n${humanized.description}`,
+                          sourceBadges: ["Prism Operations"],
+                        }
+                      : msg
+                  )
+                );
               } else if (event.type === "done") {
+                setToolSteps([]);
                 setMessages((prev) =>
                   prev.map((msg) =>
                     msg.id === assistantMsgId
@@ -156,17 +243,20 @@ export function useCopilotChat() {
       }
     } catch (err: unknown) {
       console.error("[useCopilotChat] Streaming error:", err);
-      const errorText = "Unable to connect to the operational agent runtime. Please check your credentials and network.";
+      const humanized = humanizeError(err, "agent");
+      reportError(err, { category: "agent" });
+      const errorText = `⚠️ **${humanized.title}**\n\n${humanized.description}`;
 
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMsgId
-            ? { ...msg, content: errorText, sourceBadges: ["System Alert"] }
+            ? { ...msg, content: errorText, sourceBadges: ["Prism Operations"] }
             : msg
         )
       );
     } finally {
       setIsLoading(false);
+      setToolSteps([]);
     }
   };
 
@@ -192,20 +282,51 @@ export function useCopilotChat() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Approval failed");
 
-      // Update proposal state to "executed"
+      // Update proposal state to "executed" and attach execution_result
+      let targetTitle = "Action";
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
-          action_proposals: msg.action_proposals?.map((p) =>
-            p.id === actionId ? { ...p, status: "executed" as const } : p
-          ),
+          action_proposals: msg.action_proposals?.map((p) => {
+            if (p.id === actionId) {
+              targetTitle = p.title || "Action";
+              return { ...p, status: "executed" as const, execution_result: data.result };
+            }
+            return p;
+          }),
         }))
       );
 
+      // Append assistant outcome message so output is always visible to the user!
+      const outcomeText = formatApprovalOutcome(targetTitle, data.result);
+      const followUpMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: outcomeText,
+        sourceBadges: ["Prism Operations"],
+        timestamp: "Just now",
+      };
+
+      setMessages((prev) => [...prev, followUpMsg]);
+
+      // Persist to session if active
+      if (sessionId) {
+        fetch(`/api/chat/sessions/${sessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "assistant",
+            content: outcomeText,
+            sourceBadges: ["Prism Operations"],
+          }),
+        }).catch((e) => console.warn("[useCopilotChat] Failed to persist approval message:", e));
+      }
+
       return { success: true, result: data.result };
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error("[useCopilotChat] Approval error:", errMsg);
+      const humanized = humanizeError(err, "action");
+      reportError(err, { category: "tool" });
+      console.error("[useCopilotChat] Approval error:", humanized.referenceId);
 
       setMessages((prev) =>
         prev.map((msg) => ({
@@ -216,7 +337,7 @@ export function useCopilotChat() {
         }))
       );
 
-      return { success: false, error: errMsg };
+      return { success: false, error: humanized.description };
     }
   };
 
@@ -246,8 +367,66 @@ export function useCopilotChat() {
 
       return { success: true };
     } catch (err: unknown) {
+      reportError(err, { category: "tool" });
       console.error("[useCopilotChat] Rejection error:", err);
       return { success: false };
+    }
+  };
+
+  const startNewSession = () => {
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content:
+          "Welcome to Prism Operations. Connect your tools from the Connect Hub, then ask me to review, synthesize, or execute across them.",
+        sourceBadges: ["Prism Operations"],
+        timestamp: "Just now",
+        action_proposals: [],
+      },
+    ]);
+    setInput("");
+    setToolSteps([]);
+    setSessionId(null);
+  };
+
+  const loadSession = async (targetSessionId: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/chat/sessions/${targetSessionId}/messages`);
+      if (!res.ok) throw new Error("Failed to load session messages");
+      const data = await res.json();
+      interface DbMessage {
+        id: string;
+        role: import("@/types").MessageRole;
+        content: string;
+        source_badges?: string[];
+        created_at: string;
+        tool_calls?: import("@/types").ToolInvocation[];
+        action_proposals?: ActionProposal[];
+      }
+      const loadedMessages: Message[] = (data.messages || []).map((m: DbMessage) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        sourceBadges: m.source_badges || ["Prism Operations"],
+        timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        tool_calls: m.tool_calls || undefined,
+        action_proposals: m.action_proposals || [],
+      }));
+
+      if (loadedMessages.length > 0) {
+        setMessages(loadedMessages);
+      }
+      setSessionId(targetSessionId);
+      setInput("");
+      setToolSteps([]);
+      return { success: true };
+    } catch (err) {
+      console.warn("[useCopilotChat] loadSession error:", err);
+      return { success: false };
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -261,6 +440,8 @@ export function useCopilotChat() {
     handleSendMessage,
     approveAction,
     rejectAction,
+    startNewSession,
+    loadSession,
     inputRef,
   };
 }

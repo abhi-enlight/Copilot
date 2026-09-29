@@ -3,6 +3,7 @@ import {
   getComposioSessionForUser,
   normalizeToolSlug,
   formatToolStatus,
+  clearSessionCacheForUser,
   sanitizeIntegrationError,
   CORE_PRISM_TOOL_SLUGS,
 } from "@/lib/composio/session";
@@ -23,6 +24,11 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const appQuery = searchParams.get("app");
+    const refresh = searchParams.get("refresh") === "true";
+
+    if (refresh) {
+      clearSessionCacheForUser(user.id);
+    }
 
     const { session } = await getComposioSessionForUser(user.id);
 

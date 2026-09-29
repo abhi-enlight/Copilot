@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase-browser";
 import PrismLogo from "@/components/brand/PrismLogo";
+import { humanizeError } from "@/lib/errors/humanize";
+
+const inputClass =
+  "w-full px-4 py-3 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all duration-150";
 
 function LoginForm() {
   const router = useRouter();
@@ -43,11 +47,11 @@ function LoginForm() {
           signInError.message.includes("Invalid login credentials") ||
           signInError.message.includes("invalid_credentials")
         ) {
-          setError("Incorrect email or password.");
+          setError("Incorrect email or password. Please double-check and try again.");
         } else if (signInError.message.includes("Email not confirmed")) {
-          setError("Check your email and confirm your account first.");
+          setError("Please check your email and confirm your account first.");
         } else {
-          setError(signInError.message);
+          setError(humanizeError(signInError, "auth").description);
         }
         return;
       }
@@ -55,7 +59,7 @@ function LoginForm() {
       router.push(returnTo);
       router.refresh();
     } catch {
-      setError("Something went wrong. Try again.");
+      setError("Unable to connect to sign in. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -80,7 +84,7 @@ function LoginForm() {
         },
       });
       if (otpError) {
-        setError(otpError.message);
+        setError(humanizeError(otpError, "auth").description);
         return;
       }
       try {
@@ -95,24 +99,28 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="mb-8 text-center">
-        <div className="inline-flex items-center gap-2.5 mb-5">
-          <PrismLogo size={36} variant="tile" />
-          <div className="text-left">
-            <div className="text-[14px] font-bold text-stone-900 leading-none">Prism</div>
-            <div className="text-[10.5px] text-stone-400 leading-none mt-1">
-              by <span className="text-blue-600 font-semibold">Enlight Lab</span>
-            </div>
-          </div>
+    <div className="w-full">
+      {/* Brand lockup (shown on mobile, hidden on desktop where left panel shows it) */}
+      <div className="lg:hidden flex items-center gap-2.5 mb-8">
+        <PrismLogo size={32} variant="tile" />
+        <div>
+          <div className="text-[14px] font-bold text-stone-900 leading-none">Prism</div>
+          <div className="text-[10.5px] text-stone-400 mt-0.5">Operations Platform</div>
         </div>
-        <h1 className="text-xl font-bold text-stone-900">Sign in</h1>
-        <p className="text-sm text-stone-500 mt-1">Enter your credentials to access your account</p>
+      </div>
+
+      <div className="mb-8">
+        <h1 className="text-[26px] font-bold text-stone-900 tracking-[-0.025em] leading-tight">
+          Sign in
+        </h1>
+        <p className="text-sm text-stone-500 mt-1.5">
+          Enter your credentials to access your operational cockpit.
+        </p>
       </div>
 
       <form onSubmit={handlePasswordSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-xs font-semibold text-stone-700 mb-1.5">
+          <label htmlFor="email" className="block text-[12px] font-semibold text-stone-700 mb-1.5 tracking-wide uppercase">
             Email
           </label>
           <input
@@ -122,17 +130,15 @@ function LoginForm() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
+            placeholder="name@company.com"
+            className={inputClass}
           />
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label htmlFor="password" className="block text-xs font-semibold text-stone-700">
-              Password
-            </label>
-          </div>
+          <label htmlFor="password" className="block text-[12px] font-semibold text-stone-700 mb-1.5 tracking-wide uppercase">
+            Password
+          </label>
           <input
             id="password"
             type="password"
@@ -140,18 +146,19 @@ function LoginForm() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400 transition"
+            placeholder="Your password"
+            className={inputClass}
           />
         </div>
 
         {error && (
-          <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-2.5 text-sm text-rose-700">
+          <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+            <span className="text-red-500 mt-0.5">⚠</span>
             {error}
           </div>
         )}
         {notice && (
-          <div className="rounded-xl bg-sky-50 border border-sky-200 px-4 py-2.5 text-sm text-sky-800">
+          <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-800">
             {notice}
           </div>
         )}
@@ -159,31 +166,41 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading || magicLinkLoading || !email || !password}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer"
           style={{
             background:
               loading || !email || !password
-                ? "#a78bfa"
-                : "linear-gradient(135deg, #0369a1 0%, #2563eb 100%)",
+                ? "#94a3b8"
+                : "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+            boxShadow:
+              !loading && email && password
+                ? "0 2px 8px rgba(99, 102, 241, 0.3)"
+                : "none",
           }}
         >
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? "Signing in…" : "Sign in →"}
         </button>
       </form>
+
+      <div className="mt-3 relative flex items-center gap-3">
+        <div className="flex-1 h-px bg-stone-100" />
+        <span className="text-[11px] text-stone-400">or</span>
+        <div className="flex-1 h-px bg-stone-100" />
+      </div>
 
       <button
         type="button"
         onClick={handleMagicLink}
         disabled={loading || magicLinkLoading || !email}
-        className="mt-3 w-full py-2.5 rounded-xl text-sm font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        className="mt-3 w-full py-3 rounded-xl text-sm font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 border border-stone-200 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
-        {magicLinkLoading ? "Sending link…" : "Email me a sign-in link instead"}
+        {magicLinkLoading ? "Sending link…" : "Email me a sign-in link"}
       </button>
 
-      <p className="mt-6 text-center text-xs text-stone-500">
+      <p className="mt-6 text-center text-[12.5px] text-stone-400">
         Don&apos;t have an account?{" "}
-        <Link href="/auth/signup" className="text-sky-600 font-semibold hover:text-sky-700">
-          Sign up
+        <Link href="/auth/signup" className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors">
+          Create one
         </Link>
       </p>
     </div>
@@ -209,10 +226,11 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full max-w-sm animate-pulse space-y-4">
-          <div className="h-8 bg-stone-200 rounded-xl" />
-          <div className="h-10 bg-stone-200 rounded-xl" />
-          <div className="h-10 bg-stone-200 rounded-xl" />
+        <div className="w-full space-y-4 animate-pulse">
+          <div className="h-10 bg-stone-100 rounded-xl" />
+          <div className="h-12 bg-stone-100 rounded-xl" />
+          <div className="h-12 bg-stone-100 rounded-xl" />
+          <div className="h-12 bg-stone-100 rounded-xl" />
         </div>
       }
     >

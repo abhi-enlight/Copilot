@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase-server";
 import {
   getComposioSessionForUser,
   normalizeToolSlug,
+  clearSessionCacheForUser,
   sanitizeIntegrationError,
 } from "@/lib/composio/session";
 import type { ConnectResponse } from "@/types/integrations";
@@ -32,12 +33,14 @@ export async function POST(request: Request) {
     const toolkitSlug = normalizeToolSlug(app);
     const { session, entityId } = await getComposioSessionForUser(user.id);
 
+    clearSessionCacheForUser(user.id);
+
     // Secure origin callback to prevent open redirect vulnerabilities
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ||
       request.headers.get("origin") ||
       "http://localhost:3000";
-    const callbackUrl = `${origin}/integrations/callback`;
+    const callbackUrl = `${origin}/integrations/callback?app=${encodeURIComponent(toolkitSlug)}`;
 
     const connectionRequest = await session.authorize(toolkitSlug, {
       callbackUrl,

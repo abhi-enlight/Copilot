@@ -86,113 +86,131 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
   };
 
   return (
-    <aside className={`w-full h-full flex flex-col bg-slate-50/60 border-l border-slate-200/80 font-sans ${className}`}>
-      {/* Top Header */}
-      <div className="p-4 border-b border-slate-200/80 bg-white/70 backdrop-blur-xl flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Pulse size={18} weight="bold" className="text-slate-900" />
+    <aside className={`w-full h-full flex flex-col bg-[#FAFAF9] border-l border-black/[0.06] font-[family-name:var(--font-geist-sans)] ${className}`}>
+      {/* Header */}
+      <div className="p-4 bg-white/80 backdrop-blur-xl border-b border-black/[0.05] flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex items-center justify-center">
+            <Pulse size={17} weight="bold" className="text-stone-800" />
             <span
-              className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
-                status === "connected" ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+              className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                status === "connected"
+                  ? "bg-emerald-500"
+                  : status === "error"
+                  ? "bg-red-500"
+                  : "bg-amber-500"
               }`}
-            />
-          </div>
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
-              Live Stack Radar
-            </h3>
-            <span className="text-[10px] text-slate-500 font-mono">
-              {status === "connected" ? "Realtime Telemetry Active" : "Reconnecting…"}
+            >
+              {status === "connected" && (
+                <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75" />
+              )}
             </span>
           </div>
+          <div>
+            <h3 className="text-[13px] font-semibold text-stone-900 tracking-tight">Live Radar</h3>
+            <p className="text-[10.5px] text-stone-400 font-mono leading-none mt-0.5">
+              {status === "connected"
+                ? "Realtime active"
+                : status === "error"
+                ? "Connection paused"
+                : "Connecting…"}
+            </p>
+          </div>
         </div>
-
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
-            type="button"
             onClick={handleManualRefresh}
-            title="Refresh telemetry"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            aria-label="Refresh telemetry radar"
+            title="Refresh radar"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
           >
             <ArrowsClockwise size={14} className={isRefreshing ? "animate-spin" : ""} />
           </button>
-
           {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={() => markAllAsRead()}
-              className="text-[11px] font-medium text-slate-500 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100 transition cursor-pointer"
-            >
-              Mark read
+            <button onClick={() => markAllAsRead()} className="text-[11px] font-medium text-stone-400 hover:text-stone-800 px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer whitespace-nowrap">
+              Clear all
             </button>
           )}
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="px-4 py-2 border-b border-slate-200/60 bg-white/50 flex items-center gap-1.5 text-xs">
-        <button
-          type="button"
-          onClick={() => setActiveFilter("all")}
-          className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer flex items-center gap-1 ${
-            activeFilter === "all"
-              ? "bg-slate-900 text-white font-semibold shadow-xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          <span>All</span>
-          {unreadCount > 0 && (
-            <span className={`text-[10px] px-1 rounded-full ${activeFilter === "all" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"}`}>
-              {unreadCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveFilter("urgent")}
-          className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer flex items-center gap-1 ${
-            activeFilter === "urgent"
-              ? "bg-slate-900 text-white font-semibold shadow-xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          <span>Urgent</span>
-          {urgentCount > 0 && (
-            <span className={`text-[10px] px-1 rounded-full ${activeFilter === "urgent" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-800"}`}>
-              {urgentCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveFilter("actionable")}
-          className={`px-2.5 py-1 rounded-lg font-medium transition cursor-pointer flex items-center gap-1 ${
-            activeFilter === "actionable"
-              ? "bg-slate-900 text-white font-semibold shadow-xs"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          <span>Actionable</span>
-          {actionableCount > 0 && (
-            <span className={`text-[10px] px-1 rounded-full ${activeFilter === "actionable" ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-800"}`}>
-              {actionableCount}
-            </span>
-          )}
-        </button>
+      {/* Filter row — iOS-style segmented control */}
+      <div className="p-3 border-b border-black/[0.05] bg-white/60">
+        <div className="flex items-center gap-1 bg-stone-100 rounded-xl p-1">
+          {(["all", "urgent", "actionable"] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setActiveFilter(filter)}
+              className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11.5px] font-medium transition-all duration-200 cursor-pointer ${
+                activeFilter === filter
+                  ? "bg-white text-stone-900 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                  : "text-stone-500 hover:text-stone-700"
+              }`}
+            >
+              <span className="capitalize">{filter}</span>
+              {filter === "all" && unreadCount > 0 && (
+                <span className={`text-[10px] px-1 rounded-full font-bold ${
+                  activeFilter === "all" ? "bg-stone-100 text-stone-600" : "bg-stone-200 text-stone-600"
+                }`}>{unreadCount}</span>
+              )}
+              {filter === "urgent" && urgentCount > 0 && (
+                <span className="text-[10px] px-1 rounded-full font-bold bg-red-100 text-red-700">{urgentCount}</span>
+              )}
+              {filter === "actionable" && actionableCount > 0 && (
+                <span className="text-[10px] px-1 rounded-full font-bold bg-indigo-100 text-indigo-700">{actionableCount}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Events Stream List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {filteredEvents.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-            <CheckCircle size={28} weight="light" className="text-slate-300" />
-            <p className="text-xs font-medium text-slate-500">Radar feed clear</p>
-            <p className="text-[11px] text-slate-400 max-w-[200px]">
-              New alerts from Outlook, Teams, Slack, and Linear will appear here in real-time.
-            </p>
+      {/* Events list */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2.5 prism-scroll">
+        {status === "error" && filteredEvents.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-center px-4 bg-amber-50/50 rounded-2xl border border-amber-200/60 m-1">
+            <div className="w-10 h-10 rounded-xl bg-amber-100/80 text-amber-700 flex items-center justify-center">
+              <Warning size={18} weight="duotone" />
+            </div>
+            <div>
+              <p className="text-[12.5px] font-semibold text-stone-900">Radar Disconnected</p>
+              <p className="text-[11px] text-stone-500 mt-1 max-w-[200px] leading-relaxed">
+                We&apos;re having trouble receiving live signals right now.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 text-white text-[11px] font-semibold hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              <ArrowsClockwise size={12} />
+              <span>Reconnect</span>
+            </button>
+          </div>
+        ) : status === "connecting" && filteredEvents.length === 0 ? (
+          <div className="space-y-2.5">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="p-3.5 rounded-2xl bg-white border border-black/[0.05] space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-14 h-4 rounded-md animate-shimmer" />
+                  <div className="w-10 h-3 rounded-md animate-shimmer" />
+                </div>
+                <div className="w-3/4 h-3.5 rounded-md animate-shimmer" />
+                <div className="w-full h-3 rounded-md animate-shimmer" />
+              </div>
+            ))}
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div className="py-16 flex flex-col items-center justify-center gap-3 text-center px-4">
+            <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center">
+              <CheckCircle size={22} weight="light" className="text-stone-400" />
+            </div>
+            <div>
+              <p className="text-[13px] font-medium text-stone-600">Feed clear</p>
+              <p className="text-[11px] text-stone-400 mt-0.5 max-w-[180px] leading-relaxed">New alerts from Outlook, Teams, Slack, and Linear appear here in real-time.</p>
+            </div>
           </div>
         ) : (
           <AnimatePresence initial={false}>
@@ -205,73 +223,62 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                 <motion.div
                   key={event.id}
                   layout
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className={`p-3.5 rounded-2xl bg-white border transition-all ${
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className={`p-3.5 rounded-2xl bg-white transition-all duration-200 border-l-[3px] ${
                     !event.is_read
-                      ? "border-slate-300 shadow-xs"
-                      : "border-slate-200/70 opacity-80"
+                      ? isUrgent
+                        ? "border-l-red-500 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                        : "border-l-indigo-400 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                      : "border-l-transparent opacity-50"
                   }`}
                 >
-                  {/* Event Card Header */}
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold border ${meta.badge}`}>
-                      <ToolIcon size={12} weight="bold" />
-                      <span>{meta.label}</span>
+                      <ToolIcon size={11} weight="bold" />
+                      {meta.label}
                     </span>
-
                     <div className="flex items-center gap-1.5">
                       {isUrgent && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                          <Warning size={10} weight="bold" />
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700 border border-red-100">
+                          <Warning size={9} weight="bold" />
                           URGENT
                         </span>
                       )}
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {formatRelativeTime(event.created_at)}
-                      </span>
+                      <span className="text-[10px] text-stone-400 font-mono">{formatRelativeTime(event.created_at)}</span>
                     </div>
                   </div>
 
-                  {/* Title & Summary */}
-                  <h4 className="text-xs font-semibold text-slate-900 leading-snug line-clamp-2">
-                    {event.title}
-                  </h4>
+                  {/* Content */}
+                  <h4 className="text-[12.5px] font-semibold text-stone-900 leading-snug line-clamp-2 tracking-[-0.01em]">{event.title}</h4>
                   {event.summary && (
-                    <p className="text-[11px] text-slate-600 mt-1 line-clamp-2 leading-relaxed">
-                      {event.summary}
-                    </p>
+                    <p className="text-[11.5px] text-stone-500 mt-1 line-clamp-2 leading-relaxed">{event.summary}</p>
                   )}
 
-                  {/* Action Bar */}
-                  <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  {/* Action row */}
+                  <div className="mt-2.5 flex items-center justify-between">
                     {!event.is_read ? (
-                      <button
-                        type="button"
-                        onClick={() => markAsRead(event.id)}
-                        className="text-[10.5px] text-slate-400 hover:text-slate-700 flex items-center gap-1 transition cursor-pointer"
-                      >
-                        <Check size={12} />
-                        <span>Mark read</span>
+                      <button onClick={() => markAsRead(event.id)} className="text-[10.5px] text-stone-400 hover:text-stone-700 flex items-center gap-1 transition-colors cursor-pointer">
+                        <Check size={11} weight="bold" />
+                        Mark read
                       </button>
                     ) : (
-                      <span className="text-[10.5px] text-slate-300 font-mono">Read</span>
+                      <span className="text-[10.5px] text-stone-300 font-mono">Read</span>
                     )}
 
                     {onInvestigate && (
                       <button
-                        type="button"
-                        onClick={() =>
-                          onInvestigate(
-                            `Review incoming alert from ${meta.label}: "${event.title}". Provide an operational summary and recommend next actions.`
-                          )
-                        }
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-900 hover:text-blue-600 transition cursor-pointer ml-auto"
+                        onClick={() => {
+                          markAsRead(event.id);
+                          onInvestigate(`Investigate this event: ${event.title}${event.summary ? ". " + event.summary : ""}`);
+                        }}
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                       >
-                        <span>Investigate</span>
-                        <ArrowRight size={11} weight="bold" />
+                        Ask Prism
+                        <ArrowRight size={10} weight="bold" />
                       </button>
                     )}
                   </div>

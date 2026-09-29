@@ -67,6 +67,48 @@ export const PRISM_TOOL_REGISTRY: Record<string, PrismToolMetadata> = {
     category: "CRM & Deals",
     description: "Leads, deals, accounts, and customer pipelines.",
   },
+  github: {
+    slug: "github",
+    name: "GitHub",
+    category: "Code & Engineering",
+    description: "Inspect repositories, pull requests, issues, and stage code reviews.",
+  },
+  gh: {
+    slug: "github",
+    name: "GitHub",
+    category: "Code & Engineering",
+    description: "Inspect repositories, pull requests, issues, and stage code reviews.",
+  },
+  gmail: {
+    slug: "gmail",
+    name: "Google Gmail",
+    category: "Communication",
+    description: "Search corporate threads, review correspondence, and draft replies with Google Workspace.",
+  },
+  googlecalendar: {
+    slug: "googlecalendar",
+    name: "Google Calendar",
+    category: "Scheduling",
+    description: "Manage calendar events, check team availability, and organize meetings.",
+  },
+  "google-calendar": {
+    slug: "googlecalendar",
+    name: "Google Calendar",
+    category: "Scheduling",
+    description: "Manage calendar events, check team availability, and organize meetings.",
+  },
+  google_calendar: {
+    slug: "googlecalendar",
+    name: "Google Calendar",
+    category: "Scheduling",
+    description: "Manage calendar events, check team availability, and organize meetings.",
+  },
+  notion: {
+    slug: "notion",
+    name: "Notion",
+    category: "Knowledge & Docs",
+    description: "Search workspace pages, read team documentation, and draft notes.",
+  },
 };
 
 export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
@@ -75,6 +117,10 @@ export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
   "slack",
   "linear",
   "zoho",
+  "github",
+  "gmail",
+  "googlecalendar",
+  "notion",
 ];
 
 export function normalizeToolSlug(app: string): SupportedToolSlug {

@@ -4,6 +4,8 @@
  * against popup blockers on Safari, Chrome, and iOS WebKit.
  */
 
+import { notifyToolsUpdated } from "@/hooks/useToolsStatus";
+
 export interface PopupCallbacks {
   onProgress?: (message: string) => void;
   onSuccess?: () => void;
@@ -105,6 +107,7 @@ export function openPrismConnectPopup(
     if (isCompleted) return;
     isCompleted = true;
     cleanup();
+    notifyToolsUpdated();
     onProgress?.('Connected to Prism');
     onSuccess?.();
   };
@@ -120,12 +123,35 @@ export function openPrismConnectPopup(
   };
 
   // 2. Dual-mechanism: Listen for postMessage from /integrations/callback
-  const handleMessage = (event: MessageEvent) => {
+  const handleMessage = async (event: MessageEvent) => {
+    if (event.origin !== window.location.origin) return;
+
+    if (event.data?.type === 'PRISM_AUTH_FAILED') {
+      markError(new Error(event.data.error || 'Authorization was cancelled or failed.'));
+      return;
+    }
+
     if (
-      event.origin === window.location.origin &&
-      event.data?.type === 'PRISM_AUTH_COMPLETE'
+      event.data?.type === 'PRISM_AUTH_COMPLETE' ||
+      event.data?.type === 'PRISM_AUTH_SUCCESS'
     ) {
-      markSuccess();
+      // Actively verify with the server before declaring success
+      try {
+        const statusRes = await fetch(
+          `/api/integrations/status?app=${encodeURIComponent(app)}&refresh=true`
+        );
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.isConnected) {
+            markSuccess();
+            return;
+          }
+        }
+      } catch {}
+
+      markError(
+        new Error('Authorization was not completed. Please try connecting again.')
+      );
     }
   };
   window.addEventListener('message', handleMessage);
@@ -163,7 +189,7 @@ export function openPrismConnectPopup(
 
         try {
           const statusRes = await fetch(
-            `/api/integrations/status?app=${encodeURIComponent(app)}`
+            `/api/integrations/status?app=${encodeURIComponent(app)}&refresh=true`
           );
           if (statusRes.ok) {
             const statusData = await statusRes.json();

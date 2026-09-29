@@ -1,109 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+/* ── Design Tokens ───────────────────────────────────────────────── */
 :root {
-  --background: #f6f7fa;
-  --foreground: #090d16;
-  --card-bg: rgba(255, 255, 255, 0.85);
-  --card-border: rgba(15, 23, 42, 0.07);
-  --accent-glow: rgba(79, 70, 229, 0.08);
-}
+  /* Surfaces */
+  --bg-base: #FAFAF9;
+  --bg-elevated: #FFFFFF;
+  --bg-recessed: #F5F5F4;
+  --bg-hover: #F0EFED;
+  --bg-active: #E7E5E4;
+  --bg-inverse: #1C1917;
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
+  /* Borders */
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.09);
+  --border-focus: rgba(0, 0, 0, 0.18);
 
-/* Custom Sleek Light Scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
+  /* Text */
+  --text-primary: #1C1917;
+  --text-secondary: #78716C;
+  --text-tertiary: #A8A29E;
+  --text-inverse: #FAFAF9;
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+  /* Accent */
+  --accent: #6366F1;
+  --accent-subtle: #EEF2FF;
+  --accent-muted: #C7D2FE;
 
-::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.2);
-  border-radius: 9999px;
-  transition: background 0.2s ease;
-}
+  /* Signals */
+  --signal-success: #22C55E;
+  --signal-warning: #F59E0B;
+  --signal-danger: #EF4444;
+  --signal-info: #3B82F6;
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.35);
-}
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
+  --shadow-2: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03);
+  --shadow-3: 0 4px 12px rgba(0,0,0,0.05), 0 8px 32px rgba(0,0,0,0.06);
+  --shadow-4: 0 8px 24px rgba(0,0,0,0.08), 0 16px 48px rgba(0,0,0,0.06);
 
-/* Luxury Light Double-Bezel Hardware Architecture */
-.chassis-outer-light {
-  background: linear-gradient(135deg, #f1f3f7 0%, #e9ecf2 100%);
-  box-shadow: 
-    0 0 0 1px rgba(15, 23, 42, 0.06),
-    0 24px 60px -12px rgba(15, 23, 42, 0.08),
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.9);
-}
+  /* Radii */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
 
-.chassis-inner-light {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.96) 100%);
-  box-shadow: 
-    0 0 0 1px rgba(15, 23, 42, 0.05),
-    0 2px 8px -2px rgba(15, 23, 42, 0.03),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 1);
-}
+  /* Motion */
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-instant: 150ms;
+  --dur-fast: 250ms;
+  --dur-normal: 400ms;
+  --dur-slow: 600ms;
 
-/* Light Glass Card */
-.glass-card-light {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  box-shadow: 
-    0 1px 3px 0 rgba(15, 23, 42, 0.02),
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
-}
-
-.glass-card-light:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(79, 70, 229, 0.25);
-  box-shadow: 
-    0 8px 24px -4px rgba(79, 70, 229, 0.08),
-    0 2px 6px -1px rgba(15, 23, 42, 0.04),
-    inset 0 1px 0 0 #ffffff;
-}
-
-/* Micro-Paper Texture */
-.bg-light-grain {
-  background-image: radial-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 0);
-  background-size: 20px 20px;
-}
-
-/* Soft-Edge CSS Gradient Masks for conversation stream */
-.stream-mask-light {
-  mask-image: linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
-}
-
-/* Double-bezel floating input dock */
-.input-dock-light {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 
-    0 0 0 1px rgba(15, 23, 42, 0.08),
-    0 12px 36px -4px rgba(15, 23, 42, 0.06),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 1);
-}
-
-/* ==========================================================================
-   🔷 PRISM Brand Layer (Phase 3 design system)
-   Palette: sky #0284C7 → blue #2563EB on cool paper #F8FAFC
-   Accent lock: sky/blue is the ONLY accent family across the shell.
-   ========================================================================== */
-:root {
+  /* Brand */
   --prism-accent: #0284c7;
   --prism-accent-deep: #1d4ed8;
   --prism-accent-bright: #38bdf8;
@@ -111,16 +64,38 @@ body {
   --prism-paper: #f8fafc;
 }
 
-/* Brand gradient surface (buttons, tiles, active states) */
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.18);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.32); }
+
+/* ── Soft-Edge Mask for scroll containers ───────────────────────── */
+.stream-mask-light {
+  mask-image: linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%);
+}
+
+/* ── Brand gradient surfaces ─────────────────────────────────────── */
 .prism-gradient {
   background-image: linear-gradient(135deg, #0369a1 0%, #2563eb 60%, #3b82f6 100%);
 }
-
 .prism-gradient-soft {
-  background-image: linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(37, 99, 235, 0.08) 100%);
+  background-image: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(37,99,235,0.08) 100%);
 }
-
-/* Gradient text (display headings, emphasis) */
 .prism-gradient-text {
   background-image: linear-gradient(120deg, #0369a1 10%, #2563eb 90%);
   -webkit-background-clip: text;
@@ -128,59 +103,133 @@ body {
   color: transparent;
 }
 
-/* Subtle sky glow ring for keyboard focus in the Prism shell */
-.prism-focus:focus-visible {
-  outline: 2px solid rgba(2, 132, 199, 0.55);
-  outline-offset: 2px;
+/* ── Aurora background for cockpit ──────────────────────────────── */
+.prism-aurora {
+  background:
+    radial-gradient(600px 260px at 12% -6%, rgba(99,102,241,0.05), transparent 60%),
+    radial-gradient(520px 240px at 92% -4%, rgba(99,102,241,0.04), transparent 60%),
+    var(--bg-base);
 }
 
-/* Shell surface helpers */
-.prism-shell-bg {
-  background-color: var(--prism-paper);
+/* ── Floating input dock ─────────────────────────────────────────── */
+.input-dock-outer {
+  background: var(--bg-recessed);
+  border-radius: var(--radius-2xl);
+  padding: 6px;
+  box-shadow: var(--shadow-2);
+  border: 1px solid var(--border-subtle);
+  transition: box-shadow var(--dur-fast) var(--ease-smooth),
+              border-color var(--dur-fast) var(--ease-smooth);
+}
+.input-dock-outer:focus-within {
+  box-shadow: var(--shadow-3);
+  border-color: var(--border-focus);
+}
+.input-dock-inner {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
 }
 
-.prism-sidebar-link {
-  transition: background-color 120ms ease, color 120ms ease;
+/* ── Chassis classes (double bezel) ──────────────────────────────── */
+.chassis-outer-light {
+  background: linear-gradient(135deg, #f1f3f7 0%, #e9ecf2 100%);
+  box-shadow:
+    0 0 0 1px rgba(15,23,42,0.06),
+    0 24px 60px -12px rgba(15,23,42,0.08),
+    inset 0 1px 2px 0 rgba(255,255,255,0.9);
+}
+.chassis-inner-light {
+  background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%);
+  box-shadow:
+    0 0 0 1px rgba(15,23,42,0.05),
+    0 2px 8px -2px rgba(15,23,42,0.03),
+    inset 0 1px 1px 0 rgba(255,255,255,1);
 }
 
+/* ── Prism scroll utility ─────────────────────────────────────────── */
 .prism-scroll {
   scrollbar-width: thin;
   scrollbar-color: #d6d3d1 transparent;
 }
-
-.prism-scroll::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
+.prism-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
 .prism-scroll::-webkit-scrollbar-thumb {
   background: #d6d3d1;
   border-radius: 9999px;
 }
+.prism-scroll::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
 
-.prism-scroll::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
+/* ── Hardware-Tier Shimmer & Loader Animations ───────────────────── */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
-/* Soft aurora backdrop for the Home view */
-.prism-aurora {
-  background:
-    radial-gradient(600px 260px at 12% -6%, rgba(2, 132, 199, 0.09), transparent 60%),
-    radial-gradient(520px 240px at 92% -4%, rgba(59, 130, 246, 0.08), transparent 60%),
-    var(--prism-paper);
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
 }
 
-/* ==========================================================================
-   Reduced motion: continuous loops (pulse, ping, spin decorations) collapse
-   to static/instant for users with prefers-reduced-motion.
-   ========================================================================== */
+@keyframes thinking-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: #f1f0ee;
+}
+
+.animate-shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.6) 20%,
+    rgba(255, 255, 255, 0.8) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: shimmer 1.8s infinite;
+  content: "";
+}
+
+.animate-radar-pulse {
+  animation: radar-pulse 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.animate-thinking-glow {
+  animation: thinking-glow 2s ease-in-out infinite;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }
+

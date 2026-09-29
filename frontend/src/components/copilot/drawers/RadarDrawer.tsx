@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, Pulse } from "@phosphor-icons/react";
 import LiveStackRadar from "@/components/copilot/LiveStackRadar";
@@ -11,6 +12,16 @@ interface RadarDrawerProps {
 }
 
 export default function RadarDrawer({ isOpen, onClose, onInvestigate }: RadarDrawerProps) {
+  // Keyboard Escape listener
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleInvestigateWrapped = (prompt: string) => {
     onClose();
     onInvestigate?.(prompt);
@@ -27,31 +38,35 @@ export default function RadarDrawer({ isOpen, onClose, onInvestigate }: RadarDra
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-xs cursor-pointer"
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] cursor-pointer"
           />
 
           {/* Drawer Body */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Live Stack Radar"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 280 }}
-            className="relative w-full max-w-sm bg-white border-l border-slate-200/80 shadow-2xl h-full flex flex-col z-10 font-sans"
+            className="relative w-full max-w-sm bg-[#FAFAF9] border-l border-black/[0.06] shadow-[0_8px_24px_rgba(0,0,0,0.08),0_16px_48px_rgba(0,0,0,0.06)] h-full flex flex-col z-10 font-[family-name:var(--font-geist-sans)]"
           >
             {/* Top Close Header */}
-            <div className="px-4 py-3 bg-white border-b border-slate-200/80 flex items-center justify-between">
+            <div className="px-5 py-3.5 bg-white border-b border-black/[0.05] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Pulse size={18} weight="bold" className="text-slate-900" />
-                <span className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
+                <Pulse size={18} weight="bold" className="text-stone-800" />
+                <span className="text-[13px] font-semibold text-stone-900 tracking-tight">
                   Live Stack Radar
                 </span>
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Close Live Stack Radar"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
               >
-                <X size={18} weight="bold" />
+                <X size={16} weight="bold" />
               </button>
             </div>
 

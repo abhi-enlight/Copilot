@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X,
@@ -13,8 +13,13 @@ import {
   SpinnerGap,
   PlugsConnected,
   Trash,
+  GithubLogo,
+  CalendarCheck,
+  Notebook,
 } from "@phosphor-icons/react";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
+import { notifyToolsUpdated } from "@/hooks/useToolsStatus";
+import { useToast } from "@/hooks/useToast";
 import type { SupportedToolSlug, ToolConnectionStatus } from "@/types/integrations";
 
 interface ToolDrawerProps {
@@ -28,7 +33,8 @@ interface ToolDefinition {
   name: string;
   category: string;
   description: string;
-  icon: typeof EnvelopeSimple;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: any;
   badgeClass: string;
   color: string;
 }
@@ -79,24 +85,66 @@ const TOOLS: ToolDefinition[] = [
     badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
     color: "#D97706",
   },
+  {
+    slug: "github",
+    name: "GitHub",
+    category: "Code & Engineering",
+    description: "Inspect repositories, review pull requests, triage issues, and stage code reviews.",
+    icon: GithubLogo,
+    badgeClass: "bg-zinc-100 text-zinc-900 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700",
+    color: "#24292F",
+  },
+  {
+    slug: "gmail",
+    name: "Google Gmail",
+    category: "Communication",
+    description: "Search corporate threads, review correspondence, and draft replies with Google Workspace.",
+    icon: EnvelopeSimple,
+    badgeClass: "bg-red-50 text-red-800 border-red-200",
+    color: "#EA4335",
+  },
+  {
+    slug: "googlecalendar",
+    name: "Google Calendar",
+    category: "Scheduling",
+    description: "Manage calendar events, check team availability, and organize meetings.",
+    icon: CalendarCheck,
+    badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+    color: "#4285F4",
+  },
+  {
+    slug: "notion",
+    name: "Notion",
+    category: "Knowledge & Docs",
+    description: "Search workspace pages, read team documentation, and draft notes.",
+    icon: Notebook,
+    badgeClass: "bg-stone-50 text-stone-900 border-stone-200",
+    color: "#000000",
+  },
 ];
 
 export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDrawerProps) {
+  const toast = useToast();
   const [toolsStatus, setToolsStatus] = useState<Record<string, ToolConnectionStatus>>({});
   const [loading, setLoading] = useState(true);
   const [connectingTool, setConnectingTool] = useState<string | null>(null);
   const [disconnectingTool, setDisconnectingTool] = useState<string | null>(null);
   const [confirmDisconnectSlug, setConfirmDisconnectSlug] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
+  // Keyboard Escape listener
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/integrations/status");
+      const res = await fetch("/api/integrations/status?refresh=true");
       if (res.ok) {
         const data = await res.json();
         if (data.tools && Array.isArray(data.tools)) {
@@ -105,6 +153,8 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
             map[t.slug] = t;
           });
           setToolsStatus(map);
+          lastFetchTimeRef.current = Date.now();
+          notifyToolsUpdated(data.tools);
           onStatusChange?.(data.tools);
         }
       }
@@ -115,28 +165,58 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
     }
   }, [onStatusChange]);
 
+  // Synchronize whenever tools update globally across tabs or popups
   useEffect(() => {
-    let ignore = false;
-    if (isOpen) {
+    const handleGlobalUpdate = () => {
       fetch("/api/integrations/status")
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (!ignore && data?.tools && Array.isArray(data.tools)) {
+          if (data?.tools && Array.isArray(data.tools)) {
             const map: Record<string, ToolConnectionStatus> = {};
             data.tools.forEach((t: ToolConnectionStatus) => {
               map[t.slug] = t;
             });
             setToolsStatus(map);
+            lastFetchTimeRef.current = Date.now();
             onStatusChange?.(data.tools);
           }
         })
-        .catch((err) => {
-          console.warn("[ToolDrawer] Failed to fetch status:", err);
-        })
-        .finally(() => {
-          if (!ignore) setLoading(false);
-        });
+        .catch(() => {});
+    };
+
+    window.addEventListener("prism:tools-updated", handleGlobalUpdate);
+    return () => window.removeEventListener("prism:tools-updated", handleGlobalUpdate);
+  }, [onStatusChange]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const now = Date.now();
+    // Cache for 15 seconds to avoid redundant round-trips on rapid drawer toggling
+    if (now - lastFetchTimeRef.current < 15000 && lastFetchTimeRef.current > 0) {
+      return;
     }
+
+    let ignore = false;
+    fetch("/api/integrations/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!ignore && data?.tools && Array.isArray(data.tools)) {
+          const map: Record<string, ToolConnectionStatus> = {};
+          data.tools.forEach((t: ToolConnectionStatus) => {
+            map[t.slug] = t;
+          });
+          setToolsStatus(map);
+          lastFetchTimeRef.current = Date.now();
+          onStatusChange?.(data.tools);
+        }
+      })
+      .catch((err) => {
+        console.warn("[ToolDrawer] Failed to fetch status:", err);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
     return () => {
       ignore = true;
     };
@@ -152,12 +232,14 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
       },
       onSuccess: async () => {
         setConnectingTool(null);
-        showToast(`Successfully connected to ${TOOLS.find((t) => t.slug === slug)?.name}!`);
+        const toolName = TOOLS.find((t) => t.slug === slug)?.name || slug;
+        toast.success("Connected", `Successfully connected to ${toolName}!`);
+        notifyToolsUpdated();
         await fetchStatus();
       },
       onError: (err) => {
         setConnectingTool(null);
-        showToast(err.message || "Connection was cancelled.");
+        toast.error(err, { context: "integration" });
       },
     });
   };
@@ -166,18 +248,21 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
     setDisconnectingTool(slug);
     setConfirmDisconnectSlug(null);
     try {
-      const res = await fetch(`/api/integrations/disconnect?app=${encodeURIComponent(slug)}`, {
+      const res = await fetch(`/api/integrations/disconnect`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ app: slug }),
       });
       if (res.ok) {
-        showToast(`Disconnected ${slug}.`);
+        toast.success("Disconnected", `Successfully disconnected ${slug}.`);
+        notifyToolsUpdated();
         await fetchStatus();
       } else {
         const err = await res.json().catch(() => ({}));
-        showToast(err.error || "Failed to disconnect.");
+        toast.error(err.error || "Failed to disconnect.", { context: "integration" });
       }
     } catch {
-      showToast("Network error during disconnect.");
+      toast.error("Network error during disconnect.", { context: "integration" });
     } finally {
       setDisconnectingTool(null);
     }
@@ -196,60 +281,62 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-xs cursor-pointer"
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] cursor-pointer"
           />
 
           {/* Drawer Body */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Connect Hub"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 280 }}
-            className="relative w-full max-w-md bg-white border-l border-slate-200/80 shadow-2xl h-full flex flex-col z-10 font-sans"
+            className="relative w-full max-w-[420px] bg-white border-l border-black/[0.06] shadow-[0_8px_24px_rgba(0,0,0,0.08),0_16px_48px_rgba(0,0,0,0.06)] h-full flex flex-col z-10 font-[family-name:var(--font-geist-sans)]"
           >
             {/* Header */}
-            <div className="p-6 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+            <div className="p-6 border-b border-black/[0.06] flex items-center justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <PlugsConnected size={20} weight="bold" className="text-slate-900" />
-                  <h3 className="text-base font-semibold text-slate-900 tracking-tight">
-                    Prism Connect Hub
-                  </h3>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <PlugsConnected size={18} weight="bold" className="text-stone-800" />
+                  <h3 className="text-[15px] font-semibold text-stone-900 tracking-tight">Connect Hub</h3>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  {connectedCount} of {TOOLS.length} enterprise tools active
-                </p>
+                <p className="text-xs text-stone-500 leading-relaxed">{connectedCount} of {TOOLS.length} tools active</p>
               </div>
-
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Close Connect Hub"
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
               >
                 <X size={18} weight="bold" />
               </button>
             </div>
 
-            {/* Notification Toast */}
-            {toastMessage && (
-              <div className="mx-6 mt-4 p-3 rounded-xl bg-slate-900 text-white text-xs flex items-center justify-between shadow-lg">
-                <span>{toastMessage}</span>
-                <button
-                  type="button"
-                  onClick={() => setToastMessage(null)}
-                  className="text-slate-400 hover:text-white"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-
-            {/* Tools List */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* Tools list */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 prism-scroll">
               {loading && Object.keys(toolsStatus).length === 0 ? (
-                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
-                  <SpinnerGap size={24} className="animate-spin text-slate-600" />
-                  <span className="text-xs">Loading tool statuses…</span>
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="p-5 rounded-2xl bg-white border border-black/[0.07] space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl animate-shimmer" />
+                          <div className="space-y-1.5">
+                            <div className="w-28 h-4 rounded-md animate-shimmer" />
+                            <div className="w-20 h-3 rounded-md animate-shimmer" />
+                          </div>
+                        </div>
+                        <div className="w-16 h-5 rounded-full animate-shimmer" />
+                      </div>
+                      <div className="w-full h-3 rounded-md animate-shimmer" />
+                      <div className="w-20 h-7 rounded-xl animate-shimmer ml-auto" />
+                    </div>
+                  ))}
                 </div>
               ) : (
                 TOOLS.map((tool) => {
@@ -263,100 +350,67 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
                   return (
                     <div
                       key={tool.slug}
-                      className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-slate-300 transition-all flex flex-col gap-3"
+                      className="p-5 rounded-2xl bg-white border border-black/[0.07] shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.03)] hover:border-black/[0.1] transition-all duration-200"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex items-center gap-3">
                           <div
                             className="w-10 h-10 rounded-xl flex items-center justify-center border"
-                            style={{
-                              backgroundColor: `${tool.color}10`,
-                              borderColor: `${tool.color}30`,
-                              color: tool.color,
-                            }}
+                            style={{ backgroundColor: `${tool.color}12`, borderColor: `${tool.color}25`, color: tool.color }}
                           >
                             <ToolIcon size={20} weight="bold" />
                           </div>
                           <div>
-                            <h4 className="text-sm font-semibold text-slate-900">{tool.name}</h4>
-                            <span className="text-[11px] text-slate-400 font-medium">
-                              {tool.category}
-                            </span>
+                            <h4 className="text-[14px] font-semibold text-stone-900 tracking-tight leading-tight">{tool.name}</h4>
+                            <p className="text-[11px] text-stone-400 mt-0.5">{tool.category}</p>
                           </div>
                         </div>
 
-                        {/* Status Badge */}
+                        {/* Status badge */}
                         {isConnected ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex-shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            Connected
+                            Active
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-50 text-slate-500 border border-slate-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                            Not Connected
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-stone-50 text-stone-500 border border-stone-200 flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-stone-300" />
+                            Inactive
                           </span>
                         )}
                       </div>
 
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {tool.description}
-                      </p>
+                      <p className="text-[12.5px] text-stone-600 leading-relaxed mb-4">{tool.description}</p>
 
-                      {/* Action Bar */}
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          ID: {tool.slug}
-                        </span>
-
-                        {!isConnected ? (
-                          <button
-                            type="button"
-                            disabled={isConnecting || Boolean(connectingTool)}
-                            onClick={() => handleConnect(tool.slug)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs disabled:opacity-40 transition cursor-pointer active:scale-98"
-                          >
-                            {isConnecting ? (
-                              <>
-                                <SpinnerGap size={13} className="animate-spin" />
-                                <span>Authorizing…</span>
-                              </>
-                            ) : (
-                              <>
-                                <span>Connect</span>
-                                <ArrowSquareOut size={13} weight="bold" />
-                              </>
-                            )}
+                      {/* Action button */}
+                      {!isConnected ? (
+                        <button
+                          disabled={isConnecting || Boolean(connectingTool)}
+                          onClick={() => handleConnect(tool.slug)}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-all disabled:opacity-40 cursor-pointer active:scale-[0.98]"
+                        >
+                          {isConnecting ? (
+                            <><SpinnerGap size={13} className="animate-spin" /><span>Connecting…</span></>
+                          ) : (
+                            <><span>Connect with Prism</span><ArrowSquareOut size={13} weight="bold" /></>
+                          )}
+                        </button>
+                      ) : isConfirming ? (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setConfirmDisconnectSlug(null)} className="flex-1 py-2.5 rounded-xl text-xs font-medium text-stone-600 hover:bg-stone-50 border border-stone-200 cursor-pointer">Cancel</button>
+                          <button disabled={isDisconnecting} onClick={() => handleDisconnect(tool.slug)} className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white cursor-pointer disabled:opacity-50">
+                            {isDisconnecting ? "Removing…" : "Confirm Remove"}
                           </button>
-                        ) : isConfirming ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDisconnectSlug(null)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isDisconnecting}
-                              onClick={() => handleDisconnect(tool.slug)}
-                              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
-                            >
-                              {isDisconnecting ? "Disconnecting…" : "Confirm"}
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDisconnectSlug(tool.slug)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          >
-                            <Trash size={13} />
-                            <span>Disconnect</span>
-                          </button>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDisconnectSlug(tool.slug)}
+                          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium text-stone-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all cursor-pointer"
+                        >
+                          <Trash size={12} />
+                          Disconnect
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -364,8 +418,10 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200/80 bg-slate-50/60 text-center text-[11px] text-slate-400">
-              🔒 256-bit encrypted credentials secured by Prism Sovereign Vault
+            <div className="p-4 border-t border-black/[0.06] bg-stone-50/80">
+              <p className="text-center text-[10.5px] text-stone-400">
+                🔒 Credentials secured by Prism Sovereign Vault
+              </p>
             </div>
           </motion.div>
         </div>

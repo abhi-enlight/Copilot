@@ -15,8 +15,61 @@ import {
   Briefcase,
   ArrowRight,
   SpinnerGap,
+  GithubLogo,
+  CalendarCheck,
+  Notebook,
 } from "@phosphor-icons/react";
 import type { ActionProposal } from "@/types/database";
+import { humanizeError } from "@/lib/errors/humanize";
+
+function formatField(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (Array.isArray(val)) {
+    return val.map((item) => (typeof item === "object" ? JSON.stringify(item) : String(item))).join(", ");
+  }
+  if (typeof val === "object") {
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return "[Object]";
+    }
+  }
+  return String(val);
+}
+
+function formatCardOutcome(result: unknown): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = result as any;
+  if (!res) return "Action completed successfully.";
+
+  const channels =
+    res?.data?.results?.[0]?.response?.data?.channels ||
+    res?.results?.[0]?.response?.data?.channels ||
+    res?.channels;
+
+  if (Array.isArray(channels) && channels.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return `Channels: ${channels.map((c: any) => `#${c.name}`).join(", ")}`;
+  }
+
+  const totalSucceeded = res?.data?.total_succeeded ?? res?.total_succeeded;
+  if (typeof totalSucceeded === "number") {
+    return `Updated ${totalSucceeded} email message${totalSucceeded === 1 ? "" : "s"} successfully.`;
+  }
+
+  const msg =
+    res?.data?.results?.[0]?.response?.data?.message ||
+    res?.data?.message ||
+    res?.message;
+
+  if (typeof msg === "string" && msg.trim()) {
+    return msg;
+  }
+
+  return "Verified execution delivered to connected service.";
+}
 
 interface ActionCardProps {
   proposal: ActionProposal;
@@ -44,10 +97,12 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
     try {
       const res = await onApprove(proposal.id);
       if (res && !res.success) {
-        setErrorMessage(res.error || "Approval failed");
+        const humanized = humanizeError(res.error || "Approval failed", "action");
+        setErrorMessage(humanized.description);
       }
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : "Approval failed");
+      const humanized = humanizeError(err, "action");
+      setErrorMessage(humanized.description);
     } finally {
       setIsExecuting(false);
     }
@@ -61,7 +116,8 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
       await onReject(proposal.id, rejectionReason.trim() || undefined);
       setRejectionMode(false);
     } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : "Rejection failed");
+      const humanized = humanizeError(err, "action");
+      setErrorMessage(humanized.description);
     } finally {
       setIsExecuting(false);
     }
@@ -105,6 +161,34 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
         badgeClass: "bg-amber-50 text-amber-800 border-amber-200",
       };
     }
+    if (s.includes("github")) {
+      return {
+        label: "GitHub",
+        icon: GithubLogo,
+        badgeClass: "bg-zinc-100 text-zinc-900 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700",
+      };
+    }
+    if (s.includes("gmail")) {
+      return {
+        label: "Google Gmail",
+        icon: EnvelopeSimple,
+        badgeClass: "bg-red-50 text-red-800 border-red-200",
+      };
+    }
+    if (s.includes("calendar")) {
+      return {
+        label: "Google Calendar",
+        icon: CalendarCheck,
+        badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+      };
+    }
+    if (s.includes("notion")) {
+      return {
+        label: "Notion",
+        icon: Notebook,
+        badgeClass: "bg-stone-50 text-stone-900 border-stone-200",
+      };
+    }
     return {
       label: "Prism Connector",
       icon: ShieldCheck,
@@ -116,212 +200,240 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
   const ToolIcon = toolMeta.icon;
 
   const payload = proposal.payload || {};
-  const recipient = (payload.to || payload.recipient || payload.email || "") as string;
-  const subject = (payload.subject || payload.title || "") as string;
-  const content = (payload.content || payload.body || payload.message || payload.description || "") as string;
+  const recipient = formatField(payload.to || payload.recipient || payload.email || "");
+  const subject = formatField(payload.subject || payload.title || "");
+  const content = formatField(payload.content || payload.body || payload.message || payload.description || "");
   const amount = (payload.amount || payload.deal_amount || payload.value || "") as string | number;
 
   return (
-    <div className="w-full my-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs overflow-hidden transition-all hover:border-slate-300">
-      {/* Top Header Bar */}
-      <div className="px-5 py-3.5 bg-slate-50/70 border-b border-slate-200/60 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2.5">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${toolMeta.badgeClass}`}>
-            <ToolIcon size={14} weight="bold" />
-            <span>{toolMeta.label}</span>
+    <div
+      className={`w-full my-4 rounded-2xl bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.03)] transition-all duration-300 ${
+        proposal.status !== "pending" ? "opacity-60" : ""
+      } border-l-[3px] ${
+        proposal.risk_level === "high"
+          ? "border-l-red-500"
+          : proposal.risk_level === "medium"
+          ? "border-l-amber-500"
+          : "border-l-emerald-500"
+      }`}
+    >
+      {/* Top Header Row — Risk badge + Tool badge */}
+      <div className="px-5 pt-5 pb-0 flex items-center justify-between gap-2">
+        {/* Risk badge */}
+        {proposal.risk_level === "high" && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+            <Warning size={12} weight="fill" />
+            High Risk
           </span>
-          <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider">
-            {proposal.action_type}
+        )}
+        {proposal.risk_level === "medium" && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <Warning size={12} weight="bold" />
+            Medium Risk
           </span>
-        </div>
+        )}
+        {proposal.risk_level === "low" && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <ShieldCheck size={12} weight="bold" />
+            Low Risk
+          </span>
+        )}
 
-        {/* Risk Level Badge */}
-        <div className="flex items-center gap-2">
-          {proposal.risk_level === "high" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
-              <Warning size={12} weight="bold" />
-              High Risk
-            </span>
-          )}
-          {proposal.risk_level === "medium" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-              <Warning size={12} weight="bold" />
-              Medium Risk
-            </span>
-          )}
-          {proposal.risk_level === "low" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-              <ShieldCheck size={12} weight="bold" />
-              Low Risk
-            </span>
-          )}
-        </div>
+        {/* Tool source badge */}
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${toolMeta.badgeClass}`}>
+          <ToolIcon size={12} weight="bold" />
+          {toolMeta.label}
+        </span>
       </div>
 
-      {/* Main Content Body */}
-      <div className="p-5">
-        <div className="mb-3">
-          <h4 className="text-sm font-semibold text-slate-900 tracking-tight">
-            {proposal.title}
-          </h4>
-          {proposal.description && (
-            <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-              {proposal.description}
-            </p>
-          )}
-        </div>
+      {/* Title + Description */}
+      <div className="px-5 pt-3">
+        <h4 className="text-[15px] font-semibold text-stone-900 tracking-[-0.015em] leading-snug">
+          {(proposal.title || "")
+            .replace(/composio/gi, "Prism")
+            .replace(/_tool/gi, "")
+            .replace(/multi execute/gi, "Multi-Operation")}
+        </h4>
+        {proposal.description && !proposal.description.startsWith("Request payload:") && (
+          <p className="text-sm text-stone-600 mt-1 leading-relaxed">{proposal.description}</p>
+        )}
+      </div>
 
-        {/* Clean Structured Parameter Inspection */}
-        <div className="rounded-xl bg-slate-50 border border-slate-200/70 p-3.5 space-y-2 text-xs">
-          {recipient && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 font-medium">Recipient:</span>
-              <span className="font-semibold text-slate-900 font-mono">{recipient}</span>
-            </div>
-          )}
-          {subject && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 font-medium">Subject / Title:</span>
-              <span className="font-semibold text-slate-900">{subject}</span>
-            </div>
-          )}
-          {amount && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 font-medium">Value / Amount:</span>
-              <span className="font-semibold text-emerald-700 font-mono">
-                {typeof amount === "number" ? `$${amount.toLocaleString()}` : amount}
-              </span>
-            </div>
-          )}
-          {content && (
-            <div className="pt-1.5 border-t border-slate-200/50">
-              <span className="text-slate-500 font-medium block mb-1">Payload Content:</span>
-              <div className="p-2.5 rounded-lg bg-white border border-slate-200/70 text-slate-800 font-sans text-xs whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto">
-                {content}
+      {/* Preview Pane — only shown if payload fields exist */}
+      {(recipient || subject || content || amount) && (
+        <div className="px-5 pt-3">
+          <div className="rounded-xl bg-stone-50 border border-black/[0.06] p-4 space-y-2 text-xs">
+            {recipient && (
+              <div className="flex items-start gap-2">
+                <span className="text-stone-400 font-medium w-20 flex-shrink-0">To</span>
+                <span className="font-medium text-stone-800 font-mono">{recipient}</span>
               </div>
-            </div>
-          )}
+            )}
+            {subject && (
+              <div className="flex items-start gap-2">
+                <span className="text-stone-400 font-medium w-20 flex-shrink-0">Subject</span>
+                <span className="font-semibold text-stone-900">{subject}</span>
+              </div>
+            )}
+            {amount && (
+              <div className="flex items-start gap-2">
+                <span className="text-stone-400 font-medium w-20 flex-shrink-0">Amount</span>
+                <span className="font-semibold text-emerald-700 font-mono">
+                  {typeof amount === "number" ? `$${amount.toLocaleString()}` : amount}
+                </span>
+              </div>
+            )}
+            {content && (
+              <div className="pt-2 border-t border-stone-100">
+                <div
+                  className="text-stone-700 leading-relaxed max-h-24 overflow-hidden"
+                  style={{
+                    maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                    WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                  }}
+                >
+                  {content}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+      )}
 
-        {/* Expiration or Error Warnings */}
-        {isExpired && proposal.status === "pending" && (
-          <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
-            <Clock size={15} weight="bold" />
-            <span>Action proposal expired (24-hour limit). Ask Prism to generate a new proposal.</span>
+      {/* Expiration or Error Warnings */}
+      {isExpired && proposal.status === "pending" && (
+        <div className="px-5 pt-3">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+            <Clock size={13} weight="bold" />
+            Action proposal expired (24-hour limit). Ask Prism to generate a new proposal.
           </div>
-        )}
+        </div>
+      )}
 
-        {errorMessage && (
-          <div className="mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-            <Warning size={15} weight="bold" />
-            <span>{errorMessage}</span>
+      {errorMessage && (
+        <div className="px-5 pt-3">
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-stone-800 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+              <Warning size={14} weight="duotone" />
+              <span>Notice</span>
+            </div>
+            <p className="text-[11.5px] text-stone-600 leading-relaxed">
+              {errorMessage}
+            </p>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Action Controls Island */}
-        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
-          {/* Status Display when not Pending */}
+      {/* Status display when not pending */}
+      {proposal.status !== "pending" && (
+        <div className="px-5 pb-5 pt-3">
           {proposal.status === "approved" && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-              <SpinnerGap size={14} className="animate-spin" />
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+              <SpinnerGap size={13} className="animate-spin" />
               Approved — Executing via Prism…
-            </span>
+            </div>
           )}
 
           {proposal.status === "executed" && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-              <Check size={14} weight="bold" />
-              Executed & Delivered via Prism
-            </span>
-          )}
-
-          {proposal.status === "rejected" && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-              <X size={14} weight="bold" />
-              Proposal Rejected
-            </span>
-          )}
-
-          {proposal.status === "failed" && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-800 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">
-              <Warning size={14} weight="bold" />
-              Execution Failed
-            </span>
-          )}
-
-          {/* Pending Controls */}
-          {proposal.status === "pending" && !isExpired && (
-            <>
-              {!rejectionMode ? (
-                <div className="flex items-center gap-2 w-full sm:w-auto ml-auto">
-                  <button
-                    type="button"
-                    disabled={isExecuting}
-                    onClick={() => setRejectionMode(true)}
-                    className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80 transition-colors disabled:opacity-50 cursor-pointer"
-                  >
-                    Reject
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isExecuting}
-                    onClick={handleApprove}
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs hover:shadow transition-all disabled:opacity-50 cursor-pointer active:scale-98"
-                  >
-                    {isExecuting ? (
-                      <>
-                        <SpinnerGap size={14} className="animate-spin" />
-                        <span>Securing Approval…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Approve & Deliver via Prism</span>
-                        <ArrowRight size={13} weight="bold" />
-                      </>
-                    )}
-                  </button>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                <Check size={13} weight="bold" />
+                Executed &amp; Delivered via Prism
+              </div>
+              {proposal.execution_result && (
+                <div className="p-3 rounded-xl bg-stone-50 border border-black/[0.05] text-xs text-stone-700 space-y-1">
+                  <span className="font-semibold text-stone-800 block text-[11px] uppercase tracking-wider">Outcome</span>
+                  <div className="text-[12px] leading-relaxed">
+                    {formatCardOutcome(proposal.execution_result)}
+                  </div>
                 </div>
-              ) : (
-                /* Rejection 2-Step Confirmation */
-                <AnimatePresence>
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="w-full flex flex-col gap-2 pt-1"
-                  >
-                    <input
-                      type="text"
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      placeholder="Optional reason for rejection (e.g. need different terms)..."
-                      className="w-full text-xs px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-400"
-                    />
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setRejectionMode(false)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isExecuting}
-                        onClick={handleRejectConfirm}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs disabled:opacity-50"
-                      >
-                        {isExecuting ? "Rejecting…" : "Confirm Rejection"}
-                      </button>
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
               )}
-            </>
+            </div>
+          )}
+          {proposal.status === "rejected" && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 border border-stone-200 text-stone-500 text-xs font-semibold">
+              <X size={13} weight="bold" />
+              Proposal Declined
+            </div>
+          )}
+          {proposal.status === "failed" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                <Warning size={13} weight="duotone" />
+                Action Could Not Be Completed
+              </div>
+              <p className="text-[11.5px] text-stone-500 px-1 leading-relaxed">
+                The connected service was unable to fulfill this request. You can check your tool connection in Connect Hub and try again.
+              </p>
+            </div>
           )}
         </div>
-      </div>
+      )}
+
+      {/* Pending controls */}
+      {proposal.status === "pending" && !isExpired && (
+        <AnimatePresence mode="wait">
+          {!rejectionMode ? (
+            <motion.div
+              key="approve-mode"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="px-5 pb-5 pt-3 flex items-center gap-2"
+            >
+              <button
+                onClick={() => setRejectionMode(true)}
+                disabled={isExecuting}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-50 hover:bg-stone-100 border border-stone-200 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Decline
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={isExecuting}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.35)] transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
+              >
+                {isExecuting ? (
+                  <><SpinnerGap size={13} className="animate-spin" /><span>Executing…</span></>
+                ) : (
+                  <><span>Approve &amp; Send</span><ArrowRight size={12} weight="bold" /></>
+                )}
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="rejection-mode"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-5 pb-5 pt-3 space-y-2"
+            >
+              <input
+                type="text"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Reason for declining (optional)…"
+                className="w-full text-xs px-3 py-2.5 rounded-xl bg-stone-50 border border-stone-200 text-stone-900 placeholder-stone-400 focus:outline-none focus:border-stone-400 transition-colors"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setRejectionMode(false)}
+                  className="px-3 py-2 rounded-xl text-xs font-medium text-stone-600 hover:bg-stone-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRejectConfirm}
+                  disabled={isExecuting}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 cursor-pointer"
+                >
+                  {isExecuting ? "Declining…" : "Confirm Decline"}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </div>
   );
 }

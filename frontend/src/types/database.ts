@@ -55,6 +55,7 @@ export interface ActionProposal {
   risk_level: 'low' | 'medium' | 'high';
   signature_hash: string;
   created_at?: string;
+  execution_result?: Record<string, unknown> | null;
 }
 
 export type ChatMessageRole = 'user' | 'assistant' | 'system' | 'tool';
