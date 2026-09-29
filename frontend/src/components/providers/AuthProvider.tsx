@@ -46,8 +46,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}
+
 export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
+  const ctx = useOptionalAuth();
   if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
   return ctx;
 }
@@ -159,6 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (newUser) {
           loadUserData(newUser);
         } else {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("prism:auth-signout"));
+          }
           setProfile(null);
           setUserOrgs([]);
           setActiveOrg(null);
@@ -210,6 +217,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("prism:auth-signout"));
+    }
     await supabase.auth.signOut();
     await fetch("/api/auth/logout", { method: "POST" });
     // Purge user-scoped and general prism keys from localStorage to prevent data leaks across logins

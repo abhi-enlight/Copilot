@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
+import { clearSessionCacheForUser } from '@/lib/composio/session';
 
 /**
  * POST /api/auth/logout
@@ -7,6 +8,15 @@ import { createClient } from '@/lib/supabase-server';
  */
 export async function POST() {
   const supabase = await createClient();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user?.id) {
+      clearSessionCacheForUser(user.id);
+    }
+  } catch {}
+
   await supabase.auth.signOut();
 
   const response = NextResponse.json({
@@ -49,6 +59,15 @@ export async function GET(request: Request) {
   const protocol = host.includes('localhost') ? 'http' : 'https';
 
   const supabase = await createClient();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user?.id) {
+      clearSessionCacheForUser(user.id);
+    }
+  } catch {}
+
   await supabase.auth.signOut();
 
   const response = NextResponse.redirect(`${protocol}://${host}/auth/login`);

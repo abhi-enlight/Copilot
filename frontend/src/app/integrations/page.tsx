@@ -142,7 +142,7 @@ export default function IntegrationsPage() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/integrations/status");
+      const res = await fetch("/api/integrations/status", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.tools && Array.isArray(data.tools)) {
@@ -162,7 +162,7 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     let ignore = false;
-    fetch("/api/integrations/status")
+    fetch("/api/integrations/status", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!ignore && data?.tools && Array.isArray(data.tools)) {
@@ -180,8 +180,32 @@ export default function IntegrationsPage() {
         if (!ignore) setLoading(false);
       });
 
+    const handleToolsUpdated = () => {
+      fetch("/api/integrations/status", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!ignore && data?.tools && Array.isArray(data.tools)) {
+            const map: Record<string, ToolConnectionStatus> = {};
+            data.tools.forEach((t: ToolConnectionStatus) => {
+              map[t.slug] = t;
+            });
+            setToolsStatus(map);
+          }
+        })
+        .catch(() => {});
+    };
+
+    const handleSignOut = () => {
+      setToolsStatus({});
+    };
+
+    window.addEventListener("prism:tools-updated", handleToolsUpdated);
+    window.addEventListener("prism:auth-signout", handleSignOut);
+
     return () => {
       ignore = true;
+      window.removeEventListener("prism:tools-updated", handleToolsUpdated);
+      window.removeEventListener("prism:auth-signout", handleSignOut);
     };
   }, []);
 

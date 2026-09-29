@@ -144,7 +144,7 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/integrations/status?refresh=true");
+      const res = await fetch("/api/integrations/status?refresh=true", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data.tools && Array.isArray(data.tools)) {
@@ -168,7 +168,7 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
   // Synchronize whenever tools update globally across tabs or popups
   useEffect(() => {
     const handleGlobalUpdate = () => {
-      fetch("/api/integrations/status")
+      fetch("/api/integrations/status", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.tools && Array.isArray(data.tools)) {
@@ -184,8 +184,17 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
         .catch(() => {});
     };
 
+    const handleSignOut = () => {
+      setToolsStatus({});
+      lastFetchTimeRef.current = 0;
+    };
+
     window.addEventListener("prism:tools-updated", handleGlobalUpdate);
-    return () => window.removeEventListener("prism:tools-updated", handleGlobalUpdate);
+    window.addEventListener("prism:auth-signout", handleSignOut);
+    return () => {
+      window.removeEventListener("prism:tools-updated", handleGlobalUpdate);
+      window.removeEventListener("prism:auth-signout", handleSignOut);
+    };
   }, [onStatusChange]);
 
   useEffect(() => {
@@ -197,7 +206,7 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
     }
 
     let ignore = false;
-    fetch("/api/integrations/status")
+    fetch("/api/integrations/status", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!ignore && data?.tools && Array.isArray(data.tools)) {
