@@ -78,14 +78,18 @@ export function resolveModelName(): string {
 }
 
 export function getOpenAIClient(): OpenAI | null {
-  const apiKey =
+  const rawKey =
     process.env.OPENAI_API_KEY ||
     (process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY : null);
 
-  if (!apiKey) return null;
+  if (!rawKey) return null;
+  const apiKey = rawKey.trim().replace(/^["']|["']$/g, "");
 
-  const baseURL = process.env.OPENAI_BASE_URL ||
+  const rawBaseURL =
+    process.env.OPENAI_BASE_URL ||
     (process.env.GEMINI_API_KEY ? "https://generativelanguage.googleapis.com/v1beta/openai/" : undefined);
+
+  const baseURL = rawBaseURL ? rawBaseURL.trim().replace(/^["']|["']$/g, "") : undefined;
 
   return new OpenAI({ apiKey, baseURL });
 }

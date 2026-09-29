@@ -178,7 +178,7 @@ export function clearSessionCacheForUser(userId: string) {
  * Returns a configured Composio Platform SDK instance.
  */
 export function getComposioClient(): Composio {
-  const apiKey = process.env.COMPOSIO_API_KEY;
+  const apiKey = (process.env.COMPOSIO_API_KEY || "").trim().replace(/^["']|["']$/g, "");
   if (!apiKey) {
     throw new Error("COMPOSIO_API_KEY is not configured in environment");
   }
