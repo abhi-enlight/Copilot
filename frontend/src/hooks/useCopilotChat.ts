@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { Message, ToolStep } from "@/types";
 import type { ActionProposal } from "@/types/database";
 import { humanizeError } from "@/lib/errors/humanize";
@@ -165,6 +165,13 @@ export function useCopilotChat() {
 
               if (event.type === "session_meta") {
                 setSessionId(event.sessionId);
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem("prism_explicit_new");
+                  localStorage.setItem("prism_active_session_id", event.sessionId);
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("session", event.sessionId);
+                  window.history.replaceState(null, "", url.toString());
+                }
               } else if (event.type === "tool_call") {
                 if (event.status === "executing") {
                   setToolSteps((prev) => [
@@ -288,14 +295,22 @@ export function useCopilotChat() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Approval failed");
 
-      // Update proposal state to "executed" and attach execution_result
+      // Resolve proposal title synchronously from current messages
       let targetTitle = "Action";
+      for (const msg of messages) {
+        const found = msg.action_proposals?.find((p) => p.id === actionId);
+        if (found?.title) {
+          targetTitle = found.title;
+          break;
+        }
+      }
+
+      // Update proposal state to "executed" and attach execution_result
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
           action_proposals: msg.action_proposals?.map((p) => {
             if (p.id === actionId) {
-              targetTitle = p.title || "Action";
               return { ...p, status: "executed" as const, execution_result: data.result };
             }
             return p;
@@ -314,20 +329,6 @@ export function useCopilotChat() {
       };
 
       setMessages((prev) => [...prev, followUpMsg]);
-
-      // Re-inject execution result to the agent for intelligent follow-up chaining.
-      // This lets the LLM suggest contextual next steps (e.g., "Want to set a follow-up reminder?")
-      // We fire this asynchronously so it doesn't block the approval UI update.
-      const resultSummary = typeof data.result === "string"
-        ? data.result.slice(0, 400)
-        : JSON.stringify(data.result ?? {}).slice(0, 400);
-
-      // Only chain if session is active — send as a background agent turn
-      if (sessionId) {
-        handleSendMessage(
-          `[System context — do not repeat this to the user] The action "${targetTitle}" was just executed successfully. Result summary: ${resultSummary}. If there is a natural, useful follow-up action you can suggest in one short sentence, do so. Otherwise just confirm completion briefly.`
-        ).catch(() => { /* non-critical */ });
-      }
 
       // Persist to session if active
       if (sessionId) {
@@ -394,6 +395,13 @@ export function useCopilotChat() {
   };
 
   const startNewSession = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("prism_explicit_new", "true");
+      localStorage.removeItem("prism_active_session_id");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("session");
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+    }
     setMessages([
       {
         id: "welcome",
@@ -410,7 +418,7 @@ export function useCopilotChat() {
     setSessionId(null);
   };
 
-  const loadSession = async (targetSessionId: string) => {
+  const loadSession = useCallback(async (targetSessionId: string) => {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/chat/sessions/${targetSessionId}/messages`);
@@ -425,7 +433,9 @@ export function useCopilotChat() {
         tool_calls?: import("@/types").ToolInvocation[];
         action_proposals?: ActionProposal[];
       }
-      const loadedMessages: Message[] = (data.messages || []).map((m: DbMessage) => ({
+      const loadedMessages: Message[] = (data.messages || [])
+        .filter((m: DbMessage) => !m.content?.startsWith("[System context"))
+        .map((m: DbMessage) => ({
         id: m.id,
         role: m.role,
         content: m.content?.includes("Welcome to Prism Operations")
@@ -441,6 +451,13 @@ export function useCopilotChat() {
         setMessages(loadedMessages);
       }
       setSessionId(targetSessionId);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("prism_explicit_new");
+        localStorage.setItem("prism_active_session_id", targetSessionId);
+        const url = new URL(window.location.href);
+        url.searchParams.set("session", targetSessionId);
+        window.history.replaceState(null, "", url.toString());
+      }
       setInput("");
       setToolSteps([]);
       return { success: true };
@@ -450,7 +467,40 @@ export function useCopilotChat() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Restore active session on mount or page refresh
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const isExplicitNew = sessionStorage.getItem("prism_explicit_new") === "true";
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSessionId = urlParams.get("session");
+    const storedSessionId = localStorage.getItem("prism_active_session_id");
+    const targetSessionId = urlSessionId || storedSessionId;
+
+    if (targetSessionId) {
+      loadSession(targetSessionId).then((res) => {
+        if (!res.success) {
+          localStorage.removeItem("prism_active_session_id");
+          const url = new URL(window.location.href);
+          url.searchParams.delete("session");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+        }
+      });
+    } else if (!isExplicitNew) {
+      // Fallback: If page was refreshed without explicit new session, restore most recent session
+      fetch("/api/chat/sessions")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const latest = data?.sessions?.[0];
+          if (latest?.id) {
+            loadSession(latest.id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [loadSession]);
 
   return {
     messages,

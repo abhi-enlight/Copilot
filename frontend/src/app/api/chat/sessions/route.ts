@@ -35,9 +35,7 @@ export async function GET(request: Request) {
     .limit(50);
 
   if (effectiveOrg) {
-    query = query.eq("organization_id", effectiveOrg);
-  } else {
-    query = query.is("organization_id", null);
+    query = query.or(`organization_id.eq.${effectiveOrg},organization_id.is.null`);
   }
 
   const { data, error } = await query;

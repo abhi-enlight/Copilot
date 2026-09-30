@@ -19,6 +19,56 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
  * 6. Executes the mutation via the user's isolated tool session.
  * 7. Records execution outcome in immutable public.agent_audit_logs.
  */
+function validateActionSafety(
+  toolSlug: string,
+  payload: Record<string, unknown>
+): { safe: boolean; reason?: string } {
+  const slug = toolSlug.toLowerCase();
+
+  // 1. Recipient Cap: Max 5 recipients for emails
+  const isEmailSend =
+    slug.includes("send_mail") ||
+    slug.includes("send_email") ||
+    slug.includes("multi_execute");
+
+  let recipientCount = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const args =
+    (Array.isArray(payload.tools) && (payload.tools[0] as any)?.arguments) ||
+    payload;
+  const to = args.to || args.recipients || args.recipient;
+
+  if (Array.isArray(to)) {
+    recipientCount = to.length;
+  } else if (typeof to === "string") {
+    recipientCount = to
+      .split(/[,;]/)
+      .filter((s: string) => s.trim().length > 0).length;
+  }
+
+  if (isEmailSend && recipientCount > 5) {
+    return {
+      safe: false,
+      reason: `Safety Policy Violation: Outgoing emails are capped at 5 recipients (found ${recipientCount}). Mass cold outreach must be conducted through dedicated marketing automation platforms.`,
+    };
+  }
+
+  // 2. Bulk Deletion Blocker
+  const isDeleteAction =
+    slug.includes("delete") || slug.includes("wipe") || slug.includes("purge");
+  const isBulkFlag =
+    args.delete_all === true || args.all === true || args.purge_all === true;
+  if (isDeleteAction && isBulkFlag) {
+    return {
+      safe: false,
+      reason:
+        "Safety Policy Violation: Bulk deletion operations are prohibited via Prism to prevent irreversible data loss.",
+    };
+  }
+
+  return { safe: true };
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -90,7 +140,25 @@ export async function POST(request: Request) {
     if (updatedPayload && typeof updatedPayload === "object" && Object.keys(updatedPayload).length > 0) {
       // User customized parameters (e.g. edited recipient or subject) before approving
       const existingRaw = (payloadToPersist._raw_payload as Record<string, unknown>) || {};
-      const mergedRaw = { ...existingRaw, ...updatedPayload };
+      const mergedRaw: Record<string, unknown> = { ...existingRaw, ...updatedPayload };
+
+      // If _raw_payload contains a tools array (from COMPOSIO_MULTI_EXECUTE_TOOL),
+      // update the arguments of the inner tool as well so executions reflect the edits
+      if (Array.isArray(mergedRaw.tools) && mergedRaw.tools.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const firstTool = mergedRaw.tools[0] as any;
+        mergedRaw.tools = [
+          {
+            ...firstTool,
+            arguments: {
+              ...(firstTool?.arguments || {}),
+              ...updatedPayload,
+            },
+          },
+          ...mergedRaw.tools.slice(1),
+        ];
+      }
+
       payloadToPersist = {
         ...payloadToPersist,
         ...updatedPayload,
@@ -161,10 +229,36 @@ export async function POST(request: Request) {
       const toolToExecute = (reqPayload._raw_tool_slug as string) || action.tool_slug;
       const payloadToExecute = (reqPayload._raw_payload as Record<string, unknown>) || reqPayload;
 
-      const res = await session.execute(
+      // ── Runtime Action Safety Invariants ─────────────────────────────────
+      const safetyCheck = validateActionSafety(toolToExecute, payloadToExecute);
+      if (!safetyCheck.safe) {
+        throw new Error(safetyCheck.reason);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res: any = await session.execute(
         toolToExecute,
         payloadToExecute
       );
+
+      // Check for execution failures returned by tool session without throwing
+      const hasError =
+        Boolean(res?.error) ||
+        (Array.isArray(res?.data?.results) &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res.data.results.some((r: any) => r.error || r.response?.successful === false));
+
+      if (hasError) {
+        const errorDetail =
+          res?.error ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res?.data?.results?.find((r: any) => r.error)?.error ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          res?.data?.results?.find((r: any) => r.response?.successful === false)?.response?.error ||
+          "Action execution failed";
+        throw new Error(typeof errorDetail === "string" ? errorDetail : JSON.stringify(errorDetail));
+      }
+
       executionResult = (res as Record<string, unknown>) || {
         executed: true,
         timestamp: new Date().toISOString(),

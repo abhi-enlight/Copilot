@@ -321,7 +321,9 @@ export default function IntelligenceStream({
             </div>
           </div>
         ) : (
-          messages.map((message, index) => {
+          messages
+            .filter((m) => !m.content?.startsWith("[System context"))
+            .map((message, index) => {
             const isUser = message.role === "user";
 
             return (

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase-server";
 import { adminSupabase } from "@/lib/supabase-admin";
 import { getComposioSessionForUser } from "@/lib/composio/session";
 import { executeSimulatedAgent, formatSSE, type AgentChatMessage } from "@/lib/agent/llm";
+import { evaluateScope } from "@/lib/agent/scope-limit";
 import type { AgentSSEEvent } from "@/types";
 import type { ActionProposal } from "@/types/database";
 
@@ -46,9 +47,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // 1. Resolve caller's organization context
+    const { data: memberRow } = await adminSupabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    const organizationId = memberRow?.organization_id || null;
+
     let isNewSession = false;
 
-    // 1. Multi-Tenant Chat Session Resolution
+    // 2. Multi-Tenant Chat Session Resolution
     if (sessionId) {
       const { data: existingSession } = await adminSupabase
         .from("chat_sessions")
@@ -63,6 +74,12 @@ export async function POST(request: Request) {
           { status: 403 }
         );
       }
+
+      // Refresh session activity timestamp so it ranks at the top of Session History
+      await adminSupabase
+        .from("chat_sessions")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", sessionId);
     } else {
       isNewSession = true;
       const initialTitle = message.length > 50 ? `${message.slice(0, 47)}...` : message;
@@ -71,6 +88,7 @@ export async function POST(request: Request) {
         .from("chat_sessions")
         .insert({
           user_id: user.id,
+          organization_id: organizationId,
           title: initialTitle,
           pinned: false,
           is_archived: false,
@@ -88,7 +106,7 @@ export async function POST(request: Request) {
       sessionId = newSession.id;
     }
 
-    // 2. Fetch bounded conversation history BEFORE inserting the user message,
+    // 3. Fetch bounded conversation history BEFORE inserting the user message,
     // so the window is the most recent turns of prior conversation (newest-first
     // query, then reversed to chronological order for the LLM).
     let chatHistory: AgentChatMessage[] = [];
@@ -121,7 +139,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Persist User Message
+    // 4. Persist User Message
     await adminSupabase.from("chat_messages").insert({
       session_id: sessionId,
       role: "user",
@@ -131,17 +149,68 @@ export async function POST(request: Request) {
       action_proposals: [],
     });
 
-    // 4. Resolve caller's organization context
-    const { data: memberRow } = await adminSupabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
+    // 5. Pre-flight Scope Boundary Gate
+    const scopeCheck = evaluateScope(message);
+    if (!scopeCheck.isInScope && scopeCheck.refusalResponse) {
+      console.log(`[Scope Limit] Blocked out-of-scope query (${scopeCheck.category}): "${message.slice(0, 80)}"`);
+      const refusal = scopeCheck.refusalResponse;
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          const sendEvent = (event: AgentSSEEvent) => {
+            try {
+              controller.enqueue(encoder.encode(formatSSE(event)));
+            } catch {}
+          };
 
-    const organizationId = memberRow?.organization_id || null;
+          sendEvent({
+            type: "session_meta",
+            sessionId: sessionId!,
+            isNewSession,
+          });
 
-    // 5. Retrieve isolated user tool router session
+          // Stream refusal response with smooth natural cadence
+          const chunks = refusal.match(/\S+\s*/g) || [refusal];
+          for (const chunk of chunks) {
+            sendEvent({
+              type: "text_delta",
+              delta: chunk,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 15));
+          }
+
+          // Persist the assistant refusal message
+          await adminSupabase.from("chat_messages").insert({
+            session_id: sessionId,
+            role: "assistant",
+            content: refusal,
+            source_badges: ["Scope Boundary"],
+            tool_calls: null,
+            action_proposals: [],
+          });
+
+          sendEvent({
+            type: "done",
+            fullContent: refusal,
+            actionProposals: [],
+          });
+
+          controller.enqueue(encoder.encode(formatSSE("[DONE]")));
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    }
+
+    // 6. Retrieve isolated user tool router session
     let composioSession = null;
     try {
       const res = await getComposioSessionForUser(user.id);
@@ -150,7 +219,7 @@ export async function POST(request: Request) {
       console.warn("[Agent Chat] Composio session notice:", err);
     }
 
-    // 6. Establish unbuffered SSE stream with 15s keep-alive heartbeats
+    // 7. Establish unbuffered SSE stream with 15s keep-alive heartbeats
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({

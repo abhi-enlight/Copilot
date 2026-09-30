@@ -13,16 +13,14 @@ export const dynamic = "force-dynamic";
 async function verifySessionOwner(sessionId: string, userId: string, orgId?: string | null): Promise<boolean> {
   const { data } = await adminSupabase
     .from("chat_sessions")
-    .select("id, organization_id")
+    .select("id, user_id, organization_id")
     .eq("id", sessionId)
-    .eq("user_id", userId)
     .maybeSingle();
 
   if (!data) return false;
-  if (data.organization_id && orgId && data.organization_id !== orgId) {
-    return false;
-  }
-  return true;
+  if (data.user_id === userId) return true;
+  if (orgId && data.organization_id === orgId) return true;
+  return false;
 }
 
 export async function GET(

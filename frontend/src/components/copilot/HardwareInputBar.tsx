@@ -11,6 +11,7 @@ import {
   ChatCircleText,
   Kanban,
   Briefcase,
+  X,
 } from "@phosphor-icons/react";
 import { useToast } from "@/hooks/useToast";
 
@@ -23,12 +24,20 @@ interface HardwareInputBarProps {
   inputRef?: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
 }
 
-const TOOL_CHIPS = [
-  { label: "@Outlook", slug: "outlook", icon: EnvelopeSimple, color: "text-sky-600 bg-sky-50 border-sky-200" },
-  { label: "@Teams", slug: "teams", icon: ChatsCircle, color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
-  { label: "@Slack", slug: "slack", icon: ChatCircleText, color: "text-rose-600 bg-rose-50 border-rose-200" },
-  { label: "@Linear", slug: "linear", icon: Kanban, color: "text-violet-600 bg-violet-50 border-violet-200" },
-  { label: "@Zoho", slug: "zoho", icon: Briefcase, color: "text-amber-600 bg-amber-50 border-amber-200" },
+interface ToolChipItem {
+  name: string;
+  tag: string;
+  slug: string;
+  icon: typeof EnvelopeSimple;
+  accentColor: string;
+}
+
+const TOOL_CHIPS: ToolChipItem[] = [
+  { name: "Outlook", tag: "@Outlook", slug: "outlook", icon: EnvelopeSimple, accentColor: "text-sky-600" },
+  { name: "Teams", tag: "@Teams", slug: "teams", icon: ChatsCircle, accentColor: "text-indigo-600" },
+  { name: "Slack", tag: "@Slack", slug: "slack", icon: ChatCircleText, accentColor: "text-emerald-600" },
+  { name: "Linear", tag: "@Linear", slug: "linear", icon: Kanban, accentColor: "text-violet-600" },
+  { name: "Zoho", tag: "@Zoho", slug: "zoho", icon: Briefcase, accentColor: "text-amber-600" },
 ];
 
 export default function HardwareInputBar({
@@ -62,11 +71,19 @@ export default function HardwareInputBar({
     }
   };
 
-  const handleChipClick = (chipLabel: string) => {
-    const current = input.trim();
-    if (current.includes(chipLabel)) return;
-    const next = current ? `${chipLabel} ${current}` : `${chipLabel} `;
-    setInput(next);
+  const handleChipClick = (chipTag: string) => {
+    const current = input;
+    if (current.includes(chipTag)) {
+      // Toggle OFF: remove tag and trim extra whitespace
+      const next = current
+        .replace(new RegExp(`\\s*${chipTag}\\b`, "g"), "")
+        .trim();
+      setInput(next);
+    } else {
+      // Toggle ON: prepend tag
+      const next = current.trim() ? `${chipTag} ${current.trim()}` : `${chipTag} `;
+      setInput(next);
+    }
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 50);
@@ -211,28 +228,47 @@ export default function HardwareInputBar({
             </div>
           </div>
 
-          {/* Tool chips row — BELOW input */}
-          <div className="px-3 pb-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            <span className="text-[11px] text-stone-400 font-medium flex-shrink-0">Focus:</span>
-            {TOOL_CHIPS.map((chip) => {
-              const Icon = chip.icon;
-              const isSelected = input.includes(chip.label);
-              return (
-                <button
-                  key={chip.slug}
-                  type="button"
-                  onClick={() => handleChipClick(chip.label)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border flex-shrink-0 cursor-pointer transition-all duration-150 ${
-                    isSelected
-                      ? "bg-stone-900 text-white border-stone-900"
-                      : `font-medium hover:opacity-90 ${chip.color}`
-                  }`}
-                >
-                  <Icon size={11} weight="bold" />
-                  <span>{chip.label}</span>
-                </button>
-              );
-            })}
+          {/* Tool focus bar — hairline separated bottom deck */}
+          <div className="px-3.5 pt-2 pb-2.5 border-t border-black/[0.04] flex items-center gap-2 overflow-x-auto scrollbar-none font-[family-name:var(--font-geist-sans)]">
+            <div className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-wider text-stone-400 font-mono font-medium flex-shrink-0 select-none">
+              <span>Focus</span>
+            </div>
+            <div className="h-3 w-[1px] bg-stone-200/80 flex-shrink-0" />
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto scrollbar-none py-0.5">
+              {TOOL_CHIPS.map((chip) => {
+                const Icon = chip.icon;
+                const isSelected = input.includes(chip.tag);
+                return (
+                  <button
+                    key={chip.slug}
+                    type="button"
+                    onClick={() => handleChipClick(chip.tag)}
+                    aria-pressed={isSelected}
+                    title={isSelected ? `Remove ${chip.name} filter` : `Filter prompt by ${chip.name}`}
+                    className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] border flex-shrink-0 cursor-pointer transition-all duration-150 select-none active:scale-[0.97] ${
+                      isSelected
+                        ? "bg-stone-900 text-white border-stone-900 shadow-[0_1px_2px_rgba(0,0,0,0.12)] font-medium"
+                        : "bg-white hover:bg-stone-50 border-black/[0.07] hover:border-black/[0.14] text-stone-600 hover:text-stone-900 shadow-[0_1px_2px_rgba(0,0,0,0.02)] font-medium"
+                    }`}
+                  >
+                    <Icon
+                      size={12}
+                      weight="bold"
+                      className={`flex-shrink-0 transition-transform ${
+                        isSelected ? "text-white" : `${chip.accentColor} group-hover:scale-110`
+                      }`}
+                    />
+                    <span className="flex items-center tracking-tight">
+                      <span className={isSelected ? "text-stone-400 mr-0.5" : "text-stone-400 mr-0.5"}>@</span>
+                      <span>{chip.name}</span>
+                    </span>
+                    {isSelected && (
+                      <X size={10} weight="bold" className="text-stone-400 hover:text-white ml-0.5 flex-shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

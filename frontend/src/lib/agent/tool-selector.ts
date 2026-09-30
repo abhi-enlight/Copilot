@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { AgentChatMessage } from "./llm";
+import { evaluateScope } from "./scope-limit";
 
 /**
  * Curated high-leverage actions per toolkit for Prism V2.
@@ -374,6 +375,12 @@ export function selectScopedTools(params: ToolSelectorParams): any[] {
   const { allTools, userMessage, chatHistory = [], maxTools = 18 } = params;
 
   if (!allTools || allTools.length === 0) {
+    return [];
+  }
+
+  // Pre-flight boundary check: if prompt is strictly out of scope, return zero tools
+  const scope = evaluateScope(userMessage);
+  if (!scope.isInScope) {
     return [];
   }
 

@@ -68,20 +68,38 @@ export default function SessionHistoryDrawer({
     };
   }, [isOpen]);
 
-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation();
-    if (confirmDeleteId !== sessionId) {
-      setConfirmDeleteId(sessionId);
-      setTimeout(() => setConfirmDeleteId((prev) => (prev === sessionId ? null : prev)), 3000);
-      return;
-    }
+  // Auto-revert delete confirmation after 5 seconds if not confirmed
+  useEffect(() => {
+    if (!confirmDeleteId) return;
+    const timer = setTimeout(() => {
+      setConfirmDeleteId((prev) => (prev === confirmDeleteId ? null : prev));
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [confirmDeleteId]);
 
+  const promptDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    setConfirmDeleteId(sessionId);
+  };
+
+  const cancelDeleteSession = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConfirmDeleteId(null);
+  };
+
+  const executeDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
     setConfirmDeleteId(null);
     setDeletingId(sessionId);
     try {
-      const res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
+      let res = await fetch(`/api/chat/sessions/${sessionId}`, {
         method: "DELETE",
       });
+      if (!res.ok) {
+        res = await fetch(`/api/chat/sessions/${sessionId}/messages`, {
+          method: "DELETE",
+        });
+      }
       if (res.ok) {
         setSessions((prev) => prev.filter((s) => s.id !== sessionId));
         toast.success("Session deleted", "The conversation has been removed.");
@@ -230,19 +248,50 @@ export default function SessionHistoryDrawer({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={isDeleting}
-                        onClick={(e) => handleDeleteSession(e, s.id)}
-                        title="Delete session"
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-stone-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer flex-shrink-0"
-                      >
-                        {isDeleting ? (
-                          <SpinnerGap size={13} className="animate-spin" />
-                        ) : (
-                          <Trash size={13} />
-                        )}
-                      </button>
+                      {confirmDeleteId === s.id ? (
+                        <div
+                          className="flex items-center gap-1.5 flex-shrink-0 animate-fadeIn"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={(e) => executeDeleteSession(e, s.id)}
+                            className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                            title="Confirm permanent deletion"
+                          >
+                            {isDeleting ? (
+                              <SpinnerGap size={12} className="animate-spin" />
+                            ) : (
+                              <Trash size={12} weight="bold" />
+                            )}
+                            <span>{isDeleting ? "Deleting..." : "Delete"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={cancelDeleteSession}
+                            className="w-6 h-6 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 flex items-center justify-center transition-all cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X size={12} weight="bold" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={(e) => promptDeleteSession(e, s.id)}
+                          title="Delete session"
+                          className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1.5 rounded-lg text-stone-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer flex-shrink-0"
+                        >
+                          {isDeleting ? (
+                            <SpinnerGap size={13} className="animate-spin" />
+                          ) : (
+                            <Trash size={13} />
+                          )}
+                        </button>
+                      )}
                     </div>
                   );
                 })
