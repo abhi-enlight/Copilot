@@ -428,7 +428,9 @@ export function useCopilotChat() {
       const loadedMessages: Message[] = (data.messages || []).map((m: DbMessage) => ({
         id: m.id,
         role: m.role,
-        content: m.content,
+        content: m.content?.includes("Welcome to Prism Operations")
+          ? "Hey, I'm Prism — your work assistant. I can check your inbox, review deals, track issues, and handle tasks across your connected tools. What can I help with?"
+          : m.content,
         sourceBadges: m.source_badges || ["Prism Operations"],
         timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         tool_calls: m.tool_calls || undefined,

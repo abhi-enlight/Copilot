@@ -15,6 +15,7 @@ import {
   Warning,
   ArrowsClockwise,
   ArrowRight,
+  type Icon,
 } from "@phosphor-icons/react";
 import ActionCard from "@/components/copilot/cards/ActionCard";
 import PrismLogo from "@/components/brand/PrismLogo";
@@ -34,8 +35,156 @@ interface IntelligenceStreamProps {
   onQuickPrompt?: (prompt: string) => void;
 }
 
-// Tool meta mapping removed — agent now shows a single "Thinking…" pill
-// instead of per-tool badges, keeping backend internals invisible to users.
+interface EmailItem {
+  sender: string;
+  subject: string;
+  received?: string;
+  summary?: string;
+  urgency?: string;
+}
+
+interface DealItem {
+  dealName: string;
+  amount?: string;
+  stage?: string;
+  closeDate?: string;
+  summary?: string;
+}
+
+interface ParsedStructuredData {
+  type: "email" | "deal";
+  intro: string;
+  emails?: EmailItem[];
+  deals?: DealItem[];
+  outro: string;
+}
+
+function parseStructuredContent(text: string): ParsedStructuredData | null {
+  if (!text) return null;
+
+  // 1. Check for email patterns: "From: ... Summary: ..."
+  if (text.includes("From:") && (text.includes("Summary:") || text.includes("Urgency") || text.includes("Received:"))) {
+    const parts = text.split(/(?=From:\s*)/i);
+    if (parts.length >= 2) {
+      const intro = parts[0].trim();
+      const emails: EmailItem[] = [];
+      let outro = "";
+
+      for (let i = 1; i < parts.length; i++) {
+        let chunk = parts[i].trim();
+        // In the last item, check if there's a trailing question/outro
+        if (i === parts.length - 1) {
+          const lines = chunk.split("\n");
+          const outroIndex = lines.findIndex((l) =>
+            l.toLowerCase().includes("want me to") ||
+            l.toLowerCase().includes("should i") ||
+            l.toLowerCase().includes("would you like") ||
+            (l.trim().endsWith("?") && !l.toLowerCase().includes("summary") && !l.toLowerCase().includes("urgency"))
+          );
+          if (outroIndex !== -1) {
+            outro = lines.slice(outroIndex).join("\n").trim();
+            chunk = lines.slice(0, outroIndex).join("\n").trim();
+          }
+        }
+
+        const fromMatch = chunk.match(/From:\s*([^\n—–-]+)(?:[—–-]\s*([^\n]+))?/i);
+        const receivedMatch = chunk.match(/Received:\s*([^\n]+)/i);
+        const summaryMatch = chunk.match(/Summary:\s*([^\n]+(?:\n(?!(?:Action|Urgency|From|Received):)[^\n]+)*)/i);
+        const urgencyMatch = chunk.match(/(?:Action\s*\/\s*Urgency|Urgency|Action):\s*([^\n]+(?:\n(?!(?:From|Received|Summary):)[^\n]+)*)/i);
+
+        if (fromMatch) {
+          emails.push({
+            sender: fromMatch[1]?.trim() || "Unknown Sender",
+            subject: fromMatch[2]?.trim() || "Message Notification",
+            received: receivedMatch ? receivedMatch[1].trim() : undefined,
+            summary: summaryMatch ? summaryMatch[1].trim() : undefined,
+            urgency: urgencyMatch ? urgencyMatch[1].trim() : undefined,
+          });
+        }
+      }
+
+      if (emails.length > 0) {
+        return { type: "email", intro, emails, outro };
+      }
+    }
+  }
+
+  // 2. Check for CRM deal patterns: "Deal: ... Amount: ... Stage: ..."
+  if (text.includes("Deal:") && (text.includes("Amount:") || text.includes("Stage:"))) {
+    const parts = text.split(/(?=Deal:\s*)/i);
+    if (parts.length >= 2) {
+      const intro = parts[0].trim();
+      const deals: DealItem[] = [];
+      let outro = "";
+
+      for (let i = 1; i < parts.length; i++) {
+        let chunk = parts[i].trim();
+        if (i === parts.length - 1) {
+          const lines = chunk.split("\n");
+          const outroIndex = lines.findIndex((l) =>
+            l.toLowerCase().includes("want me to") || l.toLowerCase().includes("should i") || l.trim().endsWith("?")
+          );
+          if (outroIndex !== -1) {
+            outro = lines.slice(outroIndex).join("\n").trim();
+            chunk = lines.slice(0, outroIndex).join("\n").trim();
+          }
+        }
+
+        const dealMatch = chunk.match(/Deal:\s*([^\n—–-]+)(?:[—–-]\s*([^\n]+))?/i);
+        const amountMatch = chunk.match(/Amount:\s*([^\n]+)/i);
+        const stageMatch = chunk.match(/Stage:\s*([^\n]+)/i);
+        const closeMatch = chunk.match(/(?:Close Date|Close):\s*([^\n]+)/i);
+        const summaryMatch = chunk.match(/Summary:\s*([^\n]+)/i);
+
+        if (dealMatch) {
+          deals.push({
+            dealName: dealMatch[1]?.trim() || "Untitled Deal",
+            amount: amountMatch ? amountMatch[1].trim() : undefined,
+            stage: stageMatch ? stageMatch[1].trim() : undefined,
+            closeDate: closeMatch ? closeMatch[1].trim() : undefined,
+            summary: summaryMatch ? summaryMatch[1].trim() : undefined,
+          });
+        }
+      }
+
+      if (deals.length > 0) {
+        return { type: "deal", intro, deals, outro };
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractSuggestedActions(text: string): { label: string; prompt: string; icon: Icon }[] {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  const actions: { label: string; prompt: string; icon: Icon }[] = [];
+
+  if (lower.includes("mark these as read") || lower.includes("mark as read")) {
+    actions.push({
+      label: "Mark as Read",
+      prompt: "Yes, mark these emails as read in Outlook.",
+      icon: Check,
+    });
+  }
+  if (lower.includes("draft a reply") || lower.includes("draft replies") || lower.includes("draft reply")) {
+    actions.push({
+      label: "Draft Reply",
+      prompt: "Draft a reply to the most urgent email.",
+      icon: ArrowRight,
+    });
+  }
+  if (lower.includes("slack summary") || lower.includes("sent as a slack") || lower.includes("send to slack")) {
+    actions.push({
+      label: "Post to Slack",
+      prompt: "Post a concise summary of this update to the general Slack channel.",
+      icon: ChatsCircle,
+    });
+  }
+
+  return actions;
+}
 
 export default function IntelligenceStream({
   messages,
@@ -181,19 +330,49 @@ export default function IntelligenceStream({
                 className={`flex w-full ${isUser ? "justify-end" : "justify-start group"}`}
               >
                 {isUser ? (
-                  /* User Message Bubble */
-                  <div className="max-w-[80%] sm:max-w-xl rounded-2xl rounded-tr-sm bg-stone-900 text-white px-4 py-3 text-sm leading-relaxed shadow-[0_1px_2px_rgba(0,0,0,0.08)]">
+                  /* User Message Bubble — Sleek, Tactile, High-End */
+                  <div className="max-w-[85%] sm:max-w-xl rounded-2xl rounded-tr-md bg-[#1C1B1A] text-stone-100 px-5 py-3.5 text-[13.5px] leading-relaxed shadow-[0_2px_8px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.08)] border border-white/5 font-medium">
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
                 ) : (
-                  /* Assistant Message — plain text on page background, no card */
-                  <div className="w-full max-w-3xl flex items-start gap-3">
-                    {/* Avatar */}
-                    <div className="w-7 h-7 rounded-lg bg-white border border-black/[0.07] shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex-shrink-0 flex items-center justify-center mt-0.5">
-                      <PrismLogo size={16} variant="tile" />
+                  /* Assistant Message — Machined Executive Card */
+                  <div className="w-full max-w-3xl rounded-2xl bg-white border border-black/[0.07] shadow-[0_1px_3px_rgba(0,0,0,0.02),0_6px_20px_rgba(0,0,0,0.03)] p-5 sm:p-6 transition-all space-y-4">
+                    {/* Header: Avatar + "Prism" + Badge + Timestamp */}
+                    <div className="flex items-center justify-between pb-3 border-b border-black/[0.04]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-6 h-6 rounded-md bg-stone-50 border border-black/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex items-center justify-center">
+                          <PrismLogo size={14} variant="tile" />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[13px] font-semibold text-stone-900 tracking-tight">Prism</span>
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-600 border border-stone-200/50">
+                            Assistant
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        {message.content && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(message.id, message.content)}
+                            aria-label="Copy response text"
+                            className="inline-flex items-center gap-1 text-[11px] text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                          >
+                            {copiedId === message.id ? (
+                              <><Check size={12} weight="bold" className="text-emerald-500" /><span className="text-emerald-600 font-medium">Copied</span></>
+                            ) : (
+                              <><Copy size={12} /><span>Copy</span></>
+                            )}
+                          </button>
+                        )}
+                        <span className="text-[11px] text-stone-400 font-mono">
+                          {message.timestamp || "Just now"}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 space-y-3">
                       {/* Active thinking indicator inside assistant bubble while loading and no content yet */}
                       {!message.content && (!message.action_proposals || message.action_proposals.length === 0) && isLoading && (
                         <div className="py-1 space-y-3">
@@ -265,23 +444,204 @@ export default function IntelligenceStream({
                           </div>
                         </div>
                       ) : message.content ? (
-                        /* Plain text renders directly on page background */
-                        <div className="text-sm text-stone-800 leading-relaxed">
-                          <div className="prose prose-sm max-w-none text-stone-800
-                            prose-headings:font-semibold prose-headings:text-stone-900 prose-headings:tracking-tight
-                            prose-p:leading-relaxed prose-p:text-stone-700
-                            prose-strong:text-stone-900 prose-strong:font-semibold
-                            prose-pre:bg-stone-900 prose-pre:text-stone-100 prose-pre:rounded-xl prose-pre:text-xs
-                            prose-code:bg-stone-100 prose-code:text-stone-800 prose-code:rounded prose-code:px-1 prose-code:text-[0.8em]
-                            prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
-                            prose-ul:text-stone-700 prose-ol:text-stone-700
-                          ">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-                            {isLoading && index === messages.length - 1 && (
-                              <span className="inline-block w-1.5 h-3.5 bg-stone-500 ml-1 rounded-sm animate-pulse align-middle" />
-                            )}
-                          </div>
-                        </div>
+                        (() => {
+                          const structured = parseStructuredContent(message.content);
+
+                          if (structured && structured.type === "email" && structured.emails) {
+                            return (
+                              <div className="space-y-3">
+                                {structured.intro && (
+                                  <p className="text-[13px] text-stone-700 leading-relaxed font-medium">
+                                    {structured.intro}
+                                  </p>
+                                )}
+
+                                {/* Stack of Executive Email Cards */}
+                                <div className="space-y-2.5 my-2">
+                                  {structured.emails.map((item, idx) => {
+                                    const urgencyLower = (item.urgency || "").toLowerCase();
+                                    const isUrgent = urgencyLower.includes("urgent") || urgencyLower.includes("action needed");
+                                    const isReview = urgencyLower.includes("worth noting") || urgencyLower.includes("review") || urgencyLower.includes("low");
+
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className="rounded-xl bg-[#FBFBFA] border border-black/[0.07] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:border-black/[0.12] transition-all space-y-2.5"
+                                      >
+                                        {/* Top row: Sender + Date */}
+                                        <div className="flex items-center justify-between gap-3">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-5 h-5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center shrink-0">
+                                              <EnvelopeSimple size={11} weight="bold" />
+                                            </div>
+                                            <span className="text-xs font-semibold text-stone-900 truncate">
+                                              {item.sender}
+                                            </span>
+                                          </div>
+                                          {item.received && (
+                                            <span className="text-[11px] font-mono text-stone-400 shrink-0 bg-white px-2 py-0.5 rounded border border-stone-200/60">
+                                              {item.received}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Subject */}
+                                        <h4 className="text-[13.5px] font-semibold text-stone-900 tracking-[-0.01em] leading-snug">
+                                          {item.subject}
+                                        </h4>
+
+                                        {/* Summary */}
+                                        {item.summary && (
+                                          <p className="text-xs text-stone-600 leading-relaxed">
+                                            {item.summary}
+                                          </p>
+                                        )}
+
+                                        {/* Card Footer: Urgency Pill + Quick Action */}
+                                        <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] text-xs">
+                                          <div>
+                                            {isUrgent ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                                Action Needed
+                                              </span>
+                                            ) : isReview ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                Review
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-stone-100 text-stone-600 border border-stone-200/80">
+                                                Informational
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {onQuickPrompt && (
+                                            <button
+                                              type="button"
+                                              onClick={() => onQuickPrompt(`Draft a reply to "${item.subject}" from ${item.sender}`)}
+                                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                                            >
+                                              <span>Draft Reply</span>
+                                              <ArrowRight size={10} weight="bold" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {structured.outro && (
+                                  <p className="text-[13px] text-stone-800 font-medium pt-1">
+                                    {structured.outro}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          if (structured && structured.type === "deal" && structured.deals) {
+                            return (
+                              <div className="space-y-3">
+                                {structured.intro && (
+                                  <p className="text-[13px] text-stone-700 leading-relaxed font-medium">
+                                    {structured.intro}
+                                  </p>
+                                )}
+
+                                {/* Stack of Executive CRM Deal Cards */}
+                                <div className="space-y-2.5 my-2">
+                                  {structured.deals.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="rounded-xl bg-[#FBFBFA] border border-black/[0.07] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:border-black/[0.12] transition-all space-y-2"
+                                    >
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <div className="w-5 h-5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80 flex items-center justify-center shrink-0">
+                                            <Briefcase size={11} weight="bold" />
+                                          </div>
+                                          <h4 className="text-[13.5px] font-semibold text-stone-900 truncate">
+                                            {item.dealName}
+                                          </h4>
+                                        </div>
+                                        {item.amount && (
+                                          <span className="text-xs font-semibold text-emerald-700 font-mono bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
+                                            {item.amount}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center gap-3 text-[11.5px] text-stone-500">
+                                        {item.stage && <span>Stage: <strong className="text-stone-700">{item.stage}</strong></span>}
+                                        {item.closeDate && <span>Close: <strong className="text-stone-700">{item.closeDate}</strong></span>}
+                                      </div>
+
+                                      {item.summary && (
+                                        <p className="text-xs text-stone-600 leading-relaxed">
+                                          {item.summary}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {structured.outro && (
+                                  <p className="text-[13px] text-stone-800 font-medium pt-1">
+                                    {structured.outro}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // Default rich markdown rendering with enhanced typography
+                          return (
+                            <div className="text-sm text-stone-800 leading-relaxed">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  h1: ({ children }) => <h1 className="text-base font-bold text-stone-900 mt-4 mb-2">{children}</h1>,
+                                  h2: ({ children }) => <h2 className="text-sm font-bold text-stone-900 mt-3 mb-1.5">{children}</h2>,
+                                  h3: ({ children }) => (
+                                    <div className="mt-3.5 mb-1.5 pt-2.5 border-t border-stone-100 first:mt-0 first:pt-0 first:border-0">
+                                      <h3 className="text-[13.5px] font-semibold text-stone-900 tracking-tight flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
+                                        <span>{children}</span>
+                                      </h3>
+                                    </div>
+                                  ),
+                                  ul: ({ children }) => <ul className="my-2 space-y-1.5 pl-1">{children}</ul>,
+                                  li: ({ children }) => (
+                                    <li className="text-xs sm:text-[13px] text-stone-700 flex items-start gap-2 leading-relaxed">
+                                      <span className="text-stone-400 mt-1 select-none">•</span>
+                                      <span className="flex-1">{children}</span>
+                                    </li>
+                                  ),
+                                  p: ({ children }) => <p className="my-1.5 leading-relaxed text-stone-700 text-xs sm:text-[13px]">{children}</p>,
+                                  strong: ({ children }) => <strong className="font-semibold text-stone-950">{children}</strong>,
+                                  blockquote: ({ children }) => (
+                                    <blockquote className="my-3 border-l-2 border-indigo-500 bg-stone-50 rounded-r-xl px-4 py-2.5 text-xs text-stone-700">
+                                      {children}
+                                    </blockquote>
+                                  ),
+                                  code: ({ children, className }) => {
+                                    const isBlock = className?.includes("language-");
+                                    if (isBlock) {
+                                      return <code className="block p-3 rounded-xl bg-stone-900 text-stone-100 text-xs font-mono overflow-x-auto my-2">{children}</code>;
+                                    }
+                                    return <code className="px-1.5 py-0.5 rounded bg-stone-100 text-stone-800 text-[11px] font-mono">{children}</code>;
+                                  },
+                                }}
+                              >
+                                {message.content}
+                              </ReactMarkdown>
+                              {isLoading && index === messages.length - 1 && (
+                                <span className="inline-block w-1.5 h-3.5 bg-stone-500 ml-1 rounded-sm animate-pulse align-middle" />
+                              )}
+                            </div>
+                          );
+                        })()
                       ) : null}
 
                       {/* Action proposals get a card container */}
@@ -298,24 +658,31 @@ export default function IntelligenceStream({
                         </div>
                       )}
 
-                      {/* Copy + timestamp — only show on hover when content exists */}
-                      {message.content && (
-                        <div className="mt-2 flex items-center justify-between text-[11px] text-stone-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                          <span className="font-mono">{message.sourceBadges?.[0] || "Prism"}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyText(message.id, message.content)}
-                            aria-label="Copy response text"
-                            className="inline-flex items-center gap-1 hover:text-stone-800 transition-colors cursor-pointer"
-                          >
-                            {copiedId === message.id ? (
-                              <><Check size={12} weight="bold" className="text-emerald-500" /><span className="text-emerald-600">Copied</span></>
-                            ) : (
-                              <><Copy size={12} /><span>Copy</span></>
-                            )}
-                          </button>
-                        </div>
-                      )}
+                      {/* Clickable Suggested Action Pills extracted from questions */}
+                      {(() => {
+                        const suggestedActions = extractSuggestedActions(message.content);
+                        if (suggestedActions.length === 0) return null;
+
+                        return (
+                          <div className="pt-3 border-t border-black/[0.04] flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Suggested:</span>
+                            {suggestedActions.map((action, i) => {
+                              const ActionIcon = action.icon;
+                              return (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => onQuickPrompt?.(action.prompt)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-sm transition-all duration-150 cursor-pointer active:scale-95"
+                                >
+                                  <ActionIcon size={12} weight="bold" />
+                                  <span>{action.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
