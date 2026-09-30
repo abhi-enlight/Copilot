@@ -391,6 +391,17 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
 
                       <p className="text-[12.5px] text-stone-600 leading-relaxed mb-4">{tool.description}</p>
 
+                      {/* Connected account identity banner */}
+                      {isConnected && (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-stone-50 border border-black/[0.05] text-xs text-stone-700 mb-3.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          <span className="text-stone-400 font-medium shrink-0">Connected as:</span>
+                          <span className="font-semibold text-stone-900 truncate font-mono text-[11.5px]" title={status?.connectedAccountName || "Active Account"}>
+                            {status?.connectedAccountName || "Active Account"}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Action button */}
                       {!isConnected ? (
                         <button

@@ -460,8 +460,10 @@ export default function IntegrationsPage() {
 
                       {/* Action Row */}
                       <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
-                        <span className="text-[11px] font-mono text-stone-400">
-                          {isConnected && status?.lastSyncAt
+                        <span className="text-[11px] font-mono text-stone-500 truncate max-w-[220px]" title={status?.connectedAccountName || undefined}>
+                          {isConnected && status?.connectedAccountName
+                            ? `Connected as ${status.connectedAccountName}`
+                            : isConnected && status?.lastSyncAt
                             ? `Last sync: ${new Date(status.lastSyncAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                             : `Slug: ${tool.slug}`}
                         </span>

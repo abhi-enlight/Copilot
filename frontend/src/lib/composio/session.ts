@@ -211,7 +211,8 @@ export async function getComposioSessionForUser(userId: string) {
 export function formatToolStatus(
   slug: SupportedToolSlug,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  item?: any
+  item?: any,
+  accountDisplayName?: string
 ): ToolConnectionStatus {
   const meta = PRISM_TOOL_REGISTRY[slug] || {
     slug,
@@ -232,6 +233,18 @@ export function formatToolStatus(
     status = "ERROR";
   }
 
+  const accountId = item?.connection?.connectedAccount?.id;
+  const resolvedName =
+    accountDisplayName ||
+    item?.connection?.connectedAccount?.data?.displayName ||
+    item?.connection?.connectedAccount?.state?.val?.displayName ||
+    item?.connection?.connectedAccount?.data?.email ||
+    item?.connection?.connectedAccount?.state?.val?.email ||
+    item?.connection?.connectedAccount?.params?.user_email ||
+    item?.connection?.connectedAccount?.params?.email ||
+    item?.connection?.connectedAccount?.alias ||
+    undefined;
+
   return {
     slug,
     name: meta.name,
@@ -239,7 +252,8 @@ export function formatToolStatus(
     logo: item?.logo,
     isConnected,
     status,
-    connectedAccountId: item?.connection?.connectedAccount?.id,
+    connectedAccountId: accountId,
+    connectedAccountName: resolvedName,
   };
 }
 

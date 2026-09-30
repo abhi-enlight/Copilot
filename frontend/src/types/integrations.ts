@@ -24,6 +24,7 @@ export interface ToolConnectionStatus {
   isConnected: boolean;
   status: ToolConnectionState;
   connectedAccountId?: string;
+  connectedAccountName?: string;
   lastSyncAt?: string;
 }
 
