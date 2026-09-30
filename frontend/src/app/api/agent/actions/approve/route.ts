@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { adminSupabase } from "@/lib/supabase-admin";
 import { getComposioSessionForUser } from "@/lib/composio/session";
-import { verifyActionSignature } from "@/lib/agent/crypto";
+import { verifyActionSignature, generateActionSignature } from "@/lib/agent/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
  * 1. Authenticates executive session.
  * 2. IDOR Protection: Asserts caller owns the pending action proposal.
  * 3. 24-Hour Expiration Check.
- * 4. Cryptographic Tamper-Proof Signature Verification (HMAC-SHA256).
+ * 4. Cryptographic Tamper-Proof Signature Verification (HMAC-SHA256) or user customization.
  * 5. Atomic PostgreSQL Conditional Lock (prevents double-click duplicate executions).
  * 6. Executes the mutation via the user's isolated tool session.
  * 7. Records execution outcome in immutable public.agent_audit_logs.
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const actionId = body.actionId as string;
+    const updatedPayload = body.updatedPayload as Record<string, unknown> | undefined;
 
     if (!actionId) {
       return NextResponse.json(
@@ -83,21 +84,49 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Cryptographic Signature Verification against parameter tampering
-    const isSignatureValid = verifyActionSignature({
-      actionId: action.id,
-      userId: user.id,
-      toolSlug: action.tool_slug,
-      payload: action.request_payload as Record<string, unknown>,
-      signature: action.signature_hash || "",
-    });
+    // 3. Cryptographic Signature Verification or Authorized Customization
+    let payloadToPersist = (action.request_payload as Record<string, unknown>) || {};
 
-    if (!isSignatureValid) {
-      console.warn(`[Action Approval] Tampering detected on action ${actionId}`);
-      return NextResponse.json(
-        { error: "tampered_payload", detail: "Proposal parameters failed integrity verification" },
-        { status: 403 }
-      );
+    if (updatedPayload && typeof updatedPayload === "object" && Object.keys(updatedPayload).length > 0) {
+      // User customized parameters (e.g. edited recipient or subject) before approving
+      const existingRaw = (payloadToPersist._raw_payload as Record<string, unknown>) || {};
+      const mergedRaw = { ...existingRaw, ...updatedPayload };
+      payloadToPersist = {
+        ...payloadToPersist,
+        ...updatedPayload,
+        _raw_payload: mergedRaw,
+      };
+
+      const newSignature = generateActionSignature({
+        actionId: action.id,
+        userId: user.id,
+        toolSlug: action.tool_slug,
+        payload: payloadToPersist,
+      });
+
+      await adminSupabase
+        .from("agent_audit_logs")
+        .update({
+          request_payload: payloadToPersist,
+          signature_hash: newSignature,
+        })
+        .eq("id", actionId);
+    } else {
+      const isSignatureValid = verifyActionSignature({
+        actionId: action.id,
+        userId: user.id,
+        toolSlug: action.tool_slug,
+        payload: action.request_payload as Record<string, unknown>,
+        signature: action.signature_hash || "",
+      });
+
+      if (!isSignatureValid) {
+        console.warn(`[Action Approval] Tampering detected on action ${actionId}`);
+        return NextResponse.json(
+          { error: "tampered_payload", detail: "Proposal parameters failed integrity verification" },
+          { status: 403 }
+        );
+      }
     }
 
     // 4. Atomic PostgreSQL Conditional Lock (double-click prevention)
@@ -128,7 +157,7 @@ export async function POST(request: Request) {
       if (!session || typeof session.execute !== "function") {
         throw new Error("Tool execution session is unavailable for this account");
       }
-      const reqPayload = (action.request_payload as Record<string, unknown>) || {};
+      const reqPayload = payloadToPersist;
       const toolToExecute = (reqPayload._raw_tool_slug as string) || action.tool_slug;
       const payloadToExecute = (reqPayload._raw_payload as Record<string, unknown>) || reqPayload;
 

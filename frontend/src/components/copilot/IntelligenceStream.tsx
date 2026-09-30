@@ -4,7 +4,6 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  SpinnerGap,
   ArrowDown,
   Copy,
   Check,
@@ -30,32 +29,17 @@ interface IntelligenceStreamProps {
   connectedToolsCount?: number;
   totalToolsCount?: number;
   onOpenConnectHub?: () => void;
-  onApproveAction: (actionId: string) => Promise<{ success: boolean; error?: string; result?: unknown } | void>;
+  onApproveAction: (actionId: string, updatedPayload?: Record<string, unknown>) => Promise<{ success: boolean; error?: string; result?: unknown } | void>;
   onRejectAction: (actionId: string, reason?: string) => Promise<{ success: boolean; error?: string } | void>;
   onQuickPrompt?: (prompt: string) => void;
 }
 
-const getToolMeta = (toolName: string) => {
-  const t = toolName.toLowerCase();
-  if (t.includes("outlook") || t.includes("mail")) {
-    return { name: "Outlook", icon: EnvelopeSimple, badge: "bg-sky-50 text-sky-700 border-sky-200" };
-  }
-  if (t.includes("team")) {
-    return { name: "Teams", icon: ChatsCircle, badge: "bg-indigo-50 text-indigo-700 border-indigo-200" };
-  }
-  if (t.includes("linear")) {
-    return { name: "Linear", icon: Kanban, badge: "bg-violet-50 text-violet-700 border-violet-200" };
-  }
-  if (t.includes("zoho") || t.includes("crm")) {
-    return { name: "Zoho CRM", icon: Briefcase, badge: "bg-amber-50 text-amber-700 border-amber-200" };
-  }
-  return { name: toolName.replace(/_/g, " "), icon: PlugsConnected, badge: "bg-stone-50 text-stone-700 border-stone-200" };
-};
+// Tool meta mapping removed — agent now shows a single "Thinking…" pill
+// instead of per-tool badges, keeping backend internals invisible to users.
 
 export default function IntelligenceStream({
   messages,
   isLoading,
-  toolSteps = [],
   connectedToolsCount = 0,
   totalToolsCount = TOTAL_COCKPIT_TOOLS,
   onOpenConnectHub,
@@ -219,36 +203,8 @@ export default function IntelligenceStream({
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
                             </span>
-                            <span className="font-medium">
-                              {toolSteps.length > 0 && toolSteps.some((s) => s.status === "executing")
-                                ? `Working with ${getToolMeta(toolSteps.find((s) => s.status === "executing")!.tool).name}…`
-                                : "Analyzing request and synthesizing response…"}
-                            </span>
+                            <span className="font-medium">Thinking…</span>
                           </div>
-
-                          {/* Active tool execution pills */}
-                          {toolSteps.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                              {toolSteps.map((step, idx) => {
-                                const meta = getToolMeta(step.tool);
-                                const Icon = meta.icon;
-                                const isExecuting = step.status === "executing";
-                                const isComplete = step.status === "complete";
-
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all ${meta.badge}`}
-                                  >
-                                    <Icon size={12} weight="bold" />
-                                    <span>{meta.name}</span>
-                                    {isExecuting && <SpinnerGap size={11} className="animate-spin text-stone-600" />}
-                                    {isComplete && <Check size={11} weight="bold" className="text-emerald-600" />}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
 
                           {/* Soft Shimmer Skeleton placeholder */}
                           <div className="space-y-2 pt-1 max-w-md">

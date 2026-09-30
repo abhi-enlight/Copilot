@@ -18,6 +18,7 @@ import {
   GithubLogo,
   CalendarCheck,
   Notebook,
+  PencilSimple,
 } from "@phosphor-icons/react";
 import type { ActionProposal } from "@/types/database";
 import { humanizeError } from "@/lib/errors/humanize";
@@ -73,7 +74,7 @@ function formatCardOutcome(result: unknown): string {
 
 interface ActionCardProps {
   proposal: ActionProposal;
-  onApprove: (actionId: string) => Promise<{ success: boolean; error?: string; result?: unknown } | void>;
+  onApprove: (actionId: string, updatedPayload?: Record<string, unknown>) => Promise<{ success: boolean; error?: string; result?: unknown } | void>;
   onReject: (actionId: string, reason?: string) => Promise<{ success: boolean; error?: string } | void>;
 }
 
@@ -83,6 +84,18 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
   const [rejectionReason, setRejectionReason] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const payload = proposal.payload || {};
+  const recipient = formatField(payload.to || payload.recipient || payload.email || "");
+  const subject = formatField(payload.subject || payload.title || "");
+  const content = formatField(payload.content || payload.body || payload.message || payload.description || "");
+  const amount = (payload.amount || payload.deal_amount || payload.value || "") as string | number;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedRecipient, setEditedRecipient] = useState(recipient);
+  const [editedSubject, setEditedSubject] = useState(subject);
+  const [editedContent, setEditedContent] = useState(content);
+  const [editedAmount, setEditedAmount] = useState(String(amount || ""));
+
   // Check 24-hour expiration
   const [isExpired] = useState(() => {
     return proposal.created_at
@@ -90,12 +103,34 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
       : false;
   });
 
-  const handleApprove = async () => {
+  const handleApprove = async (withEdits = false) => {
     if (isExecuting || proposal.status !== "pending" || isExpired) return;
     setIsExecuting(true);
     setErrorMessage(null);
     try {
-      const res = await onApprove(proposal.id);
+      let updatedPayload: Record<string, unknown> | undefined;
+      if (withEdits) {
+        updatedPayload = {};
+        if (editedRecipient !== recipient) {
+          updatedPayload.to = editedRecipient;
+          updatedPayload.recipient = editedRecipient;
+        }
+        if (editedSubject !== subject) {
+          updatedPayload.subject = editedSubject;
+          updatedPayload.title = editedSubject;
+        }
+        if (editedContent !== content) {
+          updatedPayload.content = editedContent;
+          updatedPayload.body = editedContent;
+          updatedPayload.message = editedContent;
+        }
+        if (editedAmount !== String(amount || "")) {
+          const num = parseFloat(editedAmount);
+          updatedPayload.amount = isNaN(num) ? editedAmount : num;
+          updatedPayload.deal_amount = isNaN(num) ? editedAmount : num;
+        }
+      }
+      const res = await onApprove(proposal.id, updatedPayload);
       if (res && !res.success) {
         const humanized = humanizeError(res.error || "Approval failed", "action");
         setErrorMessage(humanized.description);
@@ -199,12 +234,6 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
   const toolMeta = getToolBadge(proposal.tool_slug);
   const ToolIcon = toolMeta.icon;
 
-  const payload = proposal.payload || {};
-  const recipient = formatField(payload.to || payload.recipient || payload.email || "");
-  const subject = formatField(payload.subject || payload.title || "");
-  const content = formatField(payload.content || payload.body || payload.message || payload.description || "");
-  const amount = (payload.amount || payload.deal_amount || payload.value || "") as string | number;
-
   return (
     <div
       className={`w-full my-4 rounded-2xl bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.03)] transition-all duration-300 ${
@@ -259,42 +288,95 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
         )}
       </div>
 
-      {/* Preview Pane — only shown if payload fields exist */}
-      {(recipient || subject || content || amount) && (
+      {/* Preview Pane — editable in edit mode or read-only */}
+      {(recipient || subject || content || amount || isEditing) && (
         <div className="px-5 pt-3">
-          <div className="rounded-xl bg-stone-50 border border-black/[0.06] p-4 space-y-2 text-xs">
-            {recipient && (
-              <div className="flex items-start gap-2">
-                <span className="text-stone-400 font-medium w-20 flex-shrink-0">To</span>
-                <span className="font-medium text-stone-800 font-mono">{recipient}</span>
-              </div>
-            )}
-            {subject && (
-              <div className="flex items-start gap-2">
-                <span className="text-stone-400 font-medium w-20 flex-shrink-0">Subject</span>
-                <span className="font-semibold text-stone-900">{subject}</span>
-              </div>
-            )}
-            {amount && (
-              <div className="flex items-start gap-2">
-                <span className="text-stone-400 font-medium w-20 flex-shrink-0">Amount</span>
-                <span className="font-semibold text-emerald-700 font-mono">
-                  {typeof amount === "number" ? `$${amount.toLocaleString()}` : amount}
-                </span>
-              </div>
-            )}
-            {content && (
-              <div className="pt-2 border-t border-stone-100">
-                <div
-                  className="text-stone-700 leading-relaxed max-h-24 overflow-hidden"
-                  style={{
-                    maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                    WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                  }}
-                >
-                  {content}
+          <div className="rounded-xl bg-stone-50 border border-black/[0.06] p-4 space-y-2.5 text-xs">
+            {isEditing ? (
+              <div className="space-y-3">
+                {(recipient || proposal.tool_slug.includes("mail") || proposal.tool_slug.includes("slack") || proposal.tool_slug.includes("teams")) && (
+                  <div>
+                    <label className="block text-stone-500 font-medium mb-1 text-[11px]">To / Recipient</label>
+                    <input
+                      type="text"
+                      value={editedRecipient}
+                      onChange={(e) => setEditedRecipient(e.target.value)}
+                      placeholder="e.g. name@company.com or #channel"
+                      className="w-full text-xs px-3 py-1.5 rounded-lg bg-white border border-stone-200 text-stone-900 focus:outline-none focus:border-stone-400"
+                    />
+                  </div>
+                )}
+                {(subject || proposal.tool_slug.includes("mail") || proposal.tool_slug.includes("linear")) && (
+                  <div>
+                    <label className="block text-stone-500 font-medium mb-1 text-[11px]">Subject / Title</label>
+                    <input
+                      type="text"
+                      value={editedSubject}
+                      onChange={(e) => setEditedSubject(e.target.value)}
+                      placeholder="Subject line..."
+                      className="w-full text-xs px-3 py-1.5 rounded-lg bg-white border border-stone-200 text-stone-900 focus:outline-none focus:border-stone-400"
+                    />
+                  </div>
+                )}
+                {amount && (
+                  <div>
+                    <label className="block text-stone-500 font-medium mb-1 text-[11px]">Amount</label>
+                    <input
+                      type="text"
+                      value={editedAmount}
+                      onChange={(e) => setEditedAmount(e.target.value)}
+                      placeholder="e.g. 50000"
+                      className="w-full text-xs px-3 py-1.5 rounded-lg bg-white border border-stone-200 text-stone-900 focus:outline-none focus:border-stone-400 font-mono"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-stone-500 font-medium mb-1 text-[11px]">Message / Content</label>
+                  <textarea
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    rows={4}
+                    placeholder="Enter message body..."
+                    className="w-full text-xs p-3 rounded-lg bg-white border border-stone-200 text-stone-900 focus:outline-none focus:border-stone-400 leading-relaxed font-sans"
+                  />
                 </div>
               </div>
+            ) : (
+              <>
+                {recipient && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-stone-400 font-medium w-20 flex-shrink-0">To</span>
+                    <span className="font-medium text-stone-800 font-mono">{editedRecipient || recipient}</span>
+                  </div>
+                )}
+                {subject && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-stone-400 font-medium w-20 flex-shrink-0">Subject</span>
+                    <span className="font-semibold text-stone-900">{editedSubject || subject}</span>
+                  </div>
+                )}
+                {amount && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-stone-400 font-medium w-20 flex-shrink-0">Amount</span>
+                    <span className="font-semibold text-emerald-700 font-mono">
+                      {typeof amount === "number" ? `$${amount.toLocaleString()}` : editedAmount || amount}
+                    </span>
+                  </div>
+                )}
+                {content && (
+                  <div className="pt-2 border-t border-stone-100">
+                    <div
+                      className="text-stone-700 leading-relaxed max-h-24 overflow-hidden"
+                      style={{
+                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                      }}
+                    >
+                      {editedContent || content}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -373,34 +455,7 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
       {/* Pending controls */}
       {proposal.status === "pending" && !isExpired && (
         <AnimatePresence mode="wait">
-          {!rejectionMode ? (
-            <motion.div
-              key="approve-mode"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="px-5 pb-5 pt-3 flex items-center gap-2"
-            >
-              <button
-                onClick={() => setRejectionMode(true)}
-                disabled={isExecuting}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-50 hover:bg-stone-100 border border-stone-200 transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                Decline
-              </button>
-              <button
-                onClick={handleApprove}
-                disabled={isExecuting}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.35)] transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
-              >
-                {isExecuting ? (
-                  <><SpinnerGap size={13} className="animate-spin" /><span>Executing…</span></>
-                ) : (
-                  <><span>Approve &amp; Send</span><ArrowRight size={12} weight="bold" /></>
-                )}
-              </button>
-            </motion.div>
-          ) : (
+          {rejectionMode ? (
             <motion.div
               key="rejection-mode"
               initial={{ opacity: 0, height: 0 }}
@@ -430,6 +485,77 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
                   {isExecuting ? "Declining…" : "Confirm Decline"}
                 </button>
               </div>
+            </motion.div>
+          ) : isEditing ? (
+            <motion.div
+              key="edit-mode-controls"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="px-5 pb-5 pt-3 flex items-center justify-end gap-2"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditedRecipient(recipient);
+                  setEditedSubject(subject);
+                  setEditedContent(content);
+                  setEditedAmount(String(amount || ""));
+                }}
+                disabled={isExecuting}
+                className="px-3.5 py-2 rounded-xl text-xs font-medium text-stone-600 hover:bg-stone-100 border border-stone-200 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApprove(true)}
+                disabled={isExecuting}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
+              >
+                {isExecuting ? (
+                  <><SpinnerGap size={13} className="animate-spin" /><span>Executing…</span></>
+                ) : (
+                  <><span>Approve with Edits</span><ArrowRight size={12} weight="bold" /></>
+                )}
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="approve-mode"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="px-5 pb-5 pt-3 flex items-center gap-2"
+            >
+              <button
+                onClick={() => setRejectionMode(true)}
+                disabled={isExecuting}
+                className="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-50 hover:bg-stone-100 border border-stone-200 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                disabled={isExecuting}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-stone-700 hover:text-stone-900 bg-stone-50 hover:bg-stone-100 border border-stone-200 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <PencilSimple size={13} weight="bold" />
+                <span>Edit</span>
+              </button>
+              <button
+                onClick={() => handleApprove(false)}
+                disabled={isExecuting}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.35)] transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
+              >
+                {isExecuting ? (
+                  <><SpinnerGap size={13} className="animate-spin" /><span>Executing…</span></>
+                ) : (
+                  <><span>Approve &amp; Send</span><ArrowRight size={12} weight="bold" /></>
+                )}
+              </button>
             </motion.div>
           )}
         </AnimatePresence>

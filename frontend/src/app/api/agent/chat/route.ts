@@ -7,7 +7,7 @@ import type { AgentSSEEvent } from "@/types";
 import type { ActionProposal } from "@/types/database";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 /**
  * Direct Streaming Agent Runtime for Prism V2.
@@ -95,19 +95,29 @@ export async function POST(request: Request) {
     if (!isNewSession) {
       const { data: history } = await adminSupabase
         .from("chat_messages")
-        .select("role, content")
+        .select("role, content, action_proposals")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (history && history.length > 0) {
         chatHistory = history
           .slice()
           .reverse()
-          .map((m: { role: string; content: string | null }) => ({
-            role: m.role as AgentChatMessage["role"],
-            content: m.content || "",
-          }));
+          .map((m: { role: string; content: string | null; action_proposals?: ActionProposal[] | null }) => {
+            let content = m.content || "";
+            // If this message included staged action proposals, append a concise summary to history
+            if (m.role === "assistant" && Array.isArray(m.action_proposals) && m.action_proposals.length > 0) {
+              const summaryList = m.action_proposals
+                .map((p: ActionProposal) => `[Prior Staged Action: ${p.title || p.action_type || "action"}${p.description ? ` — ${p.description}` : ""}]`)
+                .join("\n");
+              content = content ? `${content}\n\n${summaryList}` : summaryList;
+            }
+            return {
+              role: m.role as AgentChatMessage["role"],
+              content,
+            };
+          });
       }
     }
 

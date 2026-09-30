@@ -80,7 +80,7 @@ export function useCopilotChat() {
       id: "welcome",
       role: "assistant",
       content:
-        "Welcome to Prism Operations. Connect your tools from the Connect Hub, then ask me to review, synthesize, or execute across them.",
+        "Hey, I'm Prism — your work assistant. I can check your inbox, review deals, track issues, and handle tasks across your connected tools. What can I help with?",
       sourceBadges: ["Prism Operations"],
       timestamp: "Just now",
       action_proposals: [],
@@ -261,13 +261,19 @@ export function useCopilotChat() {
   };
 
   // ── Action Proposal Approval ──────────────────────────────────────
-  const approveAction = async (actionId: string) => {
-    // Optimistic status update to "approved"
+  const approveAction = async (actionId: string, updatedPayload?: Record<string, unknown>) => {
+    // Optimistic status update to "approved" (and merge edited payload if provided)
     setMessages((prev) =>
       prev.map((msg) => ({
         ...msg,
         action_proposals: msg.action_proposals?.map((p) =>
-          p.id === actionId ? { ...p, status: "approved" as const } : p
+          p.id === actionId
+            ? {
+                ...p,
+                status: "approved" as const,
+                payload: updatedPayload ? { ...p.payload, ...updatedPayload } : p.payload,
+              }
+            : p
         ),
       }))
     );
@@ -276,7 +282,7 @@ export function useCopilotChat() {
       const res = await fetch("/api/agent/actions/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId }),
+        body: JSON.stringify({ actionId, updatedPayload }),
       });
 
       const data = await res.json();
@@ -297,7 +303,7 @@ export function useCopilotChat() {
         }))
       );
 
-      // Append assistant outcome message so output is always visible to the user!
+      // Append assistant outcome message so output is always visible to the user
       const outcomeText = formatApprovalOutcome(targetTitle, data.result);
       const followUpMsg: Message = {
         id: crypto.randomUUID(),
@@ -308,6 +314,20 @@ export function useCopilotChat() {
       };
 
       setMessages((prev) => [...prev, followUpMsg]);
+
+      // Re-inject execution result to the agent for intelligent follow-up chaining.
+      // This lets the LLM suggest contextual next steps (e.g., "Want to set a follow-up reminder?")
+      // We fire this asynchronously so it doesn't block the approval UI update.
+      const resultSummary = typeof data.result === "string"
+        ? data.result.slice(0, 400)
+        : JSON.stringify(data.result ?? {}).slice(0, 400);
+
+      // Only chain if session is active — send as a background agent turn
+      if (sessionId) {
+        handleSendMessage(
+          `[System context — do not repeat this to the user] The action "${targetTitle}" was just executed successfully. Result summary: ${resultSummary}. If there is a natural, useful follow-up action you can suggest in one short sentence, do so. Otherwise just confirm completion briefly.`
+        ).catch(() => { /* non-critical */ });
+      }
 
       // Persist to session if active
       if (sessionId) {
@@ -379,7 +399,7 @@ export function useCopilotChat() {
         id: "welcome",
         role: "assistant",
         content:
-          "Welcome to Prism Operations. Connect your tools from the Connect Hub, then ask me to review, synthesize, or execute across them.",
+          "Hey, I'm Prism — your work assistant. I can check your inbox, review deals, track issues, and handle tasks across your connected tools. What can I help with?",
         sourceBadges: ["Prism Operations"],
         timestamp: "Just now",
         action_proposals: [],
