@@ -4,4 +4,4 @@
  * dead-stack deletion; only live exports remain.)
  */
 
-export const TOTAL_COCKPIT_TOOLS = 9;
+export const TOTAL_COCKPIT_TOOLS = 12;

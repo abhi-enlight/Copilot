@@ -18,7 +18,7 @@ import { useToolsStatus } from "@/hooks/useToolsStatus";
 interface CockpitHeaderProps {
   connectedToolsCount?: number;
   totalToolsCount?: number;
-  onOpenToolDrawer: () => void;
+  onOpenToolDrawer?: () => void;
   unreadRadarCount?: number;
   onToggleRadar: () => void;
   isRadarOpen?: boolean;
@@ -147,7 +147,13 @@ export default function CockpitHeader({
         {/* Tool Connect Hub Button */}
         <button
           type="button"
-          onClick={onOpenToolDrawer}
+          onClick={() => {
+            if (onOpenToolDrawer) {
+              onOpenToolDrawer();
+            } else {
+              router.push("/integrations");
+            }
+          }}
           aria-label={`Open Connect Hub, ${connectedToolsCount} of ${totalToolsCount} tools active`}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-stone-50 border border-black/[0.07] text-xs font-medium text-stone-700 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors cursor-pointer"
         >

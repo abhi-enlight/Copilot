@@ -296,7 +296,10 @@ export default function IntegrationsPage() {
       <CockpitHeader
         connectedToolsCount={connectedCount}
         totalToolsCount={TOOLS.length}
-        onOpenToolDrawer={() => {}}
+        onOpenToolDrawer={() => {
+          const el = document.getElementById("tools-grid");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        }}
         onToggleRadar={() => {}}
         isRadarOpen={false}
       />
@@ -388,7 +391,7 @@ export default function IntegrationsPage() {
           </div>
 
           {/* Tools Grid */}
-          <div className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full prism-scroll">
+          <div id="tools-grid" className="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full prism-scroll">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {loading && Object.keys(toolsStatus).length === 0 ? (
                 <>
