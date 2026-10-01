@@ -289,7 +289,7 @@ export function useCopilotChat() {
       const res = await fetch("/api/agent/actions/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId, updatedPayload }),
+        body: JSON.stringify({ actionId, updatedPayload, sessionId: sessionId || undefined }),
       });
 
       const data = await res.json();
@@ -378,7 +378,7 @@ export function useCopilotChat() {
       const res = await fetch("/api/agent/actions/reject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId, reason }),
+        body: JSON.stringify({ actionId, reason, sessionId: sessionId || undefined }),
       });
 
       if (!res.ok) {

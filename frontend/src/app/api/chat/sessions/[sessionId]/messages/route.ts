@@ -58,11 +58,107 @@ export async function GET(
     return NextResponse.json({ messages: [], error: error.message }, { status: 500 });
   }
 
-  const sanitizedMessages = (data ?? []).filter(
-    (m) =>
-      !m.content?.trim().startsWith("[System context") &&
-      !m.content?.includes("[System context — do not repeat this to the user]")
-  );
+  // 1. Gather all proposal IDs across this session's messages
+  const proposalIds: string[] = [];
+  for (const m of data ?? []) {
+    if (Array.isArray(m.action_proposals)) {
+      for (const p of m.action_proposals as Array<{ id?: string }>) {
+        if (p?.id && typeof p.id === "string") {
+          proposalIds.push(p.id);
+        }
+      }
+    }
+  }
+
+  // 2. Fetch authoritative state from agent_audit_logs if any proposals exist
+  const auditMap = new Map<
+    string,
+    { status: string; execution_result: unknown; request_payload: unknown; created_at?: string }
+  >();
+
+  if (proposalIds.length > 0) {
+    try {
+      const { data: auditLogs } = await adminSupabase
+        .from("agent_audit_logs")
+        .select("id, status, execution_result, request_payload, created_at")
+        .in("id", proposalIds);
+
+      if (auditLogs) {
+        for (const log of auditLogs) {
+          auditMap.set(log.id, log);
+        }
+      }
+    } catch (auditErr) {
+      console.warn("[messages route] Failed to fetch audit logs for proposals:", auditErr);
+    }
+  }
+
+  // 3. Hydrate proposals with live status and track stale rows for asynchronous backfill
+  const dirtyUpdates: Array<{ id: string; action_proposals: unknown }> = [];
+
+  const sanitizedMessages = (data ?? [])
+    .filter(
+      (m) =>
+        !m.content?.trim().startsWith("[System context") &&
+        !m.content?.includes("[System context — do not repeat this to the user]")
+    )
+    .map((m) => {
+      if (!Array.isArray(m.action_proposals) || m.action_proposals.length === 0) {
+        return m;
+      }
+
+      let hasChanges = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hydratedProposals = m.action_proposals.map((p: any) => {
+        if (!p?.id) return p;
+        const audit = auditMap.get(p.id);
+        if (!audit) return p;
+
+        const liveStatus = audit.status || p.status;
+        const liveResult = audit.execution_result ?? p.execution_result;
+        const livePayload = audit.request_payload ?? p.payload;
+        const liveCreatedAt = audit.created_at ?? p.created_at;
+
+        if (p.status !== liveStatus || p.execution_result !== liveResult) {
+          hasChanges = true;
+        }
+
+        return {
+          ...p,
+          status: liveStatus,
+          execution_result: liveResult,
+          payload: livePayload,
+          created_at: liveCreatedAt,
+        };
+      });
+
+      if (hasChanges) {
+        dirtyUpdates.push({ id: m.id, action_proposals: hydratedProposals });
+      }
+
+      return {
+        ...m,
+        action_proposals: hydratedProposals,
+      };
+    });
+
+  // Asynchronously update stale rows in chat_messages so database snapshots stay permanent
+  if (dirtyUpdates.length > 0) {
+    (async () => {
+      try {
+        await Promise.all(
+          dirtyUpdates.map((update) =>
+            adminSupabase
+              .from("chat_messages")
+              .update({ action_proposals: update.action_proposals })
+              .eq("id", update.id)
+          )
+        );
+      } catch (backfillErr) {
+        console.warn("[messages route] Async backfill warning:", backfillErr);
+      }
+    })();
+  }
 
   return NextResponse.json({ messages: sanitizedMessages });
 }

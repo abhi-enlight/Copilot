@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const actionId = body.actionId as string;
     const updatedPayload = body.updatedPayload as Record<string, unknown> | undefined;
+    const sessionId = body.sessionId as string | undefined;
 
     if (!actionId) {
       return NextResponse.json(
@@ -293,6 +294,40 @@ export async function POST(request: Request) {
         execution_result: executionResult,
       })
       .eq("id", actionId);
+
+    // 7. Synchronize chat_messages row so state is immediately persistent
+    try {
+      let cmQuery = adminSupabase.from("chat_messages").select("id, action_proposals");
+      if (sessionId) {
+        cmQuery = cmQuery.eq("session_id", sessionId);
+      }
+      const { data: candidateMessages } = await cmQuery;
+
+      if (candidateMessages && candidateMessages.length > 0) {
+        for (const msg of candidateMessages) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (Array.isArray(msg.action_proposals) && msg.action_proposals.some((p: any) => p.id === actionId)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updatedProposals = msg.action_proposals.map((p: any) =>
+              p.id === actionId
+                ? {
+                    ...p,
+                    status: "executed",
+                    execution_result: executionResult,
+                    payload: payloadToPersist,
+                  }
+                : p
+            );
+            await adminSupabase
+              .from("chat_messages")
+              .update({ action_proposals: updatedProposals })
+              .eq("id", msg.id);
+          }
+        }
+      }
+    } catch (cmErr) {
+      console.warn("[Action Approval] Failed to sync chat_messages action_proposals:", cmErr);
+    }
 
     return NextResponse.json(
       {

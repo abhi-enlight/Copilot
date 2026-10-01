@@ -93,6 +93,14 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
   const content = formatField(payload.content || payload.body || payload.message || payload.description || "");
   const amount = (payload.amount || payload.deal_amount || payload.value || "") as string | number;
 
+  const isEmail =
+    proposal.tool_slug.toLowerCase().includes("mail") ||
+    proposal.tool_slug.toLowerCase().includes("outlook") ||
+    proposal.tool_slug.toLowerCase().includes("gmail") ||
+    proposal.action_type?.toLowerCase().includes("mail") ||
+    proposal.action_type?.toLowerCase().includes("email") ||
+    Boolean(payload.to || payload.recipient || payload.email);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedRecipient, setEditedRecipient] = useState(recipient);
   const [editedSubject, setEditedSubject] = useState(subject);
@@ -261,35 +269,60 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
   return (
     <div
       className={`w-full my-4 rounded-2xl bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.03)] transition-all duration-300 ${
-        proposal.status !== "pending" ? "opacity-60" : ""
+        proposal.status === "rejected" ? "opacity-60" : ""
       } border-l-[3px] ${
-        proposal.risk_level === "high"
+        proposal.status === "executed"
+          ? "border-l-emerald-500"
+          : proposal.status === "rejected"
+          ? "border-l-stone-300"
+          : proposal.status === "failed"
+          ? "border-l-amber-500"
+          : proposal.risk_level === "high"
           ? "border-l-red-500"
           : proposal.risk_level === "medium"
           ? "border-l-amber-500"
           : "border-l-emerald-500"
       }`}
     >
-      {/* Top Header Row — Risk badge + Tool badge */}
+      {/* Top Header Row — Status / Risk badge + Tool badge */}
       <div className="px-5 pt-5 pb-0 flex items-center justify-between gap-2">
-        {/* Risk badge */}
-        {proposal.risk_level === "high" && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
-            <Warning size={12} weight="fill" />
-            High Risk
-          </span>
-        )}
-        {proposal.risk_level === "medium" && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <Warning size={12} weight="bold" />
-            Medium Risk
-          </span>
-        )}
-        {proposal.risk_level === "low" && (
+        {/* Status / Risk badge */}
+        {proposal.status === "executed" ? (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <ShieldCheck size={12} weight="bold" />
-            Low Risk
+            <Check size={12} weight="bold" />
+            {isEmail ? "Sent" : "Executed"}
           </span>
+        ) : proposal.status === "rejected" ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-600 border border-stone-200">
+            <X size={12} weight="bold" />
+            Declined
+          </span>
+        ) : proposal.status === "failed" ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <Warning size={12} weight="bold" />
+            Failed
+          </span>
+        ) : (
+          <>
+            {proposal.risk_level === "high" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                <Warning size={12} weight="fill" />
+                High Risk
+              </span>
+            )}
+            {proposal.risk_level === "medium" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                <Warning size={12} weight="bold" />
+                Medium Risk
+              </span>
+            )}
+            {proposal.risk_level === "low" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <ShieldCheck size={12} weight="bold" />
+                Low Risk
+              </span>
+            )}
+          </>
         )}
 
         {/* Tool source badge */}
@@ -313,10 +346,10 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
       </div>
 
       {/* Preview Pane — editable in edit mode or read-only */}
-      {(recipient || subject || content || amount || isEditing) && (
+      {(recipient || subject || content || amount || (isEditing && proposal.status === "pending")) && (
         <div className="px-5 pt-3">
           <div className="rounded-xl bg-stone-50 border border-black/[0.06] p-4 space-y-2.5 text-xs">
-            {isEditing ? (
+            {isEditing && proposal.status === "pending" ? (
               <div className="space-y-3">
                 {(recipient || proposal.tool_slug.includes("mail") || proposal.tool_slug.includes("slack") || proposal.tool_slug.includes("teams")) && (
                   <div>
@@ -444,7 +477,9 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
             <div className="space-y-2">
               <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
                 <Check size={13} weight="bold" />
-                Executed &amp; Delivered via Prism
+                {isEmail
+                  ? `Already sent & delivered via ${toolMeta.label}`
+                  : `Executed & delivered via ${toolMeta.label}`}
               </div>
               {proposal.execution_result && (
                 <div className="p-3 rounded-xl bg-stone-50 border border-black/[0.05] text-xs text-stone-700 space-y-1">
