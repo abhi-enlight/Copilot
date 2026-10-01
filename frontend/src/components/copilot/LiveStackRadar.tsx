@@ -111,6 +111,60 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
     return `${Math.floor(diff / 3600)}h ago`;
   };
 
+  const getDisplayTitle = (event: typeof events[number]) => {
+    let title = event.title || "";
+    // If title was generic like "[Outlook] New Message", extract from raw_payload
+    if (!title || title.toLowerCase() === "[outlook] new message" || title.toLowerCase() === "new message") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = event.raw_payload as Record<string, any> | undefined;
+      const msg = raw?.outlook_message || raw?.message || raw?.data || raw;
+      const sender =
+        msg?.from?.emailAddress?.name ||
+        msg?.sender?.email_address?.name ||
+        msg?.sender?.emailAddress?.name ||
+        msg?.from_address?.email_address?.name ||
+        "";
+      const subject = msg?.subject || "";
+      if (sender && subject) title = `${sender}: ${subject}`;
+      else if (subject) title = subject;
+      else if (sender) title = `Message from ${sender}`;
+    }
+
+    // Strip leading redundant tool tag e.g. "[Outlook] " since the badge already shows the tool
+    return title.replace(/^\[(Outlook|Slack|Teams|Linear|Zoho CRM|Zoho Books|GitHub|Gmail|Google Calendar|Notion|Dynamics 365|SharePoint)[^\]]*\]\s*/i, "");
+  };
+
+  const getDisplaySummary = (event: typeof events[number]) => {
+    if (event.summary && event.summary.trim()) {
+      return event.summary
+        .replace(/\r\n/g, "\n")
+        .split(/\n_{5,}|\nFrom:\s*\S+@/i)[0]
+        .trim();
+    }
+
+    // Fallback extract preview from raw_payload if summary was empty
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = event.raw_payload as Record<string, any> | undefined;
+    if (raw) {
+      const msg = raw?.outlook_message || raw?.message || raw?.data || raw;
+      const preview =
+        msg?.bodyPreview ||
+        msg?.body_preview ||
+        msg?.preview ||
+        msg?.snippet ||
+        msg?.text ||
+        msg?.content ||
+        "";
+      if (typeof preview === "string" && preview.trim()) {
+        return preview
+          .replace(/\r\n/g, "\n")
+          .split(/\n_{5,}|\nFrom:\s*\S+@/i)[0]
+          .trim();
+      }
+    }
+    return "";
+  };
+
   return (
     <aside className={`w-full h-full flex flex-col bg-[#FAFAF9] border-l border-black/[0.06] font-[family-name:var(--font-geist-sans)] ${className}`}>
       {/* Header */}
@@ -279,41 +333,57 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                   </div>
 
                   {/* Content */}
-                  <h4 className="text-[12.5px] font-semibold text-stone-900 leading-snug line-clamp-2 tracking-[-0.01em]">{event.title}</h4>
-                  {event.summary && (
-                    <p className="text-[11.5px] text-stone-500 mt-1 line-clamp-2 leading-relaxed">{event.summary}</p>
-                  )}
+                  {(() => {
+                    const displayTitle = getDisplayTitle(event);
+                    const displaySummary = getDisplaySummary(event);
 
-                  {/* Action row */}
-                  <div className="mt-2.5 flex items-center justify-between">
-                    {!event.is_read ? (
-                      <button onClick={() => markAsRead(event.id)} className="text-[10.5px] text-stone-400 hover:text-stone-700 flex items-center gap-1 transition-colors cursor-pointer">
-                        <Check size={11} weight="bold" />
-                        Mark read
-                      </button>
-                    ) : (
-                      <span className="text-[10.5px] text-stone-300 font-mono">Read</span>
-                    )}
+                    return (
+                      <>
+                        <h4 className="text-[12.5px] font-semibold text-stone-900 leading-snug line-clamp-2 tracking-[-0.01em]">
+                          {displayTitle}
+                        </h4>
+                        {displaySummary && (
+                          <p className="text-[11.5px] text-stone-500 mt-1 line-clamp-2 leading-relaxed">
+                            {displaySummary}
+                          </p>
+                        )}
 
-                    {onInvestigate && (
-                      <button
-                        onClick={() => {
-                          markAsRead(event.id);
-                          const promptParts = [
-                            `Investigate telemetry event from ${meta.label}: "${event.title}".`,
-                            event.summary ? `Details: ${event.summary}.` : null,
-                            `Priority: ${event.priority.toUpperCase()}.`,
-                            `Please conduct an executive operational assessment: determine urgency, business impact, potential risk, and provide recommended concrete next steps or draft responses.`
-                          ].filter(Boolean).join(" ");
-                          onInvestigate(promptParts);
-                        }}
-                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
-                      >
-                        Ask Prism
-                        <ArrowRight size={10} weight="bold" />
-                      </button>
-                    )}
-                  </div>
+                        {/* Action row */}
+                        <div className="mt-2.5 flex items-center justify-between">
+                          {!event.is_read ? (
+                            <button
+                              onClick={() => markAsRead(event.id)}
+                              className="text-[10.5px] text-stone-400 hover:text-stone-700 flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <Check size={11} weight="bold" />
+                              Mark read
+                            </button>
+                          ) : (
+                            <span className="text-[10.5px] text-stone-300 font-mono">Read</span>
+                          )}
+
+                          {onInvestigate && (
+                            <button
+                              onClick={() => {
+                                markAsRead(event.id);
+                                const promptParts = [
+                                  `Investigate telemetry event from ${meta.label}: "${displayTitle}".`,
+                                  displaySummary ? `Details: ${displaySummary}.` : null,
+                                  `Priority: ${event.priority.toUpperCase()}.`,
+                                  `Please conduct an executive operational assessment: determine urgency, business impact, potential risk, and provide recommended concrete next steps or draft responses.`
+                                ].filter(Boolean).join(" ");
+                                onInvestigate(promptParts);
+                              }}
+                              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                            >
+                              Ask Prism
+                              <ArrowRight size={10} weight="bold" />
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </motion.div>
               );
             })}

@@ -229,33 +229,104 @@ export function normalizeTelemetryEvent(
 
   switch (source) {
     case "outlook": {
-      const subject = (eventData.subject as string) || (eventData.title as string) || "";
-      const fromObj = eventData.from as Record<string, unknown> | undefined;
-      const emailAddr = (fromObj?.emailAddress as Record<string, unknown>) || {};
-      const sender = (emailAddr.name as string) || (emailAddr.address as string) || (eventData.sender as string) || "";
-      const bodyPreview = (eventData.bodyPreview as string) || (eventData.body as string) || (eventData.preview as string) || "";
+      const msg =
+        (eventData.outlook_message as Record<string, unknown>) ||
+        (eventData.message as Record<string, unknown>) ||
+        (eventData.data as Record<string, unknown>) ||
+        eventData;
 
-      title = `[Outlook] ${sender ? sender + ": " : ""}${subject || "New Message"}`;
-      summary = (bodyPreview || subject).slice(0, MAX_SUMMARY_CHARS);
-      externalId = (eventData.id as string) || (eventData.internetMessageId as string) || "";
+      const subject =
+        (msg.subject as string) ||
+        (eventData.subject as string) ||
+        (msg.title as string) ||
+        (eventData.title as string) ||
+        "";
 
-      const fullText = `${subject} ${bodyPreview}`;
+      const fromObj =
+        (msg.from as Record<string, unknown>) ||
+        (msg.sender as Record<string, unknown>) ||
+        (msg.from_address as Record<string, unknown>) ||
+        (eventData.from as Record<string, unknown>) ||
+        (eventData.sender as Record<string, unknown>);
+
+      const emailAddr =
+        (fromObj?.emailAddress as Record<string, unknown>) ||
+        (fromObj?.email_address as Record<string, unknown>) ||
+        {};
+
+      const sender =
+        (emailAddr.name as string) ||
+        (emailAddr.address as string) ||
+        (fromObj?.name as string) ||
+        (fromObj?.address as string) ||
+        (typeof msg.sender === "string" ? msg.sender : "") ||
+        (typeof eventData.sender === "string" ? eventData.sender : "") ||
+        "";
+
+      const rawPreview =
+        (msg.bodyPreview as string) ||
+        (msg.body_preview as string) ||
+        (msg.preview as string) ||
+        (msg.body as string) ||
+        (eventData.bodyPreview as string) ||
+        (eventData.body_preview as string) ||
+        (eventData.preview as string) ||
+        (eventData.body as string) ||
+        "";
+
+      // Clean up body preview to omit quoted reply headers / signatures
+      const cleanPreview = rawPreview
+        .replace(/\r\n/g, "\n")
+        .split(/\n_{5,}|\nFrom:\s*\S+@/i)[0]
+        .trim();
+
+      const displaySubject = subject || (cleanPreview ? cleanPreview.slice(0, 50) : "New Message");
+      title = `[Outlook] ${sender ? sender + ": " : ""}${displaySubject}`;
+      summary = (cleanPreview || rawPreview || subject).slice(0, MAX_SUMMARY_CHARS);
+      externalId =
+        (msg.id as string) ||
+        (msg.internetMessageId as string) ||
+        (eventData.id as string) ||
+        (eventData.internetMessageId as string) ||
+        "";
+
+      const fullText = `${subject} ${cleanPreview}`;
       priority = classifyPriority(fullText, source);
       actionable = priority === "critical" || priority === "urgent" || fullText.includes("?");
       break;
     }
 
     case "microsoft_teams": {
-      const fromObj = eventData.from as Record<string, unknown> | undefined;
+      const msg =
+        (eventData.message as Record<string, unknown>) ||
+        (eventData.data as Record<string, unknown>) ||
+        eventData;
+
+      const fromObj =
+        (msg.from as Record<string, unknown>) ||
+        (eventData.from as Record<string, unknown>);
       const userObj = fromObj?.user as Record<string, unknown> | undefined;
-      const sender = (userObj?.displayName as string) || (eventData.sender as string) || "";
-      const bodyObj = eventData.body as Record<string, unknown> | undefined;
-      const content = (bodyObj?.content as string) || (eventData.message as string) || (eventData.text as string) || "";
+      const sender =
+        (userObj?.displayName as string) ||
+        (fromObj?.name as string) ||
+        (eventData.sender as string) ||
+        "";
+
+      const bodyObj =
+        (msg.body as Record<string, unknown>) ||
+        (eventData.body as Record<string, unknown>);
+      const content =
+        (bodyObj?.content as string) ||
+        (msg.text as string) ||
+        (msg.content as string) ||
+        (eventData.message as string) ||
+        (eventData.text as string) ||
+        "";
       const channel = (eventData.channelIdentity as Record<string, unknown>)?.channelId as string | undefined;
 
       title = `[Teams${channel ? " #" + channel.slice(0, 10) : ""}] ${sender ? sender + ": " : ""}${content.slice(0, 60) || "New Message"}`;
       summary = content.slice(0, MAX_SUMMARY_CHARS);
-      externalId = (eventData.id as string) || (eventData.messageId as string) || "";
+      externalId = (msg.id as string) || (eventData.id as string) || (eventData.messageId as string) || "";
 
       priority = classifyPriority(content, source);
       actionable = priority === "critical" || priority === "urgent" || content.includes("@") || content.includes("?");
@@ -263,14 +334,43 @@ export function normalizeTelemetryEvent(
     }
 
     case "slack": {
-      const channel = (eventData.channel_name as string) || (eventData.channel as string) || "";
-      const user = (eventData.user_name as string) || (eventData.user as string) || "";
-      const text = (eventData.text as string) || ((eventData.message as Record<string, unknown>)?.text as string) || "";
-      const isDirectMessage = Boolean(eventData.is_im || channel.startsWith("D"));
+      const msg =
+        (eventData.message as Record<string, unknown>) ||
+        (eventData.data as Record<string, unknown>) ||
+        eventData;
+
+      const channel =
+        (eventData.channel_name as string) ||
+        (msg.channel_name as string) ||
+        (eventData.channel as string) ||
+        (msg.channel as string) ||
+        "";
+
+      const user =
+        (eventData.user_name as string) ||
+        (msg.user_name as string) ||
+        (eventData.user as string) ||
+        (msg.user as string) ||
+        "";
+
+      const text =
+        (eventData.text as string) ||
+        (msg.text as string) ||
+        (msg.content as string) ||
+        (eventData.message as string) ||
+        "";
+
+      const isDirectMessage = Boolean(eventData.is_im || msg.is_im || channel.startsWith("D"));
 
       title = `[Slack${channel ? " #" + channel : ""}] ${user ? user + ": " : ""}${text.slice(0, 60) || "New Message"}`;
       summary = text.slice(0, MAX_SUMMARY_CHARS);
-      externalId = (eventData.client_msg_id as string) || (eventData.ts as string) || (eventData.event_id as string) || "";
+      externalId =
+        (eventData.client_msg_id as string) ||
+        (msg.client_msg_id as string) ||
+        (eventData.ts as string) ||
+        (msg.ts as string) ||
+        (eventData.event_id as string) ||
+        "";
 
       priority = classifyPriority(text, source, { isDirectMessage });
       actionable = isDirectMessage || priority === "critical" || priority === "urgent" || text.includes("<@") || text.includes("?");
