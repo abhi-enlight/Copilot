@@ -109,6 +109,30 @@ export const PRISM_TOOL_REGISTRY: Record<string, PrismToolMetadata> = {
     category: "Knowledge & Docs",
     description: "Search workspace pages, read team documentation, and draft notes.",
   },
+  dynamics365: {
+    slug: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    category: "CRM & Pipeline",
+    description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
+  },
+  dynamics: {
+    slug: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    category: "CRM & Pipeline",
+    description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
+  },
+  "dynamics-365": {
+    slug: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    category: "CRM & Pipeline",
+    description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
+  },
+  "dynamics_365": {
+    slug: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    category: "CRM & Pipeline",
+    description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
+  },
 };
 
 export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
@@ -121,6 +145,7 @@ export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
   "gmail",
   "googlecalendar",
   "notion",
+  "dynamics365",
 ];
 
 export function normalizeToolSlug(app: string): SupportedToolSlug {

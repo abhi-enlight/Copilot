@@ -78,6 +78,9 @@ export const CURATED_TOOLKIT_ACTIONS: Record<string, string[]> = {
     "NOTION_GET_DATABASE",
     "NOTION_QUERY_DATABASE",
   ],
+  dynamics365: [
+    "DYNAMICS365_DYNAMICSCRM_CREATE_ACCOUNT",
+  ],
 };
 
 /**
@@ -209,6 +212,19 @@ export const TOOLKIT_INTENT_KEYWORDS: Record<string, string[]> = {
     "customer",
     "prospect",
   ],
+  dynamics365: [
+    "dynamics",
+    "dynamics365",
+    "dynamics 365",
+    "dynamics crm",
+    "ms dynamics",
+    "crm account",
+    "crm accounts",
+    "crm lead",
+    "crm leads",
+    "create account",
+    "business account",
+  ],
 };
 
 /**
@@ -247,6 +263,7 @@ export function detectToolkitForTool(toolName: string): string | null {
     return "googlecalendar";
   if (upper.startsWith("NOTION_") || upper.includes("NOTION")) return "notion";
   if (upper.startsWith("ZOHO_") || upper.includes("ZOHO")) return "zoho";
+  if (upper.startsWith("DYNAMICS365_") || upper.includes("DYNAMICS")) return "dynamics365";
   return null;
 }
 

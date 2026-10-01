@@ -12,7 +12,8 @@ export type SupportedToolSlug =
   | 'github'
   | 'gmail'
   | 'googlecalendar'
-  | 'notion';
+  | 'notion'
+  | 'dynamics365';
 
 export type ToolConnectionState = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'ERROR';
 

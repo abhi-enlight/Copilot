@@ -19,6 +19,7 @@ import {
   CalendarCheck,
   Notebook,
   PencilSimple,
+  Buildings,
 } from "@phosphor-icons/react";
 import type { ActionProposal } from "@/types/database";
 import { humanizeError } from "@/lib/errors/humanize";
@@ -222,6 +223,13 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
         label: "Notion",
         icon: Notebook,
         badgeClass: "bg-stone-50 text-stone-900 border-stone-200",
+      };
+    }
+    if (s.includes("dynamics")) {
+      return {
+        label: "Microsoft Dynamics 365",
+        icon: Buildings,
+        badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
       };
     }
     return {

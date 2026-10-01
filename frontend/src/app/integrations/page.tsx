@@ -20,6 +20,7 @@ import {
   GithubLogo,
   CalendarCheck,
   Notebook,
+  Buildings,
 } from "@phosphor-icons/react";
 import CockpitHeader from "@/components/copilot/CockpitHeader";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
@@ -129,6 +130,16 @@ const TOOLS: ToolDefinition[] = [
     badgeClass: "bg-stone-50 text-stone-900 border-stone-200",
     color: "#000000",
     scopes: ["pages:read", "pages:write", "blocks:read"],
+  },
+  {
+    slug: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    category: "CRM & Pipeline",
+    description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
+    icon: Buildings,
+    badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
+    color: "#002050",
+    scopes: ["user_impersonation", "offline_access"],
   },
 ];
 

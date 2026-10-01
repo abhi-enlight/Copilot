@@ -42,9 +42,38 @@ export async function POST(request: Request) {
       "http://localhost:3000";
     const callbackUrl = `${origin}/integrations/callback?app=${encodeURIComponent(toolkitSlug)}`;
 
-    const connectionRequest = await session.authorize(toolkitSlug, {
+    const authorizeOptions: Record<string, unknown> = {
       callbackUrl,
-    });
+    };
+
+    if (toolkitSlug === "dynamics365") {
+      let subdomain = body.subdomain || body.data?.subdomain;
+      let region = body.region || body.data?.region || "crm8.dynamics.com";
+      const issuer = body.issuer || body.data?.issuer || process.env.AZURE_TENANT_ID || "common";
+
+      if (!subdomain && process.env.DYNAMICS_CRM_ORG_URL) {
+        try {
+          const parsedUrl = new URL(process.env.DYNAMICS_CRM_ORG_URL.trim());
+          const parts = parsedUrl.hostname.split(".");
+          subdomain = parts[0];
+          if (parts.length > 1) {
+            region = parts.slice(1).join(".");
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (subdomain) {
+        authorizeOptions.data = {
+          subdomain,
+          region,
+          issuer,
+        };
+      }
+    }
+
+    const connectionRequest = await session.authorize(toolkitSlug, authorizeOptions);
 
     if (!connectionRequest || !connectionRequest.redirectUrl) {
       return NextResponse.json(

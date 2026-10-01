@@ -16,6 +16,7 @@ import {
   GithubLogo,
   CalendarCheck,
   Notebook,
+  Buildings,
 } from "@phosphor-icons/react";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
 import { notifyToolsUpdated } from "@/hooks/useToolsStatus";
@@ -120,6 +121,15 @@ const TOOLS: ToolDefinition[] = [
     icon: Notebook,
     badgeClass: "bg-stone-50 text-stone-900 border-stone-200",
     color: "#000000",
+  },
+  {
+    slug: "dynamics365",
+    name: "Microsoft Dynamics 365",
+    category: "CRM & Pipeline",
+    description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
+    icon: Buildings,
+    badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
+    color: "#002050",
   },
 ];
 

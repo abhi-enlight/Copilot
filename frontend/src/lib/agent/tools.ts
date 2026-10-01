@@ -431,6 +431,35 @@ export function generateProposalSummary(
     };
   }
 
+  // Microsoft Dynamics 365 CRM
+  if (slug.includes("dynamics") || slug.includes("dynamics365")) {
+    const accountName =
+      (payload.name as string) ||
+      (payload.account_name as string) ||
+      (payload.company as string) ||
+      "Dynamics Account";
+
+    if (slug.includes("delete")) {
+      return {
+        title: "Delete Dynamics CRM Account",
+        description: `Account: "${accountName}"`,
+        actionType: "DYNAMICS_DELETE_ACCOUNT",
+      };
+    }
+    if (slug.includes("update")) {
+      return {
+        title: "Update Dynamics CRM Account",
+        description: `Account: "${accountName}"`,
+        actionType: "DYNAMICS_UPDATE_ACCOUNT",
+      };
+    }
+    return {
+      title: "Create Dynamics CRM Account",
+      description: `Account: "${accountName}"`,
+      actionType: "DYNAMICS_CREATE_ACCOUNT",
+    };
+  }
+
   // GitHub
   if (slug.includes("github")) {
     const repo =
