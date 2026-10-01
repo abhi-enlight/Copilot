@@ -58,7 +58,13 @@ export async function GET(
     return NextResponse.json({ messages: [], error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ messages: data ?? [] });
+  const sanitizedMessages = (data ?? []).filter(
+    (m) =>
+      !m.content?.trim().startsWith("[System context") &&
+      !m.content?.includes("[System context — do not repeat this to the user]")
+  );
+
+  return NextResponse.json({ messages: sanitizedMessages });
 }
 
 export async function POST(

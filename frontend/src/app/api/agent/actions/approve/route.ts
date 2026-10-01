@@ -32,10 +32,9 @@ function validateActionSafety(
     slug.includes("multi_execute");
 
   let recipientCount = 0;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const args =
-    (Array.isArray(payload.tools) && (payload.tools[0] as any)?.arguments) ||
-    payload;
+  const toolsList = Array.isArray(payload.tools) ? (payload.tools as Array<{ arguments?: Record<string, unknown> }>) : [];
+  const firstTool = toolsList[0];
+  const args = (firstTool?.arguments || payload) as Record<string, unknown>;
   const to = args.to || args.recipients || args.recipient;
 
   if (Array.isArray(to)) {

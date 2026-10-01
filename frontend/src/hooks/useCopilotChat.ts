@@ -434,7 +434,10 @@ export function useCopilotChat() {
         action_proposals?: ActionProposal[];
       }
       const loadedMessages: Message[] = (data.messages || [])
-        .filter((m: DbMessage) => !m.content?.startsWith("[System context"))
+        .filter((m: DbMessage) => {
+          const text = m.content?.trim() || "";
+          return !text.startsWith("[System context") && !text.includes("[System context — do not repeat this to the user]");
+        })
         .map((m: DbMessage) => ({
         id: m.id,
         role: m.role,
@@ -480,7 +483,10 @@ export function useCopilotChat() {
     const targetSessionId = urlSessionId || storedSessionId;
 
     if (targetSessionId) {
-      loadSession(targetSessionId).then((res) => {
+      let isMounted = true;
+      queueMicrotask(async () => {
+        const res = await loadSession(targetSessionId);
+        if (!isMounted) return;
         if (!res.success) {
           localStorage.removeItem("prism_active_session_id");
           const url = new URL(window.location.href);
@@ -488,17 +494,28 @@ export function useCopilotChat() {
           window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
         }
       });
+      return () => {
+        isMounted = false;
+      };
     } else if (!isExplicitNew) {
       // Fallback: If page was refreshed without explicit new session, restore most recent session
-      fetch("/api/chat/sessions")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
+      let isMounted = true;
+      queueMicrotask(async () => {
+        try {
+          const res = await fetch("/api/chat/sessions");
+          if (!res.ok) return;
+          const data = await res.json();
           const latest = data?.sessions?.[0];
-          if (latest?.id) {
-            loadSession(latest.id);
+          if (latest?.id && isMounted) {
+            await loadSession(latest.id);
           }
-        })
-        .catch(() => {});
+        } catch {
+          // ignore
+        }
+      });
+      return () => {
+        isMounted = false;
+      };
     }
   }, [loadSession]);
 

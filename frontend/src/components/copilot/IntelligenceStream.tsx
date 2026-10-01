@@ -322,7 +322,10 @@ export default function IntelligenceStream({
           </div>
         ) : (
           messages
-            .filter((m) => !m.content?.startsWith("[System context"))
+            .filter((m) => {
+              const text = m.content?.trim() || "";
+              return !text.startsWith("[System context") && !text.includes("[System context — do not repeat this to the user]");
+            })
             .map((message, index) => {
             const isUser = message.role === "user";
 

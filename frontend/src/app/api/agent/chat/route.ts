@@ -139,15 +139,21 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Persist User Message
-    await adminSupabase.from("chat_messages").insert({
-      session_id: sessionId,
-      role: "user",
-      content: message,
-      source_badges: [],
-      tool_calls: null,
-      action_proposals: [],
-    });
+    // 4. Persist User Message (only genuine user messages, never internal system context injections)
+    const isInternalSystemMessage =
+      message.trim().startsWith("[System context") ||
+      message.includes("[System context — do not repeat this to the user]");
+
+    if (!isInternalSystemMessage) {
+      await adminSupabase.from("chat_messages").insert({
+        session_id: sessionId,
+        role: "user",
+        content: message,
+        source_badges: [],
+        tool_calls: null,
+        action_proposals: [],
+      });
+    }
 
     // 5. Pre-flight Scope Boundary Gate
     const scopeCheck = evaluateScope(message);
