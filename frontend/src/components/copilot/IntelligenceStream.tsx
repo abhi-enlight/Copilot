@@ -704,10 +704,18 @@ export default function IntelligenceStream({
       {showScrollPill && (
         <button
           onClick={() => scrollToBottom(true)}
-          className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-stone-900 text-white text-xs font-semibold shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:bg-stone-800 transition-all cursor-pointer"
+          className="absolute bottom-5 right-6 z-20 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-stone-900/90 hover:bg-stone-900 text-white text-xs font-medium shadow-md border border-white/10 backdrop-blur-md transition-all duration-150 cursor-pointer active:scale-95"
+          title="Scroll to latest message"
         >
-          <ArrowDown size={12} weight="bold" />
-          New response below
+          {isLoading ? (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Generating…</span>
+            </>
+          ) : (
+            <span>Latest message</span>
+          )}
+          <ArrowDown size={11} weight="bold" />
         </button>
       )}
     </div>

@@ -297,11 +297,29 @@ export async function POST(request: Request) {
 
     // 7. Synchronize chat_messages row so state is immediately persistent
     try {
-      let cmQuery = adminSupabase.from("chat_messages").select("id, action_proposals");
+      // 1. Direct targeted JSONB containment query
+      let directQuery = adminSupabase
+        .from("chat_messages")
+        .select("id, action_proposals")
+        .contains("action_proposals", JSON.stringify([{ id: actionId }]));
+
       if (sessionId) {
-        cmQuery = cmQuery.eq("session_id", sessionId);
+        directQuery = directQuery.eq("session_id", sessionId);
       }
-      const { data: candidateMessages } = await cmQuery;
+
+      let { data: candidateMessages } = await directQuery;
+
+      // 2. Fallback if containment check yielded nothing due to JSON formatting nuances
+      if (!candidateMessages || candidateMessages.length === 0) {
+        let fallbackQuery = adminSupabase.from("chat_messages").select("id, action_proposals");
+        if (sessionId) {
+          fallbackQuery = fallbackQuery.eq("session_id", sessionId);
+        } else {
+          fallbackQuery = fallbackQuery.order("created_at", { ascending: false }).limit(25);
+        }
+        const { data: fallbackList } = await fallbackQuery;
+        candidateMessages = fallbackList;
+      }
 
       if (candidateMessages && candidateMessages.length > 0) {
         for (const msg of candidateMessages) {

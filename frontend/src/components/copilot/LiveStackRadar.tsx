@@ -299,7 +299,13 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                       <button
                         onClick={() => {
                           markAsRead(event.id);
-                          onInvestigate(`Investigate this event: ${event.title}${event.summary ? ". " + event.summary : ""}`);
+                          const promptParts = [
+                            `Investigate telemetry event from ${meta.label}: "${event.title}".`,
+                            event.summary ? `Details: ${event.summary}.` : null,
+                            `Priority: ${event.priority.toUpperCase()}.`,
+                            `Please conduct an executive operational assessment: determine urgency, business impact, potential risk, and provide recommended concrete next steps or draft responses.`
+                          ].filter(Boolean).join(" ");
+                          onInvestigate(promptParts);
                         }}
                         className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                       >
