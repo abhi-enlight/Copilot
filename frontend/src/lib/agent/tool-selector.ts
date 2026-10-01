@@ -81,6 +81,20 @@ export const CURATED_TOOLKIT_ACTIONS: Record<string, string[]> = {
   dynamics365: [
     "DYNAMICS365_DYNAMICSCRM_CREATE_ACCOUNT",
   ],
+  share_point: [
+    "SHARE_POINT_GET_SITE_ROOT",
+    "SHARE_POINT_LIST_SITE_DRIVES",
+    "SHARE_POINT_GET_SITE_PAGE_CONTENT",
+    "SHARE_POINT_GET_SITE_DRIVE_ITEM_BY_PATH",
+    "SHARE_POINT_GET_FILE_BY_SERVER_RELATIVE_URL",
+    "SHARE_POINT_CREATE_LIST_ITEM_BY_ID",
+  ],
+  zoho_books: [
+    "ZOHO_BOOKS_APPLY_CREDITS_TO_INVOICE",
+    "ZOHO_BOOKS_CONVERT_PURCHASE_ORDER_TO_BILL",
+    "ZOHO_BOOKS_CREATE_CONTACT",
+    "ZOHO_BOOKS_CREATE_BANK_TRANSACTION",
+  ],
 };
 
 /**
@@ -225,6 +239,33 @@ export const TOOLKIT_INTENT_KEYWORDS: Record<string, string[]> = {
     "create account",
     "business account",
   ],
+  share_point: [
+    "sharepoint",
+    "share point",
+    "intranet",
+    "document library",
+    "site drives",
+    "company files",
+    "team site",
+    "sharepoint site",
+    "sharepoint doc",
+    "site root",
+  ],
+  zoho_books: [
+    "zoho books",
+    "books",
+    "invoice",
+    "invoices",
+    "bill",
+    "bills",
+    "accounting",
+    "expense",
+    "expenses",
+    "unpaid invoice",
+    "overdue invoice",
+    "credit note",
+    "purchase order",
+  ],
 };
 
 /**
@@ -262,8 +303,10 @@ export function detectToolkitForTool(toolName: string): string | null {
   )
     return "googlecalendar";
   if (upper.startsWith("NOTION_") || upper.includes("NOTION")) return "notion";
+  if (upper.startsWith("ZOHO_BOOKS_") || upper.includes("ZOHO_BOOKS") || upper.includes("ZOHOBOOKS")) return "zoho_books";
   if (upper.startsWith("ZOHO_") || upper.includes("ZOHO")) return "zoho";
   if (upper.startsWith("DYNAMICS365_") || upper.includes("DYNAMICS")) return "dynamics365";
+  if (upper.startsWith("SHARE_POINT_") || upper.includes("SHAREPOINT") || upper.includes("SHARE_POINT")) return "share_point";
   return null;
 }
 

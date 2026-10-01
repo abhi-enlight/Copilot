@@ -460,6 +460,66 @@ export function generateProposalSummary(
     };
   }
 
+  // Microsoft SharePoint
+  if (slug.includes("share_point") || slug.includes("sharepoint")) {
+    const itemName = (payload.name as string) || (payload.path as string) || (payload.title as string) || "SharePoint Item";
+    if (slug.includes("delete")) {
+      return {
+        title: "Delete SharePoint Item",
+        description: `Target: "${itemName}"`,
+        actionType: "SHAREPOINT_DELETE_ITEM",
+      };
+    }
+    if (slug.includes("create")) {
+      return {
+        title: "Create SharePoint List Item",
+        description: `Item: "${itemName}"`,
+        actionType: "SHAREPOINT_CREATE_ITEM",
+      };
+    }
+    return {
+      title: "Update SharePoint Resource",
+      description: `Target: "${itemName}"`,
+      actionType: "SHAREPOINT_UPDATE_ITEM",
+    };
+  }
+
+  // Zoho Books
+  if (slug.includes("zoho_books") || slug.includes("zohobooks")) {
+    const target =
+      (payload.customer_name as string) ||
+      (payload.invoice_number as string) ||
+      (payload.contact_name as string) ||
+      (payload.reference_number as string) ||
+      "Zoho Books Entry";
+    if (slug.includes("delete")) {
+      return {
+        title: "Delete Zoho Books Record",
+        description: `Target: "${target}"`,
+        actionType: "ZOHO_BOOKS_DELETE",
+      };
+    }
+    if (slug.includes("convert")) {
+      return {
+        title: "Convert Purchase Order to Bill",
+        description: `PO: "${target}"`,
+        actionType: "ZOHO_BOOKS_CONVERT_PO",
+      };
+    }
+    if (slug.includes("credit")) {
+      return {
+        title: "Apply Credits to Invoice",
+        description: `Invoice: "${target}"`,
+        actionType: "ZOHO_BOOKS_APPLY_CREDIT",
+      };
+    }
+    return {
+      title: "Create Zoho Books Entry",
+      description: `Target: "${target}"`,
+      actionType: "ZOHO_BOOKS_CREATE",
+    };
+  }
+
   // GitHub
   if (slug.includes("github")) {
     const repo =

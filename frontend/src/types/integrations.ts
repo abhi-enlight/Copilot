@@ -13,7 +13,9 @@ export type SupportedToolSlug =
   | 'gmail'
   | 'googlecalendar'
   | 'notion'
-  | 'dynamics365';
+  | 'dynamics365'
+  | 'share_point'
+  | 'zoho_books';
 
 export type ToolConnectionState = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'ERROR';
 

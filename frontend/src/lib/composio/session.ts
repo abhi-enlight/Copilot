@@ -133,6 +133,42 @@ export const PRISM_TOOL_REGISTRY: Record<string, PrismToolMetadata> = {
     category: "CRM & Pipeline",
     description: "Inspect customer accounts, pipeline opportunities, contacts, and sales engagement.",
   },
+  share_point: {
+    slug: "share_point",
+    name: "Microsoft SharePoint",
+    category: "Intranet & Documents",
+    description: "Search team sites, document libraries, corporate files, and page content.",
+  },
+  sharepoint: {
+    slug: "share_point",
+    name: "Microsoft SharePoint",
+    category: "Intranet & Documents",
+    description: "Search team sites, document libraries, corporate files, and page content.",
+  },
+  "share-point": {
+    slug: "share_point",
+    name: "Microsoft SharePoint",
+    category: "Intranet & Documents",
+    description: "Search team sites, document libraries, corporate files, and page content.",
+  },
+  zoho_books: {
+    slug: "zoho_books",
+    name: "Zoho Books",
+    category: "Finance & Accounting",
+    description: "Track unpaid invoices, review bills, manage expenses, and reconcile accounts.",
+  },
+  zohobooks: {
+    slug: "zoho_books",
+    name: "Zoho Books",
+    category: "Finance & Accounting",
+    description: "Track unpaid invoices, review bills, manage expenses, and reconcile accounts.",
+  },
+  "zoho-books": {
+    slug: "zoho_books",
+    name: "Zoho Books",
+    category: "Finance & Accounting",
+    description: "Track unpaid invoices, review bills, manage expenses, and reconcile accounts.",
+  },
 };
 
 export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
@@ -146,6 +182,8 @@ export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
   "googlecalendar",
   "notion",
   "dynamics365",
+  "share_point",
+  "zoho_books",
 ];
 
 export function normalizeToolSlug(app: string): SupportedToolSlug {

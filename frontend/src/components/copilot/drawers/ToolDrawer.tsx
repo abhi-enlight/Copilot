@@ -17,6 +17,8 @@ import {
   CalendarCheck,
   Notebook,
   Buildings,
+  Folders,
+  Receipt,
 } from "@phosphor-icons/react";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
 import { notifyToolsUpdated } from "@/hooks/useToolsStatus";
@@ -130,6 +132,24 @@ const TOOLS: ToolDefinition[] = [
     icon: Buildings,
     badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
     color: "#002050",
+  },
+  {
+    slug: "share_point",
+    name: "Microsoft SharePoint",
+    category: "Intranet & Documents",
+    description: "Search corporate team sites, document libraries, policies, and intranet pages.",
+    icon: Folders,
+    badgeClass: "bg-cyan-50 text-cyan-800 border-cyan-200",
+    color: "#0364B8",
+  },
+  {
+    slug: "zoho_books",
+    name: "Zoho Books",
+    category: "Finance & Accounting",
+    description: "Track unpaid invoices, review bills, manage expenses, and reconcile accounts.",
+    icon: Receipt,
+    badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
+    color: "#E54332",
   },
 ];
 

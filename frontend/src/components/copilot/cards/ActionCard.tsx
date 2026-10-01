@@ -20,6 +20,8 @@ import {
   Notebook,
   PencilSimple,
   Buildings,
+  Folders,
+  Receipt,
 } from "@phosphor-icons/react";
 import type { ActionProposal } from "@/types/database";
 import { humanizeError } from "@/lib/errors/humanize";
@@ -230,6 +232,20 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
         label: "Microsoft Dynamics 365",
         icon: Buildings,
         badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
+      };
+    }
+    if (s.includes("share_point") || s.includes("sharepoint")) {
+      return {
+        label: "Microsoft SharePoint",
+        icon: Folders,
+        badgeClass: "bg-cyan-50 text-cyan-800 border-cyan-200",
+      };
+    }
+    if (s.includes("zoho_books") || s.includes("zohobooks")) {
+      return {
+        label: "Zoho Books",
+        icon: Receipt,
+        badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
       };
     }
     return {

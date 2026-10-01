@@ -73,6 +73,25 @@ export async function POST(request: Request) {
       }
     }
 
+    if (toolkitSlug === "share_point") {
+      const subdomain = body.subdomain || body.data?.subdomain || process.env.SHAREPOINT_TENANT_NAME;
+      const issuer = body.issuer || body.data?.issuer || process.env.AZURE_TENANT_ID || "common";
+
+      if (subdomain) {
+        authorizeOptions.data = {
+          subdomain,
+          issuer,
+        };
+      }
+    }
+
+    if (toolkitSlug === "zoho_books") {
+      const suffix = body["suffix.one"] || body.suffix || process.env.ZOHO_DATACENTER || "com";
+      authorizeOptions.data = {
+        "suffix.one": suffix,
+      };
+    }
+
     const connectionRequest = await session.authorize(toolkitSlug, authorizeOptions);
 
     if (!connectionRequest || !connectionRequest.redirectUrl) {

@@ -21,6 +21,8 @@ import {
   CalendarCheck,
   Notebook,
   Buildings,
+  Folders,
+  Receipt,
 } from "@phosphor-icons/react";
 import CockpitHeader from "@/components/copilot/CockpitHeader";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
@@ -140,6 +142,26 @@ const TOOLS: ToolDefinition[] = [
     badgeClass: "bg-teal-50 text-teal-800 border-teal-200",
     color: "#002050",
     scopes: ["user_impersonation", "offline_access"],
+  },
+  {
+    slug: "share_point",
+    name: "Microsoft SharePoint",
+    category: "Intranet & Documents",
+    description: "Search corporate team sites, document libraries, policies, and intranet pages.",
+    icon: Folders,
+    badgeClass: "bg-cyan-50 text-cyan-800 border-cyan-200",
+    color: "#0364B8",
+    scopes: ["Sites.Read.All", "Files.ReadWrite.All"],
+  },
+  {
+    slug: "zoho_books",
+    name: "Zoho Books",
+    category: "Finance & Accounting",
+    description: "Track unpaid invoices, review bills, manage expenses, and reconcile accounts.",
+    icon: Receipt,
+    badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
+    color: "#E54332",
+    scopes: ["ZohoBooks.invoices.ALL", "ZohoBooks.bills.ALL", "ZohoBooks.contacts.ALL"],
   },
 ];
 

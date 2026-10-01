@@ -105,7 +105,8 @@ const WORKPLACE_CONTEXT_PATTERNS = [
   /\b(linear|github|issue|issues|ticket|tickets|pr|prs|pull\s*request|pull\s*requests|repo|repos|repository|repositories|commit|commits|branch|branches)\b/i,
   /\b(dynamics|dynamics365|zoho|crm|deal|deals|lead|leads|pipeline|stage|account|accounts|contact|contacts|sales|revenue|customer|client)\b/i,
   /\b(calendar|meeting|meetings|event|events|schedule|agenda|availability|invite|attendee|attendees)\b/i,
-  /\b(notion|document|documents|doc|docs|page|pages|spec|specs|wiki|notes)\b/i,
+  /\b(sharepoint|notion|document|documents|doc|docs|page|pages|spec|specs|wiki|notes)\b/i,
+  /\b(invoice|invoices|bill|bills|accounting|expense|expenses|books|zoho\s*books)\b/i,
   /\b(sprint|standup|backlog|milestone|blocker|blockers|assignee|assigned)\b/i,
 ];
 
@@ -228,7 +229,7 @@ export function evaluateScope(message: string): ScopeEvaluation {
           category: "OUT_OF_SCOPE_UNSUPPORTED_SAAS",
           matchedEntity: saas.name,
           reason: `Requested service "${saas.name}" is not connected to Prism.`,
-          refusalResponse: `**${saas.name}** is not currently supported or connected to Prism.\n\nI can orchestrate tasks across your active workplace tools:\n- **Email & Messaging**: Microsoft Outlook, Microsoft Teams, Slack, Gmail\n- **Project & Issues**: Linear, GitHub\n- **CRM & Pipeline**: Zoho CRM, Microsoft Dynamics 365\n- **Calendar & Docs**: Google Calendar, Notion\n\nLet me know if you would like me to retrieve data or take action in any of those.`,
+          refusalResponse: `**${saas.name}** is not currently supported or connected to Prism.\n\nI can orchestrate tasks across your active workplace tools:\n- **Email & Messaging**: Microsoft Outlook, Microsoft Teams, Slack, Gmail\n- **Project & Issues**: Linear, GitHub\n- **CRM & Pipeline**: Zoho CRM, Microsoft Dynamics 365\n- **Intranet, Docs & Calendar**: Microsoft SharePoint, Notion, Google Calendar\n- **Finance & Accounting**: Zoho Books\n\nLet me know if you would like me to retrieve data or take action in any of those.`,
         };
       }
     }
