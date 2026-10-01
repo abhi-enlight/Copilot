@@ -181,6 +181,9 @@ export function useLiveStackRadar(
             setLastSeenTimestamp(topTimestamp);
           }
         }
+
+        // Fire-and-forget background trigger synchronization for connected tools
+        void fetch("/api/telemetry/sync", { method: "POST" }).catch(() => {});
       } catch (err) {
         if (isMounted) {
           console.warn("[Prism Radar] Initial fetch error:", err);

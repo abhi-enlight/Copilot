@@ -67,6 +67,27 @@ export function normalizeSourceSlug(rawSource?: string): string {
   if (slug === "zoho" || slug === "zoho_crm" || slug === "zoho-crm") {
     return "zoho";
   }
+  if (slug === "github" || slug === "gh") {
+    return "github";
+  }
+  if (slug === "gmail") {
+    return "gmail";
+  }
+  if (slug === "googlecalendar" || slug === "google_calendar" || slug === "google-calendar") {
+    return "googlecalendar";
+  }
+  if (slug === "notion") {
+    return "notion";
+  }
+  if (slug === "dynamics365" || slug === "dynamics" || slug === "dynamics-365") {
+    return "dynamics365";
+  }
+  if (slug === "share_point" || slug === "sharepoint" || slug === "share-point") {
+    return "share_point";
+  }
+  if (slug === "zoho_books" || slug === "zohobooks" || slug === "zoho-books") {
+    return "zoho_books";
+  }
   return slug;
 }
 
@@ -85,6 +106,20 @@ export function formatSourceLabel(source: string): string {
       return "Linear";
     case "zoho":
       return "Zoho CRM";
+    case "github":
+      return "GitHub";
+    case "gmail":
+      return "Google Gmail";
+    case "googlecalendar":
+      return "Google Calendar";
+    case "notion":
+      return "Notion";
+    case "dynamics365":
+      return "Microsoft Dynamics 365";
+    case "share_point":
+      return "Microsoft SharePoint";
+    case "zoho_books":
+      return "Zoho Books";
     default:
       return source.charAt(0).toUpperCase() + source.slice(1);
   }
@@ -269,6 +304,63 @@ export function normalizeTelemetryEvent(
 
       priority = classifyPriority(`${title} ${summary}`, source, { amount });
       actionable = priority === "critical" || priority === "urgent" || (amount !== undefined && amount > 10000);
+      break;
+    }
+
+    case "github": {
+      const prNumber = eventData.number ? `#${eventData.number} ` : "";
+      const prTitle = (eventData.title as string) || (eventData.name as string) || "Pull Request";
+      const author = (eventData.author_login as string) || ((eventData.user as Record<string, unknown>)?.login as string) || "";
+      const body = (eventData.body as string) || (eventData.description as string) || "";
+
+      title = `[GitHub] ${prNumber}${prTitle}${author ? ` by @${author}` : ""}`;
+      summary = body.slice(0, MAX_SUMMARY_CHARS);
+      externalId = (eventData.html_url as string) || (eventData.node_id as string) || (eventData.pr_id as string) || (eventData.id as string) || "";
+
+      priority = classifyPriority(`${title} ${summary}`, source);
+      actionable = true;
+      break;
+    }
+
+    case "gmail": {
+      const subject = (eventData.subject as string) || (eventData.title as string) || "New Email";
+      const sender = (eventData.sender as string) || (eventData.from as string) || "";
+      const preview = (eventData.preview as string) || (eventData.message_text as string) || (eventData.snippet as string) || "";
+
+      title = `[Gmail] ${sender ? sender + ": " : ""}${subject}`;
+      summary = preview.slice(0, MAX_SUMMARY_CHARS);
+      externalId = (eventData.message_id as string) || (eventData.id as string) || "";
+
+      const fullText = `${subject} ${preview}`;
+      priority = classifyPriority(fullText, source);
+      actionable = priority === "critical" || priority === "urgent" || fullText.includes("?");
+      break;
+    }
+
+    case "googlecalendar": {
+      const eventSummary = (eventData.summary as string) || (eventData.title as string) || "Calendar Event";
+      const startTime = eventData.start_time ? new Date(eventData.start_time as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+      const organizer = (eventData.organizer_name as string) || (eventData.organizer_email as string) || "";
+
+      title = `[Google Calendar] ${eventSummary}${startTime ? ` (${startTime})` : ""}`;
+      summary = (organizer ? `Organizer: ${organizer}` : "").slice(0, MAX_SUMMARY_CHARS);
+      externalId = (eventData.event_id as string) || (eventData.id as string) || "";
+
+      priority = classifyPriority(title, source);
+      actionable = false;
+      break;
+    }
+
+    case "notion": {
+      const pageData = (eventData.data as Record<string, unknown>) || eventData;
+      const pageTitle = (pageData.title as string) || (eventData.page_title as string) || "Page Updated";
+
+      title = `[Notion] ${pageTitle}`;
+      summary = (eventData.workspace_name ? `Workspace: ${eventData.workspace_name}` : "").slice(0, MAX_SUMMARY_CHARS);
+      externalId = (eventData.page_id as string) || (eventData.id as string) || "";
+
+      priority = "normal";
+      actionable = false;
       break;
     }
 

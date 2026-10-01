@@ -14,6 +14,11 @@ import {
   ArrowRight,
   ArrowsClockwise,
   Check,
+  GitPullRequest,
+  Calendar,
+  FileText,
+  FolderSimple,
+  CurrencyDollar,
 } from "@phosphor-icons/react";
 import { useLiveStackRadar } from "@/hooks/useLiveStackRadar";
 
@@ -71,8 +76,29 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
     if (s.includes("linear")) {
       return { label: "Linear", icon: Kanban, badge: "bg-violet-50 text-violet-800 border-violet-200" };
     }
+    if (s.includes("zoho_books") || s.includes("books")) {
+      return { label: "Zoho Books", icon: CurrencyDollar, badge: "bg-emerald-50 text-emerald-800 border-emerald-200" };
+    }
     if (s.includes("zoho")) {
       return { label: "Zoho CRM", icon: Briefcase, badge: "bg-amber-50 text-amber-800 border-amber-200" };
+    }
+    if (s.includes("github")) {
+      return { label: "GitHub", icon: GitPullRequest, badge: "bg-neutral-100 text-neutral-800 border-neutral-300" };
+    }
+    if (s.includes("gmail")) {
+      return { label: "Gmail", icon: EnvelopeSimple, badge: "bg-red-50 text-red-800 border-red-200" };
+    }
+    if (s.includes("googlecalendar") || s.includes("calendar")) {
+      return { label: "Google Calendar", icon: Calendar, badge: "bg-blue-50 text-blue-800 border-blue-200" };
+    }
+    if (s.includes("notion")) {
+      return { label: "Notion", icon: FileText, badge: "bg-stone-100 text-stone-800 border-stone-300" };
+    }
+    if (s.includes("share_point") || s.includes("sharepoint")) {
+      return { label: "SharePoint", icon: FolderSimple, badge: "bg-teal-50 text-teal-800 border-teal-200" };
+    }
+    if (s.includes("dynamics")) {
+      return { label: "Dynamics 365", icon: Briefcase, badge: "bg-blue-50 text-blue-800 border-blue-200" };
     }
     return { label: "System", icon: Pulse, badge: "bg-slate-50 text-slate-800 border-slate-200" };
   };

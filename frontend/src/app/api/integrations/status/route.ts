@@ -8,6 +8,7 @@ import {
   sanitizeIntegrationError,
   CORE_PRISM_TOOL_SLUGS,
 } from "@/lib/composio/session";
+import { ensureUserTriggers } from "@/lib/composio/triggers";
 import type { SupportedToolSlug, ToolConnectionStatus } from "@/types/integrations";
 import { NextResponse } from "next/server";
 
@@ -128,11 +129,18 @@ export async function GET(request: Request) {
       const displayName = resolveAccountName(matchedAcc);
       const toolStatus = formatToolStatus(toolkitSlug, item, displayName);
 
+      if (toolStatus.isConnected && toolStatus.status === "ACTIVE") {
+        void ensureUserTriggers(user.id, toolkitSlug);
+      }
+
       return NextResponse.json(
         { success: true, ...toolStatus },
         { headers: NO_CACHE_HEADERS }
       );
     }
+
+    // Background sweep of triggers if user has active accounts
+    void ensureUserTriggers(user.id);
 
     // Query status across all core MVP tools
     const [details, userAccounts] = await Promise.all([
