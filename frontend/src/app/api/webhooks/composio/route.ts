@@ -90,6 +90,19 @@ export async function POST(request: Request) {
     // 2. Normalize disparate event into canonical Prism telemetry model
     const normalized = normalizeTelemetryEvent(rawPayload);
 
+    // Safeguard: Filter out external untracked repositories for GitHub events
+    if (normalized.source === "github") {
+      const repoUrl = ((normalized.rawPayload?.repository_url as string) || "").toLowerCase();
+      const authorLogin = ((normalized.rawPayload?.author_login as string) || "").toLowerCase();
+      // Drop if event is from an unrelated third-party public repo
+      if (repoUrl && !repoUrl.includes("abhi-enlight") && authorLogin !== "abhi-enlight") {
+        return NextResponse.json(
+          { status: "ignored", reason: "external_untracked_repo" },
+          { status: 200 }
+        );
+      }
+    }
+
     // 3. User & Tenant Identity Resolution Gate
     let resolvedAuthUserId: string | null = null;
     let organizationId: string | null = null;

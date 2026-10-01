@@ -7,7 +7,6 @@ import { getComposioClient } from "./session";
 export const TOOL_TRIGGER_MAP: Record<string, string[]> = {
   outlook: ["OUTLOOK_MESSAGE_TRIGGER"],
   slack: ["SLACK_RECEIVE_MESSAGE"],
-  github: ["GITHUB_PULL_REQUEST_CREATED"],
   gmail: ["GMAIL_NEW_GMAIL_MESSAGE"],
   googlecalendar: ["GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_CREATED_TRIGGER"],
   notion: ["NOTION_PAGE_CREATED"],
