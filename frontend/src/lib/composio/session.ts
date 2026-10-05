@@ -262,6 +262,11 @@ export async function getComposioSessionForUser(userId: string) {
   const composio = getComposioClient();
   const session = await composio.sessions.create(entityId, {
     manageConnections: true,
+    // The sandbox is disabled on purpose. When enabled (the SDK defaults it to
+    // true server-side) it exposes COMPOSIO_REMOTE_WORKBENCH and
+    // COMPOSIO_REMOTE_BASH_TOOL, which can invoke arbitrary tools and bypass the
+    // human-in-the-loop approval gate.
+    sandbox: { enable: false },
   });
 
   setCachedSession(entityId, session);

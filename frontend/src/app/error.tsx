@@ -67,7 +67,7 @@ export default function GlobalError({ error, reset, retry }: ErrorProps) {
             Try again
           </button>
           <Link
-            href="/"
+            href="/cockpit"
             className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-stone-200 hover:border-stone-300 text-stone-700 text-sm font-semibold transition-colors duration-150"
           >
             Back to Cockpit

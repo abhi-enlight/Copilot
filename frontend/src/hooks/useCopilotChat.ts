@@ -93,6 +93,7 @@ export function useCopilotChat() {
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // ── Native Server-Sent Events (SSE) Streaming Dispatcher ──────────
   const handleSendMessage = async (textToSend?: string) => {
@@ -123,6 +124,9 @@ export function useCopilotChat() {
     setIsLoading(true);
     setToolSteps([]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const response = await fetch("/api/agent/chat", {
         method: "POST",
@@ -131,6 +135,7 @@ export function useCopilotChat() {
           message: query,
           sessionId: sessionId || undefined,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok || !response.body) {
@@ -249,23 +254,47 @@ export function useCopilotChat() {
         }
       }
     } catch (err: unknown) {
-      console.error("[useCopilotChat] Streaming error:", err);
-      const humanized = humanizeError(err, "agent");
-      reportError(err, { category: "agent" });
-      const errorText = `⚠️ **${humanized.title}**\n\n${humanized.description}`;
+      if (controller.signal.aborted) {
+        // User pressed Stop: keep whatever streamed in, mark it as stopped, and
+        // never surface an error for an intentional cancellation.
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? {
+                  ...msg,
+                  content: msg.content ? `${msg.content}\n\n_Stopped._` : "_Stopped._",
+                }
+              : msg
+          )
+        );
+      } else {
+        console.error("[useCopilotChat] Streaming error:", err);
+        const humanized = humanizeError(err, "agent");
+        reportError(err, { category: "agent" });
+        const errorText = `⚠️ **${humanized.title}**\n\n${humanized.description}`;
 
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? { ...msg, content: errorText, sourceBadges: ["Prism Operations"] }
-            : msg
-        )
-      );
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, content: errorText, sourceBadges: ["Prism Operations"] }
+              : msg
+          )
+        );
+      }
     } finally {
+      abortRef.current = null;
       setIsLoading(false);
       setToolSteps([]);
     }
   };
+
+  // Cancels the in-flight generation. The server already honors request.signal,
+  // so aborting the fetch tears the stream down end to end.
+  const stopGeneration = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+  }, []);
 
   // ── Action Proposal Approval ──────────────────────────────────────
   const approveAction = async (actionId: string, updatedPayload?: Record<string, unknown>) => {
@@ -527,6 +556,7 @@ export function useCopilotChat() {
     toolSteps,
     sessionId,
     handleSendMessage,
+    stopGeneration,
     approveAction,
     rejectAction,
     startNewSession,

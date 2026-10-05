@@ -3,8 +3,14 @@ import { generateActionSignature } from "./crypto";
 
 export type ToolTier = "read_only" | "mutation";
 
-// Verbs that indicate a DELETION task (Confirmation ALWAYS required)
-const DELETION_VERBS = [
+// Verb vocabularies for the tool approval classifier.
+//
+// Matching is TOKEN-EXACT (slugs are split on non-alphanumeric characters and
+// compared whole), never substring-based. This is deliberate: substring matching
+// previously classified GMAIL_REPLY_TO_THREAD as read-only ("th-READ"),
+// DYNAMICS365_..._CREATE_ACCOUNT as read-only ("ac-COUNT") and
+// SHARE_POINT_CREATE_LIST_ITEM as read-only ("LIST").
+const DELETION_VERBS = new Set([
   "delete",
   "remove",
   "purge",
@@ -13,10 +19,10 @@ const DELETION_VERBS = [
   "archive",
   "trash",
   "cancel",
-];
+]);
 
-// Verbs that indicate an UPDATE / MUTATION task (Confirmation ALWAYS required)
-const MUTATION_VERBS = [
+// Any of these tokens forces human approval, and they take precedence over read tokens.
+const MUTATION_VERBS = new Set([
   "update",
   "modify",
   "patch",
@@ -33,12 +39,53 @@ const MUTATION_VERBS = [
   "schedule",
   "insert",
   "submit",
-  "archive",
   "close",
-];
+  "add",
+  "move",
+  "copy",
+  "rename",
+  "convert",
+  "reply",
+  "forward",
+  "share",
+  "invite",
+  "assign",
+  "star",
+  "unstar",
+  "mark",
+  "upload",
+  "apply",
+  "approve",
+  "reject",
+  "execute",
+  "run",
+  "mount",
+  "unmount",
+  "enable",
+  "disable",
+  "set",
+  "start",
+  "stop",
+  "sync",
+  "import",
+  "export",
+  "publish",
+  "unpublish",
+  "attach",
+  "detach",
+  "link",
+  "unlink",
+  "complete",
+  "reopen",
+  "subscribe",
+  "unsubscribe",
+  "grant",
+  "revoke",
+]);
 
-// Explicit read-only / query verbs that NEVER require confirmation
-const READ_ONLY_VERBS = [
+// Whole-token read verbs. These only classify as read-only when no mutation or
+// deletion token is present in the same slug.
+const READ_ONLY_VERBS = new Set([
   "search",
   "get",
   "list",
@@ -53,7 +100,34 @@ const READ_ONLY_VERBS = [
   "preview",
   "status",
   "count",
-];
+  "describe",
+  "download",
+]);
+
+// Mail toolkits eligible for routine read/unread triage.
+const MAIL_TOKENS = new Set([
+  "mail",
+  "outlook",
+  "message",
+  "messages",
+  "gmail",
+  "thread",
+  "threads",
+  "email",
+  "emails",
+  "inbox",
+]);
+
+// Meta/routing tools that only inspect data or negotiate connections and never mutate it.
+const META_READ_ONLY_TOKENS = new Set(["search_tools", "get_tool_schemas", "manage_connections"]);
+
+/** Splits a tool slug into whole lowercase tokens (e.g. GMAIL_REPLY_TO_THREAD -> [gmail, reply, to, thread]). */
+export function tokenizeToolSlug(slug: string): string[] {
+  return (slug || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
 
 /**
  * Helper to extract inner tool information from multi-execute wrappers (e.g. COMPOSIO_MULTI_EXECUTE_TOOL)
@@ -119,26 +193,61 @@ export function extractInnerToolDetails(
 }
 
 /**
- * Helper to determine if an operation is routine inbox triage (marking emails read/unread)
- * which should execute autonomously as a simple task rather than requiring high-friction cards.
+ * Expands a top-level tool call into the concrete calls it will actually run.
+ * A COMPOSIO_MULTI_EXECUTE_TOOL wrapper is split into one entry per inner tool so
+ * every action gets its own approval card; a normal call is returned as-is.
+ */
+export function explodeToolCalls(
+  toolSlug: string,
+  payload: Record<string, unknown>
+): Array<{ toolSlug: string; payload: Record<string, unknown> }> {
+  const isMulti = /multi[_-]execute/i.test(toolSlug || "");
+  if (!isMulti) {
+    return [{ toolSlug, payload }];
+  }
+
+  const tools = Array.isArray(payload?.tools)
+    ? (payload.tools as Array<{ tool_slug?: string; arguments?: Record<string, unknown> }>)
+    : [];
+  const expanded = tools
+    .filter((t) => Boolean(t?.tool_slug))
+    .map((t) => ({
+      toolSlug: t.tool_slug as string,
+      payload: (t.arguments || {}) as Record<string, unknown>,
+    }));
+
+  return expanded.length > 0 ? expanded : [{ toolSlug, payload }];
+}
+
+/**
+ * Helper to determine if an operation is routine inbox triage (marking emails
+ * read/unread) which should execute autonomously as a simple task rather than
+ * requiring high-friction cards. Triage must be provable from whole tokens or an
+ * explicit read-flag payload; anything else is treated as a mutation.
  */
 export function isRoutineTriage(slug: string, payload?: Record<string, unknown>): boolean {
-  const s = slug.toLowerCase();
+  const tokens = tokenizeToolSlug(slug);
   // Deletions are never simple triage
-  if (DELETION_VERBS.some((v) => s.includes(v))) return false;
+  if (tokens.some((t) => DELETION_VERBS.has(t))) return false;
 
-  if (s.includes("mail") || s.includes("outlook") || s.includes("message")) {
-    if (s.includes("read") || s.includes("is_read") || s.includes("isread")) return true;
-    if (payload) {
-      if (payload.isRead !== undefined || payload.is_read !== undefined) return true;
-      if (Array.isArray(payload.updates)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const isReadPatch = payload.updates.some((u: any) => u?.patch?.isRead !== undefined || u?.patch?.is_read !== undefined);
-        if (isReadPatch) return true;
-      }
-    }
-  }
-  return false;
+  if (!tokens.some((t) => MAIL_TOKENS.has(t))) return false;
+
+  const payloadTogglesReadFlag =
+    payload?.isRead !== undefined ||
+    payload?.is_read !== undefined ||
+    (Array.isArray(payload?.updates) &&
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (payload.updates as any[]).some(
+        (u) => u?.patch?.isRead !== undefined || u?.patch?.is_read !== undefined
+      ));
+
+  if (payloadTogglesReadFlag) return true;
+
+  // Explicit mark-as-read / mark-as-unread tools, matched on whole tokens only.
+  return (
+    (tokens.includes("mark") || tokens.includes("set")) &&
+    (tokens.includes("read") || tokens.includes("unread"))
+  );
 }
 
 /**
@@ -160,89 +269,56 @@ export function classifyToolTier(
 ): ToolTier {
   const normalized = (toolSlug || "").toLowerCase().trim();
 
-  // Handle multi-execute wrapper tool
+  // An empty slug is not provably read-only.
+  if (!normalized) return "mutation";
+
+  // Multi-execute wrapper: a wrapper is only read-only when every inner tool is.
   if (normalized.includes("multi_execute") || normalized.includes("multi-execute")) {
     const toolsList = Array.isArray(payload?.tools)
       ? (payload.tools as Array<{ tool_slug?: string; arguments?: Record<string, unknown> }>)
       : [];
 
-    if (toolsList.length === 0) {
-      // Empty or discovery call -> simple task, autonomous
-      return "read_only";
-    }
+    // An empty multi-execute call is a no-op discovery call.
+    if (toolsList.length === 0) return "read_only";
 
-    // Inspect all inner tools: if ANY requires confirmation, classify as mutation
-    for (const item of toolsList) {
-      const innerSlug = (item.tool_slug || "").toLowerCase();
-      const innerArgs = (item.arguments || {}) as Record<string, unknown>;
-
-      // 1. Deletion task? -> ALWAYS requires confirmation
-      if (DELETION_VERBS.some((verb) => innerSlug.includes(verb))) {
-        return "mutation";
-      }
-
-      // Check for routine triage before update verbs
-      if (isRoutineTriage(innerSlug, innerArgs)) {
-        continue;
-      }
-
-      // 2. Mutation task? -> Requires confirmation
-      if (MUTATION_VERBS.some((verb) => innerSlug.includes(verb))) {
-        return "mutation";
-      }
-
-      // 3. High risk task?
-      if (evaluateRiskLevel(innerSlug, innerArgs) === "high") {
-        return "mutation";
-      }
-    }
-
-    // All tools are simple read/list/query/search/triage operations
-    return "read_only";
+    return toolsList.some(
+      (item) =>
+        classifyToolTier(item.tool_slug || "", (item.arguments || {}) as Record<string, unknown>) ===
+        "mutation"
+    )
+      ? "mutation"
+      : "read_only";
   }
 
-  // Meta / discovery tools (e.g. search_tools, get_tool_schemas) are always read_only
+  const tokens = tokenizeToolSlug(normalized);
+
+  // Meta / routing tools (schema search, connection negotiation) never mutate data.
   if (
     normalized.includes("search_tool") ||
     normalized.includes("get_tool") ||
-    normalized.includes("manage_connections")
+    normalized.includes("manage_connection") ||
+    tokens.some((t) => META_READ_ONLY_TOKENS.has(t))
   ) {
     return "read_only";
   }
 
-  // Explicit read-only query verbs
-  for (const verb of READ_ONLY_VERBS) {
-    if (normalized.includes(verb)) {
-      return "read_only";
-    }
-  }
+  // 1. Deletion tasks always require confirmation.
+  if (tokens.some((t) => DELETION_VERBS.has(t))) return "mutation";
 
-  // Explicit deletion tasks -> ALWAYS requires confirmation
-  for (const verb of DELETION_VERBS) {
-    if (normalized.includes(verb)) {
-      return "mutation";
-    }
-  }
+  // 2. Routine read-flag triage may execute autonomously.
+  if (isRoutineTriage(toolSlug, payload)) return "read_only";
 
-  // Routine triage tasks (e.g. marking emails read/unread) -> autonomous execution
-  if (isRoutineTriage(toolSlug, payload)) {
-    return "read_only";
-  }
+  // 3. Any mutation token wins over read tokens (CREATE_LIST_ITEM is a mutation).
+  if (tokens.some((t) => MUTATION_VERBS.has(t))) return "mutation";
 
-  // Explicit mutation tasks -> ALWAYS requires confirmation
-  for (const verb of MUTATION_VERBS) {
-    if (normalized.includes(verb)) {
-      return "mutation";
-    }
-  }
+  // 4. High-risk payloads (destructive verbs, large amounts, broad broadcasts).
+  if (evaluateRiskLevel(toolSlug, payload || {}) === "high") return "mutation";
 
-  // High risk evaluation
-  if (evaluateRiskLevel(toolSlug, payload || {}) === "high") {
-    return "mutation";
-  }
+  // 5. Provable read-only verbs.
+  if (tokens.some((t) => READ_ONLY_VERBS.has(t))) return "read_only";
 
-  // By default, simple tasks execute autonomously without confirmation
-  return "read_only";
+  // 6. FAIL CLOSED: anything not provably read-only needs human approval.
+  return "mutation";
 }
 
 /**

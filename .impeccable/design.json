@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T00:00:00.000Z",
+  "title": "Design System: Prism",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Prism Sky",
+        "canonical": "#0284c7",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#075985", "#0369a1", "#0284c7", "#38bdf8", "#7dd3fc", "#e0f2fe"]
+      },
+      "accent-deep": {
+        "role": "primary",
+        "displayName": "Prism Sky Deep",
+        "canonical": "#1d4ed8",
+        "tonalRamp": ["#0b1220", "#172554", "#1e3a8a", "#1d4ed8", "#3b82f6", "#60a5fa", "#93c5fd", "#dbeafe"]
+      },
+      "accent-bright": {
+        "role": "primary",
+        "displayName": "Prism Sky Bright",
+        "canonical": "#38bdf8",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc", "#e0f2fe"]
+      },
+      "surface-base": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#FAFAF9",
+        "tonalRamp": ["#1C1917", "#292524", "#57534E", "#78716C", "#A8A29E", "#D6D3D1", "#E7E5E4", "#FAFAF9"]
+      },
+      "surface-inverse": {
+        "role": "neutral",
+        "displayName": "Warm Ink",
+        "canonical": "#1C1917",
+        "tonalRamp": ["#0C0A09", "#1C1917", "#292524", "#44403C", "#57534E", "#78716C", "#A8A29E", "#D6D3D1"]
+      },
+      "signal-success": {
+        "role": "tertiary",
+        "displayName": "Verified Green",
+        "canonical": "#22C55E",
+        "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#22c55e", "#4ade80", "#86efac", "#dcfce7"]
+      },
+      "signal-warning": {
+        "role": "tertiary",
+        "displayName": "Caution Amber",
+        "canonical": "#F59E0B",
+        "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#f59e0b", "#fbbf24", "#fcd34d", "#fef3c7"]
+      },
+      "signal-danger": {
+        "role": "tertiary",
+        "displayName": "Stop Red",
+        "canonical": "#EF4444",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#ef4444", "#f87171", "#fca5a5", "#fee2e2"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Briefing greeting and empty-state moments. One per screen." },
+      "headline": { "displayName": "Headline", "purpose": "Panel and section titles." },
+      "title": { "displayName": "Title", "purpose": "Card and proposal titles, list-row primaries." },
+      "body": { "displayName": "Body", "purpose": "Message text and descriptions, capped at 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Field labels, chips, column headers." },
+      "mono": { "displayName": "Mono", "purpose": "Machine facts: timestamps, IDs, counts, amounts, risk levels." }
+    },
+    "shadows": [
+      { "name": "rest", "value": "0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03)", "purpose": "Idle cards and rows." },
+      { "name": "hover-dock", "value": "0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03)", "purpose": "Interactive lift and the input dock at rest." },
+      { "name": "focus-overlay", "value": "0 4px 12px rgba(0,0,0,0.05), 0 8px 32px rgba(0,0,0,0.06)", "purpose": "Focused dock, popovers, drawers." },
+      { "name": "modal", "value": "0 8px 24px rgba(0,0,0,0.08), 0 16px 48px rgba(0,0,0,0.06)", "purpose": "Dialogs and elevated overlays." }
+    ],
+    "motion": [
+      { "name": "ease-spring", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Primary easing for reveals, lifts and presses." },
+      { "name": "ease-smooth", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for color and shadow transitions." },
+      { "name": "dur-instant", "value": "150ms", "purpose": "Press and hover feedback." },
+      { "name": "dur-fast", "value": "250ms", "purpose": "State and elevation transitions." },
+      { "name": "dur-normal", "value": "400ms", "purpose": "Panel and drawer transitions." },
+      { "name": "dur-slow", "value": "600ms", "purpose": "Briefing reveal moments only." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single most important action in a view.",
+      "html": "<button class=\"ds-btn-primary\">Approve action</button>",
+      "css": ".ds-btn-primary { background: var(--bg-inverse, #1C1917); color: var(--text-inverse, #FAFAF9); border: none; border-radius: 16px; padding: 10px 16px; font-family: Geist, system-ui, sans-serif; font-size: 14px; font-weight: 600; line-height: 1.3; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-primary:hover { background: #292524; } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35); }"
+    },
+    {
+      "name": "Accent Button",
+      "kind": "button",
+      "refersTo": "button-accent",
+      "description": "At most one per surface, e.g. an auth submit.",
+      "html": "<button class=\"ds-btn-accent\">Sign in \u2192</button>",
+      "css": ".ds-btn-accent { background: var(--prism-accent, #0284c7); color: #FFFFFF; border: none; border-radius: 16px; padding: 12px 16px; font-family: Geist, system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 2px 8px rgba(3, 105, 161, 0.28); } .ds-btn-accent:hover { background: #0369a1; } .ds-btn-accent:active { transform: scale(0.98); } .ds-btn-accent:disabled { background: #94a3b8; box-shadow: none; cursor: not-allowed; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary alternative action with a hairline border.",
+      "html": "<button class=\"ds-btn-ghost\">Email me a sign-in link</button>",
+      "css": ".ds-btn-ghost { background: var(--bg-elevated, #FFFFFF); color: var(--text-primary, #1C1917); border: 1px solid rgba(0, 0, 0, 0.09); border-radius: 16px; padding: 12px 16px; font-family: Geist, system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-ghost:hover { background: var(--bg-recessed, #F5F5F4); } .ds-btn-ghost:active { transform: scale(0.98); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.35); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label above, helper and error below; 44px minimum height.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Email</span><input class=\"ds-input\" type=\"email\" placeholder=\"name@company.com\" /></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: Geist, system-ui, sans-serif; } .ds-field-label { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary, #78716C); } .ds-input { height: 44px; background: var(--bg-elevated, #FFFFFF); color: var(--text-primary, #1C1917); border: 1px solid rgba(0, 0, 0, 0.09); border-radius: 12px; padding: 12px 16px; font-size: 14px; outline: none; transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-input::placeholder { color: var(--text-tertiary, #A8A29E); } .ds-input:hover { border-color: rgba(0, 0, 0, 0.18); } .ds-input:focus-visible { border-color: var(--prism-accent, #0284c7); box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2); }"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Filters and labels; never a primary action.",
+      "html": "<div class=\"ds-chip-row\"><span class=\"ds-chip\">Outlook</span><span class=\"ds-chip ds-chip-selected\">Slack</span><span class=\"ds-chip ds-chip-risk\">High risk</span></div>",
+      "css": ".ds-chip-row { display: flex; flex-wrap: wrap; gap: 6px; font-family: Geist, system-ui, sans-serif; } .ds-chip { background: var(--bg-recessed, #F5F5F4); color: var(--text-secondary, #78716C); border: 1px solid transparent; border-radius: 9999px; padding: 6px 12px; font-size: 12px; font-weight: 600; } .ds-chip-selected { background: #e0f2fe; color: #075985; border-color: rgba(2, 132, 199, 0.35); } .ds-chip-risk { background: #fef3c7; color: #92400e; border-color: rgba(245, 158, 11, 0.35); }"
+    },
+    {
+      "name": "Action Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The approval document: title, description, mono risk level, approve/reject.",
+      "html": "<div class=\"ds-action-card\"><div class=\"ds-action-head\"><span class=\"ds-action-title\">Send Email via Outlook</span><span class=\"ds-action-risk\">LOW RISK</span></div><p class=\"ds-action-body\">To: dana@northwind.example \u00b7 Subject: &quot;Q4 renewal&quot;</p><div class=\"ds-action-actions\"><button class=\"ds-btn-accent\">Approve</button><button class=\"ds-btn-ghost\">Reject</button></div></div>",
+      "css": ".ds-action-card { background: var(--bg-elevated, #FFFFFF); border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03); font-family: Geist, system-ui, sans-serif; } .ds-action-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .ds-action-title { font-size: 15px; font-weight: 600; color: var(--text-primary, #1C1917); } .ds-action-risk { font-family: \"Geist Mono\", ui-monospace, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.02em; color: var(--text-secondary, #78716C); } .ds-action-body { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-secondary, #78716C); } .ds-action-actions { display: flex; gap: 8px; } .ds-action-actions .ds-btn-accent, .ds-action-actions .ds-btn-ghost { border-radius: 12px; padding: 10px 16px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Rail row with a sky left edge on the active item.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-active\">Briefing</a><a class=\"ds-nav-item\">Approvals</a><a class=\"ds-nav-item\">Activity</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 4px; width: 220px; font-family: Geist, system-ui, sans-serif; } .ds-nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border-left: 3px solid transparent; font-size: 14px; font-weight: 500; color: var(--text-secondary, #78716C); text-decoration: none; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-nav-item:hover { background: var(--bg-hover, #F0EFED); color: var(--text-primary, #1C1917); } .ds-nav-active { background: var(--bg-hover, #F0EFED); border-left-color: var(--prism-accent, #0284c7); color: var(--text-primary, #1C1917); font-weight: 600; padding-left: 9px; }"
+    },
+    {
+      "name": "Input Dock",
+      "kind": "custom",
+      "refersTo": "input",
+      "description": "Signature two-layer dock: recessed tray holding an elevated composer sheet.",
+      "html": "<div class=\"ds-dock\"><div class=\"ds-dock-inner\"><span class=\"ds-dock-hint\">Ask Prism to brief you, draft, or act\u2026</span><button class=\"ds-dock-send\" aria-label=\"Send\">\u2191</button></div></div>",
+      "css": ".ds-dock { background: var(--bg-recessed, #F5F5F4); border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 24px; padding: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03); transition: box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1), border-color 250ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-dock:focus-within { box-shadow: 0 4px 12px rgba(0,0,0,0.05), 0 8px 32px rgba(0,0,0,0.06); border-color: rgba(0, 0, 0, 0.18); } .ds-dock-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--bg-elevated, #FFFFFF); border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 20px; padding: 12px 12px 12px 16px; } .ds-dock-hint { font-family: Geist, system-ui, sans-serif; font-size: 14px; color: var(--text-tertiary, #A8A29E); } .ds-dock-send { width: 36px; height: 36px; display: grid; place-items: center; border: none; border-radius: 12px; background: var(--bg-inverse, #1C1917); color: var(--text-inverse, #FAFAF9); font-size: 16px; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-dock-send:hover { background: #292524; } .ds-dock-send:active { transform: scale(0.96); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Morning Briefing Desk",
+    "overview": "Prism is a desk, not a dashboard. The surface is warm and quiet at rest, everything is placed where a hand expects to find it, and the only thing that changes on its own is the briefing arriving. The interface assumes an executive is reading it in the first ten minutes of their day, half-attention, coffee in hand \u2014 so hierarchy is carried by weight and space, never by color shouting. The material language is machined: hairline seams, concentric radii, a recessed chassis that holds an elevated input dock. Depth is honest (a real surface sitting in a real tray), never decorative glow. Motion is spring-eased and short; a control that is pressed moves, a control that is idle does not.",
+    "keyCharacteristics": [
+      "Warm stone neutrals as the floor; one sky accent used sparingly.",
+      "Machined, concentric geometry: outer radius = inner radius + the padding between them.",
+      "Depth by layering and 1px seams, not by heavy or colored shadows.",
+      "Restrained motion with tactile press states (spring easing, scale(0.97) on press).",
+      "Executive legibility: nothing important below 12.5px, nothing informational hidden behind hover only."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Prism Sky appears on \u226410% of any given screen. Its scarcity is what makes an approval or a primary action readable at a glance.", "section": "colors" },
+      { "name": "The Warm Floor Rule", "body": "No pure white page backgrounds and no pure black text or surfaces. The floor is #FAFAF9 and ink is #1C1917; pure values flatten the machined depth.", "section": "colors" },
+      { "name": "The Legibility Floor Rule", "body": "Operational text never drops below 12.5px, and tertiary text (#A8A29E) is never used for content the user must read. Raise the body range to 12.5-14px during the type-scale pass.", "section": "typography" },
+      { "name": "The Numbers Are Machine Facts Rule", "body": "Any value a user might repeat in a meeting (amount, count, deadline, ID) renders in Geist Mono; prose never does.", "section": "typography" },
+      { "name": "The Two-Layer Dock Rule", "body": "The input dock is always a recessed tray holding an elevated sheet. The 6px tray is what makes the dock feel physically seated; do not collapse it into a single bordered input.", "section": "elevation" },
+      { "name": "The Seam Over Shadow Rule", "body": "Separation between panels, rows and sections is a 1px rgba(0,0,0,0.06) hairline, not a shadow. Shadows are reserved for things that float above the desk.", "section": "elevation" },
+      { "name": "The Concentric Radius Rule", "body": "Never nest two equal radii. Every inset block steps down by the padding it sits in, so curves stay parallel to the seam.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do use Prism Sky as the only accent, and cap it at roughly 10% of a screen.",
+      "Do keep the warm floor (#FAFAF9) and warm ink (#1C1917) \u2014 no pure white or pure black.",
+      "Do express depth with the four named shadows plus tonal layering, and express separation with 1px hairlines.",
+      "Do keep outer and inner radii concentric, stepping by the intervening padding.",
+      "Do put every machine fact (amount, count, ID, timestamp, risk level) in Geist Mono.",
+      "Do use min-h-[100dvh] for first-viewport blocks and reserve h-screen for the fixed app shell.",
+      "Do give every interactive element a hover, focus-visible and pressed state, and honour prefers-reduced-motion."
+    ],
+    "donts": [
+      "Don't introduce indigo (#6366F1) or any violet gradient in new work; that accent is retired in favour of Prism Sky.",
+      "Don't add a second or third accent hue for decoration \u2014 stay in stone + sky + the four semantic signals.",
+      "Don't render body or label text below 12.5px, and don't use #A8A29E for content that must be read.",
+      "Don't put heavy or colored shadows under resting surfaces, and don't stack shadows for emphasis.",
+      "Don't use pure-white cards on pure-white floors \u2014 surfaces separate by tone and seam.",
+      "Don't ship a screen that only works in one appearance: dark mode is not implemented in the incumbent system."
+    ]
+  }
+}

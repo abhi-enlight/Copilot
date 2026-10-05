@@ -117,12 +117,18 @@ dialog[open], [popover]:popover-open {
 ### 4.4 Accessibility & Kinetic Discipline (WCAG AA Compliance)
 - **Visible Keyboard Focus**: All buttons, inputs, and interactive action chips feature `:focus-visible:ring-2 :focus-visible:ring-sky-400 :focus-visible:ring-offset-2 :focus-visible:ring-offset-[#060709]`.
 - **Live Announcements**: Inbound live events from the Stack Radar are announced to screen readers via an invisible `<div aria-live="polite" aria-atomic="true" class="sr-only" />`.
-- **Reduced Motion Protocol**:
+- **Reduced Motion Protocol**: reduced motion is *fewer and gentler* animations, not none — a blanket `0.01ms` kill destroys the state feedback (hover, press, focus, loading) that users still need. Drop spatial movement; keep the transitions that carry state (colour, opacity, borders, shadows); and re-author looping indicators as a quiet opacity pulse so "busy" and "live" still read. The source of truth is the reduced-motion block at the end of `frontend/src/app/globals.css`; React-driven motion mirrors it via `<MotionConfig reducedMotion="user">` (`frontend/src/components/providers/MotionProvider.tsx`), which snaps transforms while opacity and colour keep animating.
   ```css
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
+      /* non-spatial transitions only: transforms/translates/scales resolve instantly */
+      transition-property: color, background-color, border-color, outline-color,
+        text-decoration-color, fill, stroke, opacity, box-shadow !important;
+      transition-duration: 150ms !important;
+    }
+    .animate-spin, .animate-ping, .animate-shimmer,
+    .animate-radar-pulse, .animate-thinking-glow {
+      animation: prism-reduced-pulse 2.4s ease-in-out infinite !important;
     }
   }
   ```

@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Map Tailwind's font utilities to the Geist variables loaded in app/layout.tsx,
+   so shells using `font-sans` and components using the Geist family match. */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 /* ── Design Tokens ───────────────────────────────────────────────── */
 :root {
   /* Surfaces */
@@ -50,7 +57,6 @@
   /* Motion */
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --dur-instant: 150ms;
   --dur-fast: 250ms;
   --dur-normal: 400ms;
@@ -62,6 +68,10 @@
   --prism-accent-bright: #38bdf8;
   --prism-ink: #0f172a;
   --prism-paper: #f8fafc;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -95,12 +105,6 @@ body {
 }
 .prism-gradient-soft {
   background-image: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(37,99,235,0.08) 100%);
-}
-.prism-gradient-text {
-  background-image: linear-gradient(120deg, #0369a1 10%, #2563eb 90%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
 
 /* ── Aurora background for cockpit ──────────────────────────────── */
@@ -223,13 +227,82 @@ body {
   animation: thinking-glow 2s ease-in-out infinite;
 }
 
+/* ── Browser surfaces ────────────────────────────────────────────── */
+::selection {
+  background: rgba(2, 132, 199, 0.22);
+  color: #1C1917;
+}
+
+/* Low specificity so component-level focus styles still win. */
+:where(a, button, [role="button"], summary, input, textarea, select):focus-visible {
+  outline: 2px solid var(--prism-accent, #0284c7);
+  outline-offset: 2px;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
 /* ── Reduced motion ──────────────────────────────────────────────── */
+/* Reduced motion is fewer and gentler animations, not none. Spatial
+   movement is dropped, but the transitions that carry state — colour,
+   opacity, borders, shadows — survive so hover, press, focus and status
+   changes still read (a blanket 0.01ms kill erased exactly that
+   feedback). Looping indicators that would otherwise freeze mid-cycle
+   are re-authored as a quiet opacity pulse, so "busy" and "live" still
+   communicate without anything travelling across the screen. React-driven
+   motion mirrors this via MotionConfig `reducedMotion="user"`, which snaps
+   transforms while opacity and colour keep animating. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  @keyframes prism-reduced-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* 1. State-carrying transitions stay; spatial ones are removed. Forcing the
+     property list to the non-spatial set makes every transform/translate/
+     scale change resolve instantly instead of moving. */
+  *,
+  *::before,
+  *::after {
+    transition-property: color, background-color, border-color, outline-color,
+      text-decoration-color, fill, stroke, opacity, box-shadow !important;
+    transition-duration: 150ms !important;
+    transition-timing-function: ease-out !important;
     scroll-behavior: auto !important;
+  }
+
+  /* 2. Rotation, sweep, ping and scale loops become a still, gentle pulse
+     so loading/live feedback is preserved without motion. */
+  .animate-shimmer,
+  .animate-spin,
+  .animate-ping,
+  .animate-radar-pulse,
+  .animate-thinking-glow {
+    animation: prism-reduced-pulse 2.4s ease-in-out infinite !important;
+  }
+
+  /* The shimmer highlight is a travelling overlay; the pulse above replaces it. */
+  .animate-shimmer::after {
+    animation: none !important;
   }
 }
 
+
+/* ── Infinite horizontal marquee ─────────────────────────────────── */
+@keyframes infinite-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-infinite-scroll {
+  animation: infinite-scroll 42s linear infinite;
+}
+
+.animate-infinite-scroll:hover {
+  animation-play-state: paused;
+}

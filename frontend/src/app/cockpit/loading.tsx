@@ -1,6 +1,6 @@
 export default function RootLoading() {
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAF9] font-sans select-none">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAF9] font-sans">
       {/* Top Header Skeleton */}
       <header className="h-14 bg-white/80 border-b border-black/[0.06] px-4 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">

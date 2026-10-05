@@ -8,6 +8,92 @@ export const dynamic = "force-dynamic";
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The only payload fields a user may change while approving. Anything outside
+// this list (including internal _raw_* keys) is rejected outright.
+const EDITABLE_PAYLOAD_KEYS = new Set([
+  "to",
+  "recipient",
+  "recipients",
+  "cc",
+  "bcc",
+  "subject",
+  "title",
+  "name",
+  "body",
+  "content",
+  "message",
+  "text",
+  "description",
+  "summary",
+  "notes",
+  "amount",
+  "channel",
+  "channel_id",
+  "priority",
+  "stage",
+  "status",
+  "assignee",
+  "start",
+  "start_time",
+  "end",
+  "end_time",
+  "date",
+  "time",
+]);
+
+const MAX_EDITABLE_STRING_LENGTH = 8000;
+
+const FORBIDDEN_PAYLOAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Reduces a client-supplied edit payload to a safe, explicitly allowlisted set of
+ * scalar fields. Returns the accepted edits and the names of rejected fields.
+ */
+function sanitizeEditablePayload(input: unknown): {
+  edits: Record<string, unknown>;
+  rejected: string[];
+} {
+  const edits: Record<string, unknown> = {};
+  const rejected: string[] = [];
+
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { edits, rejected };
+  }
+
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (
+      key.startsWith("_") ||
+      FORBIDDEN_PAYLOAD_KEYS.has(key) ||
+      !EDITABLE_PAYLOAD_KEYS.has(key)
+    ) {
+      rejected.push(key);
+      continue;
+    }
+
+    if (typeof value === "string") {
+      edits[key] = value.slice(0, MAX_EDITABLE_STRING_LENGTH);
+      continue;
+    }
+
+    if (typeof value === "number" || typeof value === "boolean") {
+      edits[key] = value;
+      continue;
+    }
+
+    if (Array.isArray(value) && value.every((entry) => typeof entry === "string")) {
+      edits[key] = value.slice(0, 25).map((entry) => entry.slice(0, MAX_EDITABLE_STRING_LENGTH));
+      continue;
+    }
+
+    rejected.push(key);
+  }
+
+  return { edits, rejected };
+}
+
 /**
  * Human-in-the-Loop Action Approval Endpoint.
  *
@@ -95,6 +181,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!UUID_PATTERN.test(actionId)) {
+      return NextResponse.json(
+        { error: "bad_request", detail: "Action ID must be a valid identifier" },
+        { status: 400 }
+      );
+    }
+
     // 1. Fetch action proposal from audit log
     const { data: action, error: fetchErr } = await adminSupabase
       .from("agent_audit_logs")
@@ -134,34 +227,60 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Cryptographic Signature Verification or Authorized Customization
-    let payloadToPersist = (action.request_payload as Record<string, unknown>) || {};
+    // 3. Integrity check — ALWAYS verify the stored proposal before it can run.
+    const storedPayload = (action.request_payload as Record<string, unknown>) || {};
 
-    if (updatedPayload && typeof updatedPayload === "object" && Object.keys(updatedPayload).length > 0) {
-      // User customized parameters (e.g. edited recipient or subject) before approving
-      const existingRaw = (payloadToPersist._raw_payload as Record<string, unknown>) || {};
-      const mergedRaw: Record<string, unknown> = { ...existingRaw, ...updatedPayload };
+    const isStoredSignatureValid = verifyActionSignature({
+      actionId: action.id,
+      userId: user.id,
+      toolSlug: action.tool_slug,
+      payload: storedPayload,
+      signature: action.signature_hash || "",
+    });
 
-      // If _raw_payload contains a tools array (from COMPOSIO_MULTI_EXECUTE_TOOL),
-      // update the arguments of the inner tool as well so executions reflect the edits
+    if (!isStoredSignatureValid) {
+      console.warn(`[Action Approval] Tampering detected on action ${actionId}`);
+      return NextResponse.json(
+        { error: "tampered_payload", detail: "Proposal parameters failed integrity verification" },
+        { status: 403 }
+      );
+    }
+
+    // User edits are limited to an explicit field allowlist. Internal keys
+    // (_raw_tool_slug, _raw_payload) cannot be supplied, so approving a proposal
+    // can only ever execute the tool and arguments that were signed.
+    const { edits, rejected } = sanitizeEditablePayload(updatedPayload);
+
+    if (rejected.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_edit",
+          detail: `These fields cannot be edited: ${rejected.join(", ")}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    let payloadToPersist = storedPayload;
+
+    if (Object.keys(edits).length > 0) {
+      const existingRaw = (storedPayload._raw_payload as Record<string, unknown>) || {};
+      const mergedRaw: Record<string, unknown> = { ...existingRaw, ...edits };
+
+      // Legacy proposals may still carry a multi-execute wrapper; edit the first
+      // inner tool's arguments without letting its slug change.
       if (Array.isArray(mergedRaw.tools) && mergedRaw.tools.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const firstTool = mergedRaw.tools[0] as any;
         mergedRaw.tools = [
-          {
-            ...firstTool,
-            arguments: {
-              ...(firstTool?.arguments || {}),
-              ...updatedPayload,
-            },
-          },
+          { ...firstTool, arguments: { ...(firstTool?.arguments || {}), ...edits } },
           ...mergedRaw.tools.slice(1),
         ];
       }
 
       payloadToPersist = {
-        ...payloadToPersist,
-        ...updatedPayload,
+        ...storedPayload,
+        ...edits,
         _raw_payload: mergedRaw,
       };
 
@@ -179,22 +298,6 @@ export async function POST(request: Request) {
           signature_hash: newSignature,
         })
         .eq("id", actionId);
-    } else {
-      const isSignatureValid = verifyActionSignature({
-        actionId: action.id,
-        userId: user.id,
-        toolSlug: action.tool_slug,
-        payload: action.request_payload as Record<string, unknown>,
-        signature: action.signature_hash || "",
-      });
-
-      if (!isSignatureValid) {
-        console.warn(`[Action Approval] Tampering detected on action ${actionId}`);
-        return NextResponse.json(
-          { error: "tampered_payload", detail: "Proposal parameters failed integrity verification" },
-          { status: 403 }
-        );
-      }
     }
 
     // 4. Atomic PostgreSQL Conditional Lock (double-click prevention)
@@ -309,15 +412,15 @@ export async function POST(request: Request) {
 
       let { data: candidateMessages } = await directQuery;
 
-      // 2. Fallback if containment check yielded nothing due to JSON formatting nuances
-      if (!candidateMessages || candidateMessages.length === 0) {
-        let fallbackQuery = adminSupabase.from("chat_messages").select("id, action_proposals");
-        if (sessionId) {
-          fallbackQuery = fallbackQuery.eq("session_id", sessionId);
-        } else {
-          fallbackQuery = fallbackQuery.order("created_at", { ascending: false }).limit(25);
-        }
-        const { data: fallbackList } = await fallbackQuery;
+      // 2. Fallback if the containment check yielded nothing due to JSON
+      // formatting nuances. This stays inside the caller's own session: without
+      // a session id we skip the sync entirely rather than scanning recent
+      // messages across every tenant.
+      if ((!candidateMessages || candidateMessages.length === 0) && sessionId) {
+        const { data: fallbackList } = await adminSupabase
+          .from("chat_messages")
+          .select("id, action_proposals")
+          .eq("session_id", sessionId);
         candidateMessages = fallbackList;
       }
 

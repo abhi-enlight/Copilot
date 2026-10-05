@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { MotionProvider } from "@/components/providers/MotionProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { RouteProgressBar } from "@/components/ui/RouteProgressBar";
 
@@ -32,14 +33,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AuthProvider>
-          <ToastProvider>
-            <Suspense fallback={null}>
-              <RouteProgressBar />
-            </Suspense>
-            {children}
-          </ToastProvider>
-        </AuthProvider>
+        <MotionProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <Suspense fallback={null}>
+                <RouteProgressBar />
+              </Suspense>
+              {children}
+            </ToastProvider>
+          </AuthProvider>
+        </MotionProvider>
       </body>
     </html>
   );

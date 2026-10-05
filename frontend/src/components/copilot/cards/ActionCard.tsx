@@ -79,9 +79,11 @@ interface ActionCardProps {
   proposal: ActionProposal;
   onApprove: (actionId: string, updatedPayload?: Record<string, unknown>) => Promise<{ success: boolean; error?: string; result?: unknown } | void>;
   onReject: (actionId: string, reason?: string) => Promise<{ success: boolean; error?: string } | void>;
+  className?: string;
+  cardBg?: string;
 }
 
-export default function ActionCard({ proposal, onApprove, onReject }: ActionCardProps) {
+export default function ActionCard({ proposal, onApprove, onReject, className = "", cardBg = "bg-white" }: ActionCardProps) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [rejectionMode, setRejectionMode] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -268,9 +270,9 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
 
   return (
     <div
-      className={`w-full my-4 rounded-2xl bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.03)] transition-all duration-300 ${
+      className={`w-full my-4 rounded-2xl ${cardBg} overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.03)] transition-all duration-300 ${
         proposal.status === "rejected" ? "opacity-60" : ""
-      } border-l-[3px] ${
+      } ${className} border-l-[3px] ${
         proposal.status === "executed"
           ? "border-l-emerald-500"
           : proposal.status === "rejected"
@@ -284,40 +286,40 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
           : "border-l-emerald-500"
       }`}
     >
-      {/* Top Header Row — Status / Risk badge + Tool badge */}
+      {/* Top Header Row: Status / Risk badge + Tool badge */}
       <div className="px-5 pt-5 pb-0 flex items-center justify-between gap-2">
         {/* Status / Risk badge */}
         {proposal.status === "executed" ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <Check size={12} weight="bold" />
             {isEmail ? "Sent" : "Executed"}
           </span>
         ) : proposal.status === "rejected" ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-600 border border-stone-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-stone-100 text-stone-600 border border-stone-200">
             <X size={12} weight="bold" />
             Declined
           </span>
         ) : proposal.status === "failed" ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
             <Warning size={12} weight="bold" />
             Failed
           </span>
         ) : (
           <>
             {proposal.risk_level === "high" && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
                 <Warning size={12} weight="fill" />
                 High Risk
               </span>
             )}
             {proposal.risk_level === "medium" && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
                 <Warning size={12} weight="bold" />
                 Medium Risk
               </span>
             )}
             {proposal.risk_level === "low" && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <ShieldCheck size={12} weight="bold" />
                 Low Risk
               </span>
@@ -326,7 +328,7 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
         )}
 
         {/* Tool source badge */}
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${toolMeta.badgeClass}`}>
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${toolMeta.badgeClass}`}>
           <ToolIcon size={12} weight="bold" />
           {toolMeta.label}
         </span>
@@ -345,7 +347,7 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
         )}
       </div>
 
-      {/* Preview Pane — editable in edit mode or read-only */}
+      {/* Preview Pane: editable in edit mode or read-only */}
       {(recipient || subject || content || amount || (isEditing && proposal.status === "pending")) && (
         <div className="px-5 pt-3">
           <div className="rounded-xl bg-stone-50 border border-black/[0.06] p-4 space-y-2.5 text-xs">
@@ -469,7 +471,7 @@ export default function ActionCard({ proposal, onApprove, onReject }: ActionCard
           {proposal.status === "approved" && (
             <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
               <SpinnerGap size={13} className="animate-spin" />
-              Approved — Executing via Prism…
+              Approved: Executing via Prism...
             </div>
           )}
 

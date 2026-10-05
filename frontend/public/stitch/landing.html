@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Prism | Enterprise Proactive Operations Copilot</title>
+<!-- Fonts: Plus Jakarta Sans & Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN with forms and container-queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "outline-variant": "#d0c4be",
+            "on-secondary": "#ffffff",
+            "primary": "#000000",
+            "on-tertiary-fixed": "#1e1b17",
+            "surface-variant": "#e2e2e2",
+            "on-primary-container": "#888380",
+            "on-secondary-fixed": "#001d31",
+            "surface-container-lowest": "#ffffff",
+            "background": "#f9f9f8",
+            "on-primary": "#ffffff",
+            "error-container": "#ffdad6",
+            "on-tertiary": "#ffffff",
+            "tertiary-container": "#1e1b17",
+            "on-tertiary-container": "#88837d",
+            "surface-tint": "#625d5b",
+            "surface-container-high": "#e8e8e7",
+            "secondary-fixed-dim": "#93ccff",
+            "on-surface-variant": "#4d4540",
+            "on-error": "#ffffff",
+            "inverse-on-surface": "#f1f1f0",
+            "secondary-fixed": "#cce5ff",
+            "surface-container": "#eeeeed",
+            "surface-container-low": "#f3f4f3",
+            "tertiary-fixed": "#e8e1db",
+            "on-background": "#1a1c1c",
+            "tertiary-fixed-dim": "#ccc5bf",
+            "surface-dim": "#dadad9",
+            "inverse-primary": "#ccc5c2",
+            "surface-bright": "#f9f9f8",
+            "primary-fixed-dim": "#ccc5c2",
+            "surface": "#f9f9f8",
+            "secondary-container": "#5bb8fe",
+            "tertiary": "#000000",
+            "secondary": "#006398",
+            "on-tertiary-fixed-variant": "#4a4641",
+            "on-error-container": "#93000a",
+            "error": "#ba1a1a",
+            "on-primary-fixed": "#1e1b19",
+            "on-primary-fixed-variant": "#4a4643",
+            "primary-container": "#1e1b19",
+            "inverse-surface": "#2f3130",
+            "on-secondary-fixed-variant": "#004b73",
+            "on-surface": "#1a1c1c",
+            "outline": "#7e7570",
+            "primary-fixed": "#e9e1dd",
+            "surface-container-highest": "#e2e2e2",
+            "on-secondary-container": "#00476e"
+          },
+          borderRadius: {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          spacing: {
+            "margin": "2.5rem",
+            "space-md": "1rem",
+            "gutter-mobile": "1rem",
+            "space-sm": "0.5rem",
+            "margin-mobile": "1.25rem",
+            "gutter": "1.5rem",
+            "space-xl": "2.5rem",
+            "space-lg": "1.5rem",
+            "space-xs": "0.25rem"
+          },
+          fontFamily: {
+            "headline-md": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-xl-mobile": ["Plus Jakarta Sans", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "display-hero": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-xl": ["Plus Jakarta Sans", "sans-serif"],
+            "display-hero-mobile": ["Plus Jakarta Sans", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "headline-lg": ["Plus Jakarta Sans", "sans-serif"],
+            "label-sm": ["Inter", "sans-serif"],
+            "headline-sm": ["Plus Jakarta Sans", "sans-serif"],
+            "body-md": ["Inter", "sans-serif"],
+            "body-sm": ["Inter", "sans-serif"],
+            "mono": ["JetBrains Mono", "monospace"]
+          },
+          fontSize: {
+            "headline-md": ["24px", { lineHeight: "32px", letterSpacing: "-0.015em", fontWeight: "600" }],
+            "headline-xl-mobile": ["30px", { lineHeight: "36px", letterSpacing: "-0.02em", fontWeight: "600" }],
+            "body-lg": ["18px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "400" }],
+            "display-hero": ["64px", { lineHeight: "72px", letterSpacing: "-0.03em", fontWeight: "600" }],
+            "headline-xl": ["44px", { lineHeight: "52px", letterSpacing: "-0.025em", fontWeight: "600" }],
+            "display-hero-mobile": ["38px", { lineHeight: "44px", letterSpacing: "-0.025em", fontWeight: "600" }],
+            "label-md": ["13px", { lineHeight: "18px", letterSpacing: "0.01em", fontWeight: "500" }],
+            "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "600" }],
+            "label-sm": ["11px", { lineHeight: "16px", letterSpacing: "0.04em", fontWeight: "600" }],
+            "headline-sm": ["18px", { lineHeight: "26px", letterSpacing: "-0.01em", fontWeight: "600" }],
+            "body-md": ["15px", { lineHeight: "24px", letterSpacing: "-0.005em", fontWeight: "400" }],
+            "body-sm": ["13px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #FAFAF9;
+      color: #1C1917;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1;
+    }
+    /* Hairline borders & refined Apple surface aesthetics */
+    .hairline-border {
+      border: 1px solid rgba(28, 25, 23, 0.08);
+    }
+    .hairline-border-light {
+      border: 1px solid rgba(28, 25, 23, 0.05);
+    }
+    .card-shadow-soft {
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -4px rgba(28, 25, 23, 0.04);
+    }
+    .cockpit-shadow {
+      box-shadow: 0 20px 40px -15px rgba(28, 25, 23, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+  </style>
+</head>
+<body class="bg-[#FAFAF9] text-[#1C1917] selection:bg-[#0284c7]/20 selection:text-[#0284c7]">
+<!-- TOP NAV BAR (Derived from Shared Components JSON with Glassmorphism & High-Fidelity Styling) -->
+<header class="bg-[#FAFAF9]/85 backdrop-blur-md border-b border-black/[0.08] docked full-width top-0 sticky z-50 shadow-sm transition-all duration-200">
+<div class="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+<!-- Brand Logo Anchor -->
+<a class="flex items-center gap-2.5 active:scale-[0.98] transition-transform duration-150 group" href="#">
+<div class="w-8 h-8 rounded-lg bg-[#1C1917] flex items-center justify-center text-white shadow-sm border border-black/10 group-hover:bg-black transition-colors">
+<span class="material-symbols-outlined text-[19px] text-[#0284c7]" style="font-variation-settings: 'FILL' 1;">view_in_ar</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-sm text-headline-sm font-semibold tracking-tight text-[#1C1917]">Prism</span>
+<span class="text-[10px] font-mono tracking-wider font-semibold text-[#78716C] bg-stone-200/80 px-1.5 py-0.5 rounded-md border border-stone-300/60 uppercase">Operations Copilot</span>
+</div>
+</a>
+<!-- Desktop Nav Items -->
+<nav class="hidden md:flex items-center space-x-7">
+<a class="font-label-md text-label-md text-primary font-semibold hover:text-[#0284c7] transition-colors duration-150" href="#morning-briefing">Morning Briefing</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors duration-150" href="#safety-gatekeeper">Safety Gatekeeper</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors duration-150" href="#orchestration">Cross-Suite Workflows</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors duration-150" href="#mesh">Integrations</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors duration-150" href="#security">Security</a>
+</nav>
+<!-- Trailing Action Cluster -->
+<div class="flex items-center gap-4">
+<a class="hidden sm:inline-flex items-center justify-center text-[#57534E] hover:text-[#1C1917] transition-colors p-1.5 rounded-md hover:bg-stone-200/50" href="#terminal" title="System Terminal Telemetry">
+<span class="material-symbols-outlined text-[20px]">terminal</span>
+</a>
+<a class="font-label-md text-label-md font-medium text-[#57534E] hover:text-[#1C1917] transition-colors" href="#">Sign In</a>
+<a class="bg-[#1C1917] hover:bg-black text-white font-label-md text-label-md rounded-lg px-4 py-2 font-medium transition-all shadow-sm active:scale-[0.98] border border-transparent" href="#deploy">
+          Get Started
+        </a>
+</div>
+</div>
+</header>
+<!-- MAIN CANVAS -->
+<main class="relative overflow-hidden">
+<!-- HERO SECTION -->
+<section class="relative pt-20 pb-24 md:pt-28 md:pb-32 px-6" id="morning-briefing">
+<div class="max-w-[1200px] mx-auto text-center flex flex-col items-center">
+<!-- Eyebrow Tag -->
+<div class="inline-flex items-center gap-2 bg-stone-200/70 border border-stone-300 text-stone-700 px-2.5 py-1 text-xs font-mono tracking-wider font-semibold rounded-md mb-8">
+<span class="w-1.5 h-1.5 bg-[#0284c7] rounded-sm"></span>
+          PROACTIVE OPERATIONS COPILOT
+        </div>
+<!-- Two-Tone Apple Typography -->
+<h1 class="max-w-4xl text-center tracking-tight mb-6">
+<span class="block font-headline-xl-mobile md:font-display-hero text-headline-xl-mobile md:text-display-hero font-semibold text-[#1C1917] tracking-tight">
+            Stop checking nine tabs every morning.
+          </span>
+<span class="block font-headline-xl-mobile md:font-display-hero text-headline-xl-mobile md:text-display-hero font-semibold text-[#78716C] tracking-tight mt-1">
+            Every deal, thread, and blocker briefed before 8:00 AM.
+          </span>
+</h1>
+<!-- Subtitle -->
+<p class="max-w-2xl font-body-lg text-body-lg text-[#57534E] mb-10 leading-relaxed">
+          Prism connects directly to Microsoft 365, Zoho, Google Workspace, and Slack to synthesize urgent cross-suite dependencies into an actionable 8:00 AM operational briefing, complete with single-click approvals.
+        </p>
+<!-- CTA Cluster -->
+<div class="flex flex-col sm:flex-row items-center gap-3.5 mb-16">
+<a class="w-full sm:w-auto bg-[#1C1917] hover:bg-black text-white px-6 py-3.5 rounded-lg font-label-md text-label-md font-medium inline-flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]" href="#cockpit">
+            Get Your Morning Briefing
+            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="w-full sm:w-auto bg-[#F5F5F4] hover:bg-stone-200 text-[#1C1917] hairline-border px-6 py-3.5 rounded-lg font-label-md text-label-md font-medium transition-all active:scale-[0.98]" href="#safety-gatekeeper">
+            See How Approvals Work
+          </a>
+</div>
+<!-- 3 Proof Metric Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl text-left mb-16">
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-4 card-shadow-soft">
+<div class="flex items-center gap-2 text-[#0284c7] mb-1">
+<span class="material-symbols-outlined text-[18px]">schedule</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider font-semibold">Morning Cadence</span>
+</div>
+<p class="font-headline-sm text-headline-sm text-[#1C1917] mb-0.5">Reclaims 42 minutes every morning</p>
+<p class="font-body-sm text-body-sm text-[#78716C]">Eliminates repetitive manual tab triage across suites.</p>
+</div>
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-4 card-shadow-soft">
+<div class="flex items-center gap-2 text-[#0284c7] mb-1">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider font-semibold">Strict Governance</span>
+</div>
+<p class="font-headline-sm text-headline-sm text-[#1C1917] mb-0.5">Fail-closed action gatekeeper</p>
+<p class="font-body-sm text-body-sm text-[#78716C]">Autonomous reads, operator-approved state writes.</p>
+</div>
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-4 card-shadow-soft">
+<div class="flex items-center gap-2 text-[#0284c7] mb-1">
+<span class="material-symbols-outlined text-[18px]">cable</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider font-semibold">Rapid Rollout</span>
+</div>
+<p class="font-headline-sm text-headline-sm text-[#1C1917] mb-0.5">Connects in 2 minutes without migrations</p>
+<p class="font-body-sm text-body-sm text-[#78716C]">Zero ETL, per-user OAuth tokens with read scopes.</p>
+</div>
+</div>
+<!-- HERO CENTERPIECE MOCKUP (Briefing Cockpit) -->
+<div class="w-full bg-[#F5F5F4] hairline-border rounded-2xl p-4 sm:p-7 cockpit-shadow text-left" id="cockpit">
+<!-- Cockpit Header Strip -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-6 border-b border-black/8 gap-4">
+<div class="flex items-center gap-3">
+<div class="w-3 h-3 bg-[#0284c7] rounded-sm"></div>
+<div>
+<h3 class="font-headline-sm text-headline-sm text-[#1C1917] font-semibold flex items-center gap-2">
+                  Prism Briefing Room
+                  <span class="font-mono text-[11px] font-normal text-[#78716C] bg-white px-2 py-0.5 rounded-md border border-black/8">v4.18 STABLE</span>
+</h3>
+<p class="font-body-sm text-body-sm text-[#78716C]">Wednesday, Oct 24 : 07:58 AM EDT</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1.5 text-xs text-stone-600 font-mono bg-white/80 px-3 py-1.5 rounded-lg border border-black/8">
+<span class="w-2 h-2 rounded-sm bg-emerald-600 inline-block"></span>
+<span>All 12 mesh streams synchronized</span>
+</div>
+<button class="text-[#78716C] hover:text-[#1C1917] p-1.5 transition-colors">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+</button>
+</div>
+</div>
+<!-- Dual Column Cockpit Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Left Column: Synthesized Urgency Stream (3 Cards) -->
+<div class="lg:col-span-5 flex flex-col space-y-3.5">
+<div class="flex items-center justify-between px-1">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-[#78716C] font-semibold">Triage Signals (3 Urgent)</span>
+<span class="font-label-sm text-label-sm text-[#0284c7] font-medium">Auto-ranked by SLA</span>
+</div>
+<!-- Card 1: Zoho CRM -->
+<div class="bg-white rounded-xl p-4 hairline-border card-shadow-soft relative hover:border-[#0284c7]/40 transition-all cursor-pointer">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                      ZOHO CRM
+                    </span>
+<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200">
+                      URGENT
+                    </span>
+</div>
+<span class="text-[11px] font-mono text-[#78716C]">Expires in 4 hours</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-[#1C1917] text-base mb-1">Contract Review: Acme Corp $240K Expansion</h4>
+<p class="font-body-sm text-body-sm text-[#57534E]">Terms approved by legal in Slack #legal-desk. Zoho deal stage halted at 'Negotiation'. Staged proposal ready.</p>
+</div>
+<!-- Card 2: Outlook -->
+<div class="bg-white rounded-xl p-4 hairline-border card-shadow-soft relative hover:border-black/20 transition-all cursor-pointer">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-[#006398] border border-blue-200">
+                      OUTLOOK 365
+                    </span>
+<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200">
+                      READY TO EXECUTE
+                    </span>
+</div>
+<span class="text-[11px] font-mono text-[#78716C]">07:34 AM</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-[#1C1917] text-base mb-1">Executive Sign-Off: Renewal terms confirmed</h4>
+<p class="font-body-sm text-body-sm text-[#57534E]">VP Procurement approved net-45 invoicing schedule via email thread. No discrepancies found.</p>
+</div>
+<!-- Card 3: Linear -->
+<div class="bg-white rounded-xl p-4 hairline-border card-shadow-soft relative hover:border-black/20 transition-all cursor-pointer">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200">
+                      LINEAR
+                    </span>
+<span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      RESOLVED
+                    </span>
+</div>
+<span class="text-[11px] font-mono text-[#78716C]">PR #482 MERGED</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-[#1C1917] text-base mb-1">Engineering Blocker: API rate limits resolved</h4>
+<p class="font-body-sm text-body-sm text-[#57534E]">Core throughput throttle patched. Zoho Books batch invoice integration restored safely.</p>
+</div>
+</div>
+<!-- Right Column: Staged Action Proposal (Interactive Execution Wedge) -->
+<div class="lg:col-span-7 bg-white rounded-xl p-5 sm:p-6 hairline-border shadow-md flex flex-col justify-between">
+<div>
+<div class="flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-black/8">
+<div>
+<span class="text-[11px] font-mono uppercase tracking-wider text-[#0284c7] font-semibold">ACTION CANDIDATE</span>
+<h3 class="font-headline-sm text-headline-sm text-[#1C1917]">Proposed Autonomous Execution #8491</h3>
+</div>
+<div class="text-right">
+<span class="font-mono text-[11px] text-[#78716C] bg-[#F5F5F4] px-2 py-1 rounded-md border border-black/6">
+                      SHA: 0x7f2a...89dc verified
+                    </span>
+</div>
+</div>
+<div class="space-y-4">
+<!-- Staged Action Summary -->
+<div class="bg-[#F5F5F4] rounded-lg p-3.5 border border-black/6">
+<p class="font-label-sm text-label-sm uppercase tracking-wide text-[#78716C] mb-1.5 font-semibold">Staged Orchestration Plan</p>
+<p class="font-body-sm text-body-sm text-[#1C1917] leading-relaxed">
+                      1. Generate and send revised Master Services Agreement to Acme Corp via DocuSign.<br/>
+                      2. Update Zoho CRM deal stage to <span class="font-mono text-xs bg-stone-200/80 px-1 py-0.5 rounded">Contract Sent</span>.<br/>
+                      3. Dispatch sync notice to Slack channel <span class="font-mono text-xs bg-stone-200/80 px-1 py-0.5 rounded">#sales-ops</span> with audit payload link.
+                    </p>
+</div>
+<!-- Dry Run Diff Inspection -->
+<div class="border border-stone-200 rounded-lg p-3 font-mono text-xs bg-stone-50">
+<div class="text-stone-500 text-[11px] pb-1 border-b border-stone-200 mb-2 flex justify-between">
+<span>DRY-RUN AST DIFF (ZOHO + SLACK)</span>
+<span class="text-emerald-700">SCHEMA VALIDATED</span>
+</div>
+<div class="text-stone-600">@@ -18,3 +18,3 @@ ZohoCRM.Deals.get("D-9024")</div>
+<div class="text-red-700">- stage: "Negotiation / Review"</div>
+<div class="text-emerald-800">+ stage: "Contract Sent (DocuSign Envelop #2991)"</div>
+<div class="text-emerald-800">+ metadata.signoff_hash: "0x3b890a9821f00"</div>
+</div>
+<!-- Safety Intercept Notice -->
+<div class="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50/70 border border-amber-200/80 text-amber-900">
+<span class="material-symbols-outlined text-[18px] text-amber-700 mt-0.5">shield</span>
+<div class="text-xs">
+<span class="font-semibold">Deterministic Gatekeeper Active:</span> All state-changing write mutations are intercepted and halted. Requires single human operator signature to broadcast to API endpoints.
+                    </div>
+</div>
+</div>
+</div>
+<!-- Button Actions -->
+<div class="pt-5 mt-5 border-t border-black/8 flex flex-col sm:flex-row items-center justify-between gap-3">
+<span class="text-xs font-mono text-stone-500">Target execution window: 08:00 AM</span>
+<div class="flex items-center gap-2.5 w-full sm:w-auto">
+<button class="flex-1 sm:flex-none px-4 py-2 text-xs font-medium text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors border border-black/5">
+                    Reject / Edit Plan
+                  </button>
+<button class="flex-1 sm:flex-none px-5 py-2 text-xs font-semibold text-white bg-[#1C1917] hover:bg-black rounded-lg transition-all shadow-sm flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-emerald-400">check_circle</span>
+                    Approve &amp; Execute
+                  </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- UNIVERSAL INTEGRATION MESH -->
+<section class="py-20 px-6 bg-[#F5F5F4]/60 border-y border-black/8" id="mesh">
+<div class="max-w-[1200px] mx-auto">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="inline-flex items-center gap-2 bg-stone-200 text-stone-700 px-2.5 py-1 text-xs font-mono font-semibold rounded-md mb-3">
+            ZERO MIGRATIONS
+          </div>
+<h2 class="font-headline-lg text-headline-lg text-[#1C1917] mb-3">
+            Universal Integration Mesh
+          </h2>
+<p class="font-body-md text-body-md text-[#57534E]">
+            Connects in 120 seconds. Operates with strict per-user scoped OAuth isolation and granular role delegation.
+          </p>
+</div>
+<!-- 12 Toolkits Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+<!-- 1. Microsoft Outlook -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-[#006398]">
+<span class="material-symbols-outlined text-[20px]">mail</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Microsoft Outlook</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">OAuth 2.0 PKCE</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600" title="Synchronized"></span>
+</div>
+<!-- 2. Microsoft Teams -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700">
+<span class="material-symbols-outlined text-[20px]">forum</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Microsoft Teams</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Read/Write Scoped</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 3. SharePoint -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-700">
+<span class="material-symbols-outlined text-[20px]">folder_data</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">SharePoint</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Strict AST Schema</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 4. Microsoft Dynamics 365 -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-900">
+<span class="material-symbols-outlined text-[20px]">dataset</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Dynamics 365</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Tenant Scoped</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 5. Zoho CRM -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-700">
+<span class="material-symbols-outlined text-[20px]">account_box</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Zoho CRM</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">OAuth 2.0 PKCE</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 6. Zoho Books -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-yellow-50 border border-yellow-100 flex items-center justify-center text-yellow-800">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Zoho Books</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Read/Write Scoped</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 7. Google Workspace Gmail -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-700">
+<span class="material-symbols-outlined text-[20px]">mark_email_unread</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Google Gmail</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">REST Pub/Sub</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 8. Google Calendar -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0284c7]">
+<span class="material-symbols-outlined text-[20px]">event</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Google Calendar</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Sync Channel</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 9. Slack Enterprise -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-800">
+<span class="material-symbols-outlined text-[20px]">tag</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Slack Enterprise</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Socket Mode Realtime</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 10. Linear -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-700">
+<span class="material-symbols-outlined text-[20px]">check_box</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Linear</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">GraphQL Webhooks</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 11. GitHub Enterprise -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center text-[#1C1917]">
+<span class="material-symbols-outlined text-[20px]">code</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">GitHub Enterprise</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">App Scoped</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+<!-- 12. Notion -->
+<div class="bg-white hairline-border rounded-xl p-4 flex items-center justify-between card-shadow-soft hover:border-[#0284c7]/40 transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-700">
+<span class="material-symbols-outlined text-[20px]">description</span>
+</div>
+<div>
+<p class="font-headline-sm text-headline-sm text-sm text-[#1C1917] mb-0.5">Notion Workspace</p>
+<span class="text-[10px] font-mono text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded border border-black/5">Blocks API</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-sm bg-emerald-600"></span>
+</div>
+</div>
+</div>
+</section>
+<!-- FAIL-CLOSED APPROVAL WEDGE -->
+<section class="py-24 px-6" id="safety-gatekeeper">
+<div class="max-w-[1200px] mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+<!-- Left Column: Architecture Context -->
+<div class="lg:col-span-6 space-y-6">
+<div class="inline-flex items-center gap-2 bg-stone-200 text-stone-700 px-2.5 py-1 text-xs font-mono font-semibold rounded-md">
+              SAFETY ARCHITECTURE
+            </div>
+<h2 class="font-headline-lg text-headline-lg text-[#1C1917]">
+              Deterministic Safety Guarantee: Prism never writes silently.
+            </h2>
+<p class="font-body-md text-body-md text-[#57534E] leading-relaxed">
+              Traditional enterprise bots fail because LLMs hallucinate side effects. Prism enforces a hard architectural boundary between reading information and altering records. Autonomous operations read continuously, but state writes are halted at a deterministic checkpoint.
+            </p>
+<div class="space-y-4 pt-2">
+<div class="flex items-start gap-3 bg-[#F5F5F4] p-4 rounded-xl hairline-border">
+<div class="w-7 h-7 rounded-md bg-stone-200 flex items-center justify-center text-[#1C1917] mt-0.5">
+<span class="material-symbols-outlined text-[17px]">lock</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm text-sm text-[#1C1917]">Zero Silent Side-Effects</h4>
+<p class="font-body-sm text-body-sm text-[#57534E]">No CRM stage, invoice schedule, or client communication can be dispatched without cryptographically verified sign-off.</p>
+</div>
+</div>
+<div class="flex items-start gap-3 bg-[#F5F5F4] p-4 rounded-xl hairline-border">
+<div class="w-7 h-7 rounded-md bg-stone-200 flex items-center justify-center text-[#1C1917] mt-0.5">
+<span class="material-symbols-outlined text-[17px]">history_edu</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm text-sm text-[#1C1917]">Micro-Audit Trail</h4>
+<p class="font-body-sm text-body-sm text-[#57534E]">Every proposal contains an exact AST diff and parameter hash before execution, recorded to an immutable ledger.</p>
+</div>
+</div>
+<div class="flex items-start gap-3 bg-[#F5F5F4] p-4 rounded-xl hairline-border">
+<div class="w-7 h-7 rounded-md bg-stone-200 flex items-center justify-center text-[#1C1917] mt-0.5">
+<span class="material-symbols-outlined text-[17px]">block</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm text-sm text-[#1C1917]">Instant Token Revocation</h4>
+<p class="font-body-sm text-body-sm text-[#57534E]">Single-click tenant wide session termination. Tokens expire within 15 minutes of inactivity.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Interactive Approval Simulation Card -->
+<div class="lg:col-span-6 bg-[#F5F5F4] p-6 rounded-2xl hairline-border card-shadow-soft">
+<div class="bg-white rounded-xl p-5 hairline-border shadow-sm">
+<div class="flex items-center justify-between pb-3 border-b border-black/8">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-sm bg-amber-500"></span>
+<span class="font-mono text-xs font-semibold text-[#1C1917]">EXECUTION HALTED AT 99%</span>
+</div>
+<span class="font-mono text-xs text-[#78716C]">AWAITING OPERATOR BIOMETRIC</span>
+</div>
+<div class="py-4 space-y-3">
+<div class="text-xs font-mono text-[#57534E] flex justify-between">
+<span>Target API: Zoho CRM / v3 / deals</span>
+<span>Scope: write:deals</span>
+</div>
+<!-- Diff Container -->
+<div class="p-3 bg-stone-900 rounded-lg text-emerald-400 font-mono text-xs overflow-x-auto space-y-1">
+<div class="text-stone-400">// Staged payload validation</div>
+<div>$ patch_crm_stage(id="Z-9812", new_stage="Contract Executed")</div>
+<div>$ send_slack_broadcast(channel="#rev-ops", template="deal_win_v2")</div>
+<div class="text-amber-400">! Intercept: require_operator_approval(token_id="AUTH_USR_481")</div>
+</div>
+<div class="grid grid-cols-2 gap-2 text-xs pt-1">
+<div class="bg-[#F5F5F4] p-2 rounded-md">
+<span class="text-stone-500 block text-[10px]">PAYLOAD SHA-256</span>
+<span class="font-mono text-[#1C1917]">a4f108...bc21</span>
+</div>
+<div class="bg-[#F5F5F4] p-2 rounded-md">
+<span class="text-stone-500 block text-[10px]">OPERATOR ROLE</span>
+<span class="font-mono text-[#1C1917]">RevOps Director (L3)</span>
+</div>
+</div>
+</div>
+<div class="pt-3 border-t border-black/8 flex items-center justify-between gap-3">
+<span class="text-xs text-stone-500">Fail-closed timeout in 14m</span>
+<div class="flex gap-2">
+<button class="px-3 py-1.5 text-xs text-red-700 bg-red-50 hover:bg-red-100 rounded-md border border-red-200 font-medium">Reject</button>
+<button class="px-4 py-1.5 text-xs text-white bg-[#1C1917] hover:bg-black rounded-md font-medium shadow-sm flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-emerald-400">fingerprint</span>
+                    Authorize Write
+                  </button>
+</div>
+</div>
+</div>
+<!-- Verification Sub-note -->
+<div class="mt-4 flex items-center justify-between text-[11px] font-mono text-stone-500 px-2">
+<span>SANDBOX ISOLATION: ACTIVE</span>
+<span>NO RAW CREDENTIAL EXPOSURE</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CROSS-SUITE ORCHESTRATION PIPELINE -->
+<section class="py-20 px-6 bg-white border-t border-black/8" id="orchestration">
+<div class="max-w-[1200px] mx-auto">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="inline-flex items-center gap-2 bg-stone-200 text-stone-700 px-2.5 py-1 text-xs font-mono font-semibold rounded-md mb-3">
+            CONTINUOUS FABRIC
+          </div>
+<h2 class="font-headline-lg text-headline-lg text-[#1C1917] mb-3">
+            Cross-Suite Orchestration Pipeline
+          </h2>
+<p class="font-body-md text-body-md text-[#57534E]">
+            How Prism correlates signals across siloed platforms without modifying underlying datastores until human sign-off.
+          </p>
+</div>
+<!-- 4 Step Pipeline Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+<div class="bg-[#F5F5F4] rounded-xl p-5 hairline-border card-shadow-soft flex flex-col justify-between">
+<div>
+<span class="inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-white border border-black/8 text-[#1C1917] mb-4">
+                STEP 01
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">Ingest &amp; Read</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+                Continuously scans mail, CRM, and task boards across suites without mutating data or storing raw messages permanently.
+              </p>
+</div>
+<div class="pt-4 mt-4 border-t border-black/5 font-mono text-[11px] text-stone-500">
+              Read-Only Scopes Enforced
+            </div>
+</div>
+<div class="bg-[#F5F5F4] rounded-xl p-5 hairline-border card-shadow-soft flex flex-col justify-between">
+<div>
+<span class="inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-white border border-black/8 text-[#1C1917] mb-4">
+                STEP 02
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">Cross-Correlate</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+                Discovers unlinked threads connecting customer feedback in Slack with open CRM deals and pending pull requests.
+              </p>
+</div>
+<div class="pt-4 mt-4 border-t border-black/5 font-mono text-[11px] text-[#0284c7]">
+              Semantic Graph Indexing
+            </div>
+</div>
+<div class="bg-[#F5F5F4] rounded-xl p-5 hairline-border card-shadow-soft flex flex-col justify-between">
+<div>
+<span class="inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-white border border-black/8 text-[#1C1917] mb-4">
+                STEP 03
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">Intercept State Change</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+                Halts any action that modifies records, generates a precise dry-run diff, and prepares the single-click approval container.
+              </p>
+</div>
+<div class="pt-4 mt-4 border-t border-black/5 font-mono text-[11px] text-amber-700">
+              Hard AST Schema Sandbox
+            </div>
+</div>
+<div class="bg-[#F5F5F4] rounded-xl p-5 hairline-border card-shadow-soft flex flex-col justify-between">
+<div>
+<span class="inline-block font-mono text-xs font-semibold px-2 py-0.5 rounded-md bg-white border border-black/8 text-[#1C1917] mb-4">
+                STEP 04
+              </span>
+<h3 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">Staged Approval &amp; Log</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+                Records approved transactions into an append-only audit ledger signed with cryptographic operator fingerprints.
+              </p>
+</div>
+<div class="pt-4 mt-4 border-t border-black/5 font-mono text-[11px] text-emerald-700">
+              SHA-256 Verified Receipt
+            </div>
+</div>
+</div>
+<!-- Live Telemetry Inspector Terminal Preview -->
+<div class="bg-[#1C1917] rounded-xl p-5 border border-stone-800 font-mono text-xs text-stone-300 card-shadow-soft" id="terminal">
+<div class="flex items-center justify-between pb-3 mb-3 border-b border-stone-800 text-stone-400">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-sm bg-emerald-500"></span>
+<span class="text-white font-semibold">PRISM TELEMETRY BUS // REALTIME PIPELINE</span>
+</div>
+<span class="text-[11px]">BUFFER: 120 FPS | LATENCY: 18ms</span>
+</div>
+<div class="space-y-1.5 overflow-x-auto text-[12px] leading-relaxed">
+<div><span class="text-stone-500">[07:58:01.120]</span> <span class="text-[#0284c7]">INGEST:</span> Pulled 4 new thread tokens from Outlook 365. No mutative hooks requested.</div>
+<div><span class="text-stone-500">[07:58:01.340]</span> <span class="text-[#0284c7]">INGEST:</span> Zoho CRM Deals polled via REST v3. 1 deal marked with SLA threshold breach (&lt; 4h).</div>
+<div><span class="text-stone-500">[07:58:01.890]</span> <span class="text-purple-400">CORRELATE:</span> Matched Slack thread #legal-desk (ID 881) with Zoho Deal #D-9024 (Acme Corp).</div>
+<div><span class="text-stone-500">[07:58:02.040]</span> <span class="text-amber-400">INTERCEPT:</span> Staged write proposal #8491 generated. Gatekeeper status: LOCKED (Awaiting human biometric).</div>
+<div><span class="text-stone-500">[07:58:02.100]</span> <span class="text-emerald-400">READY:</span> Briefing room updated for executive review at 08:00 AM.</div>
+</div>
+</div>
+</div>
+</section>
+<!-- DETERMINISTIC ARCHITECTURE & PERFORMANCE -->
+<section class="py-20 px-6 bg-[#FAFAF9]">
+<div class="max-w-[1200px] mx-auto">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="inline-flex items-center gap-2 bg-stone-200 text-stone-700 px-2.5 py-1 text-xs font-mono font-semibold rounded-md mb-3">
+            PERFORMANCE BENCHMARKS
+          </div>
+<h2 class="font-headline-lg text-headline-lg text-[#1C1917] mb-3">
+            Deterministic Engine Architecture
+          </h2>
+<p class="font-body-md text-body-md text-[#57534E]">
+            Designed to eliminate the latency and risk profile of unstructured generative AI agents.
+          </p>
+</div>
+<!-- 3 Architecture Tiers -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-6 card-shadow-soft">
+<div class="text-xs font-mono text-[#0284c7] font-semibold mb-2">TIER 01 / INGESTION</div>
+<h3 class="font-headline-sm text-headline-sm text-[#1C1917] mb-3">Ingestion Mesh Layer</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed mb-4">
+              Sub-second polling and zero-ETL connector logic that runs entirely within memory buffers. Zero persistent customer PII stored on edge relays.
+            </p>
+<div class="pt-3 border-t border-black/5 text-xs font-mono text-stone-500">
+              Throughput: 14,000 events/sec
+            </div>
+</div>
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-6 card-shadow-soft">
+<div class="text-xs font-mono text-[#0284c7] font-semibold mb-2">TIER 02 / REASONING</div>
+<h3 class="font-headline-sm text-headline-sm text-[#1C1917] mb-3">Safety Gatekeeper Engine</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed mb-4">
+              Zero-hallucination semantic parsing backed by strict schema enforcement. When schemas diverge from validated patterns, execution terminates immediately.
+            </p>
+<div class="pt-3 border-t border-black/5 text-xs font-mono text-stone-500">
+              Refusal Rate: 100% on drift
+            </div>
+</div>
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-6 card-shadow-soft">
+<div class="text-xs font-mono text-[#0284c7] font-semibold mb-2">TIER 03 / RECORDING</div>
+<h3 class="font-headline-sm text-headline-sm text-[#1C1917] mb-3">Cryptographic Ledger</h3>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed mb-4">
+              SHA-256 append-only tamper evidence. Every query, parameter payload, and executive signature receives a signed cryptographic receipt for audit readiness.
+            </p>
+<div class="pt-3 border-t border-black/5 text-xs font-mono text-stone-500">
+              Auditability: SOC2 Type II Native
+            </div>
+</div>
+</div>
+<!-- Metrics Strip on Recessed Stone Plate -->
+<div class="bg-[#F5F5F4] hairline-border rounded-xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-[#78716C] block mb-1">DECISION LATENCY</span>
+<span class="font-headline-xl text-headline-xl text-[#1C1917] font-bold tracking-tight">18ms</span>
+<span class="text-xs text-stone-500 block mt-1">P99 execution benchmark</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-[#78716C] block mb-1">SAFETY RATE</span>
+<span class="font-headline-xl text-headline-xl text-[#1C1917] font-bold tracking-tight">0.0%</span>
+<span class="text-xs text-stone-500 block mt-1">Unsupervised write operations</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-[#78716C] block mb-1">CORRELATION ACCURACY</span>
+<span class="font-headline-xl text-headline-xl text-[#1C1917] font-bold tracking-tight">100%</span>
+<span class="text-xs text-stone-500 block mt-1">Deterministic schema mapping</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ENTERPRISE SECURITY GRID -->
+<section class="py-20 px-6 bg-white border-t border-black/8" id="security">
+<div class="max-w-[1200px] mx-auto">
+<div class="text-center max-w-2xl mx-auto mb-14">
+<div class="inline-flex items-center gap-2 bg-stone-200 text-stone-700 px-2.5 py-1 text-xs font-mono font-semibold rounded-md mb-3">
+            HARDENED ASSURANCE
+          </div>
+<h2 class="font-headline-lg text-headline-lg text-[#1C1917] mb-3">
+            Enterprise Security Core
+          </h2>
+<p class="font-body-md text-body-md text-[#57534E]">
+            Designed from day zero for zero-trust compliance, strict tenant sandboxing, and defense-in-depth isolation.
+          </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="bg-[#F5F5F4] rounded-xl p-6 hairline-border card-shadow-soft">
+<div class="w-8 h-8 rounded-lg bg-stone-200 flex items-center justify-center text-[#1C1917] mb-4">
+<span class="material-symbols-outlined text-[19px]">database</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">Supabase Row-Level Isolation</h4>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+              Every tenant workspace is isolated at the database role level. Cross-tenant leakage is mathematically impossible at the query layer.
+            </p>
+</div>
+<div class="bg-[#F5F5F4] rounded-xl p-6 hairline-border card-shadow-soft">
+<div class="w-8 h-8 rounded-lg bg-stone-200 flex items-center justify-center text-[#1C1917] mb-4">
+<span class="material-symbols-outlined text-[19px]">gavel</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">Hard AST Policy Refusal</h4>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+              State modifications outside explicitly permissible JSON-schemas fail-closed automatically before triggering outbound network sockets.
+            </p>
+</div>
+<div class="bg-[#F5F5F4] rounded-xl p-6 hairline-border card-shadow-soft">
+<div class="w-8 h-8 rounded-lg bg-stone-200 flex items-center justify-center text-[#1C1917] mb-4">
+<span class="material-symbols-outlined text-[19px]">vpn_key</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">AES-256 Hardware Enclaves</h4>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+              OAuth tokens are encrypted at rest with dedicated HSM rotation keys. Decryption occurs only in isolated ephemeral memory spaces.
+            </p>
+</div>
+<div class="bg-[#F5F5F4] rounded-xl p-6 hairline-border card-shadow-soft">
+<div class="w-8 h-8 rounded-lg bg-stone-200 flex items-center justify-center text-[#1C1917] mb-4">
+<span class="material-symbols-outlined text-[19px]">receipt</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-base text-[#1C1917] mb-2">SHA-256 Append Ledger</h4>
+<p class="font-body-sm text-body-sm text-[#57534E] leading-relaxed">
+              Every query, prompt, and operator approval is cryptographically signed and archived for automated export into your SIEM infrastructure.
+            </p>
+</div>
+</div>
+</div>
+</section>
+<!-- HIGH-IMPACT CLOSING CTA -->
+<section class="py-20 px-6" id="deploy">
+<div class="max-w-[1200px] mx-auto">
+<div class="bg-[#1C1917] text-white rounded-2xl p-8 sm:p-14 relative overflow-hidden shadow-2xl border border-stone-800">
+<!-- Subtle Ambient Cyan Atmospheric Glow -->
+<div class="absolute -top-24 -right-24 w-96 h-96 bg-[#0284c7]/20 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative z-10 max-w-2xl">
+<div class="inline-flex items-center gap-2 bg-stone-800 border border-stone-700 text-stone-300 px-2.5 py-1 text-xs font-mono font-semibold rounded-md mb-6">
+              OPERATIONAL READINESS
+            </div>
+<h2 class="font-headline-xl text-headline-xl font-bold tracking-tight text-white mb-4">
+              Start tomorrow with complete operational clarity.
+            </h2>
+<p class="font-body-lg text-body-lg text-stone-300 mb-8 leading-relaxed">
+              Connect your tools in 120 seconds. Wake up tomorrow to an executive briefing that cuts through the noise and stages critical decisions cleanly.
+            </p>
+<div class="flex flex-col sm:flex-row items-center gap-4 mb-8">
+<a class="w-full sm:w-auto bg-white hover:bg-stone-100 text-[#1C1917] px-6 py-3.5 rounded-lg font-label-md text-label-md font-semibold inline-flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98]" href="#cockpit">
+                Deploy Prism Copilot
+                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="w-full sm:w-auto bg-stone-800/80 hover:bg-stone-700 text-white border border-stone-700 px-6 py-3.5 rounded-lg font-label-md text-label-md font-medium inline-flex items-center justify-center transition-all" href="#terminal">
+                Schedule Enterprise Demo
+              </a>
+</div>
+<!-- Trust Strip -->
+<div class="pt-6 border-t border-stone-800 flex flex-wrap items-center gap-6 text-xs text-stone-400 font-mono">
+<span class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 bg-emerald-400 rounded-sm"></span>
+                SOC2 Type II Certified
+              </span>
+<span class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 bg-emerald-400 rounded-sm"></span>
+                HIPAA Compliant
+              </span>
+<span class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 bg-emerald-400 rounded-sm"></span>
+                Dedicated Single-Tenant VPC Available
+              </span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- FOOTER (Derived from Shared Components JSON with Architectural Precision) -->
+<footer class="bg-surface-container-low border-t border-outline-variant/30 docked full-width bottom flat no shadows">
+<div class="max-w-[1200px] mx-auto px-6 py-12 flex flex-col md:flex-row justify-between items-center gap-6">
+<!-- Brand & Security Guarantee -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-md bg-[#1C1917] flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-[14px] text-[#0284c7]">view_in_ar</span>
+</div>
+<span class="font-headline-sm text-headline-sm font-semibold text-on-surface">Prism</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+          © 2025 Aether Operations, Inc. All architectural frameworks verified fail-closed.
+        </p>
+</div>
+<!-- Links matching JSON exact content -->
+<div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-label-sm font-label-sm text-on-surface-variant">
+<a class="hover:text-primary transition-colors duration-150" href="#security">Zero-Trust Protocol</a>
+<a class="hover:text-primary transition-colors duration-150" href="#security">SOC2 Type II</a>
+<a class="hover:text-primary transition-colors duration-150" href="#terminal">Telemetry Auditing</a>
+<a class="hover:text-primary transition-colors duration-150" href="#safety-gatekeeper">Security Architecture</a>
+<a class="hover:text-primary transition-colors duration-150" href="#security">Privacy Engineering</a>
+<a class="hover:text-primary transition-colors duration-150 flex items-center gap-1.5" href="#terminal">
+<span class="w-1.5 h-1.5 bg-emerald-600 rounded-sm"></span>
+          Enterprise Status
+        </a>
+</div>
+</div>
+</footer>
+</body></html>

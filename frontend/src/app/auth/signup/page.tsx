@@ -80,7 +80,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.push("/");
+      router.push("/cockpit");
       router.refresh();
     } catch {
       setError("Something went wrong. Try again.");

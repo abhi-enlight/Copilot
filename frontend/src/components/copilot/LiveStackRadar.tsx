@@ -366,13 +366,14 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                             <button
                               onClick={() => {
                                 markAsRead(event.id);
-                                const promptParts = [
-                                  `Investigate telemetry event from ${meta.label}: "${displayTitle}".`,
-                                  displaySummary ? `Details: ${displaySummary}.` : null,
-                                  `Priority: ${event.priority.toUpperCase()}.`,
-                                  `Please conduct an executive operational assessment: determine urgency, business impact, potential risk, and provide recommended concrete next steps or draft responses.`
-                                ].filter(Boolean).join(" ");
-                                onInvestigate(promptParts);
+                                // Send the event id, not the event text. The server
+                                // re-fetches the event (scoped to this user) and wraps
+                                // its contents as untrusted data, so externally supplied
+                                // text can never be injected into the model's prompt
+                                // through the browser.
+                                onInvestigate(
+                                  `Investigate telemetry event from ${meta.label}. [prism:telemetry:${event.id}]`
+                                );
                               }}
                               className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                             >

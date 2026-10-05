@@ -49,7 +49,7 @@ export default function RadarError({
             Reconnect radar
           </button>
           <Link
-            href="/"
+            href="/cockpit"
             className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold transition-colors duration-150"
           >
             <ArrowLeft size={13} />

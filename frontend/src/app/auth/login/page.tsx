@@ -13,7 +13,7 @@ const inputClass =
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo") || "/";
+  const returnTo = searchParams.get("returnTo") || "/cockpit";
   const magicLinkSent = searchParams.get("magic") === "sent";
 
   const supabase = createClient();
@@ -168,13 +168,10 @@ function LoginForm() {
           disabled={loading || magicLinkLoading || !email || !password}
           className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer"
           style={{
-            background:
-              loading || !email || !password
-                ? "#94a3b8"
-                : "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+            background: loading || !email || !password ? "#94a3b8" : "#0369a1",
             boxShadow:
               !loading && email && password
-                ? "0 2px 8px rgba(99, 102, 241, 0.3)"
+                ? "0 2px 8px rgba(3, 105, 161, 0.28)"
                 : "none",
           }}
         >
@@ -215,7 +212,7 @@ export default function LoginPage() {
       const supabase = createClient();
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
-          const returnTo = sessionStorage.getItem("prism_magic_return_to") || "/";
+          const returnTo = sessionStorage.getItem("prism_magic_return_to") || "/cockpit";
           sessionStorage.removeItem("prism_magic_return_to");
           window.location.href = returnTo;
         }

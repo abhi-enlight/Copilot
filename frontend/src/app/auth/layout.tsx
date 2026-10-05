@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sign in · Prism",
+  // The root layout appends " · Prism", so this must not repeat the brand.
+  title: "Sign in",
   description: "Sign in to Prism by Enlight Lab",
 };
 
@@ -15,9 +16,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           className="absolute inset-0"
           style={{
             background: `
-              radial-gradient(ellipse 80% 60% at 20% 30%, rgba(99, 102, 241, 0.12), transparent 60%),
-              radial-gradient(ellipse 60% 50% at 80% 70%, rgba(99, 102, 241, 0.08), transparent 55%),
-              radial-gradient(ellipse 100% 80% at 50% 100%, rgba(99, 102, 241, 0.06), transparent 70%),
+              radial-gradient(ellipse 80% 60% at 20% 30%, rgba(2, 132, 199, 0.12), transparent 60%),
+              radial-gradient(ellipse 60% 50% at 80% 70%, rgba(2, 132, 199, 0.08), transparent 55%),
+              radial-gradient(ellipse 100% 80% at 50% 100%, rgba(29, 78, 216, 0.07), transparent 70%),
               #F5F5F4
             `,
           }}
@@ -38,11 +39,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Floating orb decorations */}
         <div
           className="absolute top-1/4 left-1/3 w-64 h-64 rounded-full opacity-20 blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #6366f1, transparent)" }}
+          style={{ background: "radial-gradient(circle, #0284c7, transparent)" }}
         />
         <div
           className="absolute bottom-1/3 right-1/4 w-48 h-48 rounded-full opacity-15 blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #8b5cf6, transparent)" }}
+          style={{ background: "radial-gradient(circle, #1d4ed8, transparent)" }}
         />
 
         <div className="relative z-10">
@@ -77,7 +78,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             Every system.
           </h1>
           <p className="text-[15px] text-stone-500 leading-relaxed">
-            Connect Outlook, Teams, Slack, Linear, and Zoho CRM. Let Prism synthesize, draft, and execute across all of them — with your approval.
+            Connect Outlook, Teams, Slack, Linear, and Zoho CRM. Let Prism synthesize, draft, and execute across all of them, with your approval.
           </p>
 
           {/* Feature list */}
@@ -88,9 +89,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               "Real-time cross-stack telemetry",
             ].map((feat) => (
               <div key={feat} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-5 h-5 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
                   <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-5" stroke="#6366F1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2 6l3 3 5-5" stroke="#0284c7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
                 <span className="text-[13px] text-stone-600">{feat}</span>

@@ -185,7 +185,7 @@ export default function ActionsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAF9] text-stone-900 font-[family-name:var(--font-geist-sans)] select-none">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAF9] text-stone-900 font-[family-name:var(--font-geist-sans)]">
       {/* Top Header */}
       <CockpitHeader
         onOpenToolDrawer={() => setIsToolDrawerOpen(true)}
@@ -199,7 +199,7 @@ export default function ActionsPage() {
         <nav className="w-64 h-full bg-white border-r border-black/[0.06] flex flex-col justify-between p-4 flex-shrink-0 hidden md:flex">
           <div className="space-y-4">
             <Link
-              href="/"
+              href="/cockpit"
               className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold transition-all duration-150 active:scale-[0.97]"
             >
               <Plus size={15} weight="bold" />
@@ -208,7 +208,7 @@ export default function ActionsPage() {
 
             <div className="space-y-1">
               <Link
-                href="/"
+                href="/cockpit"
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-50 transition-colors"
               >
                 <ChatCircle size={16} weight="bold" className="text-stone-500" />
@@ -243,7 +243,7 @@ export default function ActionsPage() {
 
           <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
             <Link
-              href="/"
+              href="/cockpit"
               className="inline-flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-700 transition-colors"
             >
               <ArrowLeft size={13} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -22,6 +22,14 @@ import PrismLogo from "@/components/brand/PrismLogo";
 import { TOTAL_COCKPIT_TOOLS } from "@/lib/constants";
 import type { Message } from "@/types";
 import type { ActionProposal } from "@/types/database";
+
+const emptySubscribe = () => () => {};
+
+function greetingForHour(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 interface IntelligenceStreamProps {
   messages: Message[];
@@ -189,6 +197,7 @@ function extractSuggestedActions(text: string): { label: string; prompt: string;
 export default function IntelligenceStream({
   messages,
   isLoading,
+  toolSteps = [],
   connectedToolsCount = 0,
   totalToolsCount = TOTAL_COCKPIT_TOOLS,
   onOpenConnectHub,
@@ -201,6 +210,13 @@ export default function IntelligenceStream({
 
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Time-aware greeting read from the client clock without a hydration mismatch:
+  // the server snapshot stays neutral until the store is read in the browser.
+  const greeting = useSyncExternalStore(
+    emptySubscribe,
+    () => greetingForHour(new Date().getHours()),
+    () => "Welcome back"
+  );
 
   // Derived state: show pill when scrolled up with messages
   const showScrollPill = !isPinnedToBottom && messages.length > 0;
@@ -277,7 +293,7 @@ export default function IntelligenceStream({
             </div>
 
             <h2 className="text-[26px] font-bold text-stone-900 tracking-[-0.025em] leading-tight">
-              Good morning. Prism is ready.
+              {greeting}. Prism is ready.
             </h2>
 
             {connectedToolsCount > 0 ? (
@@ -699,6 +715,32 @@ export default function IntelligenceStream({
         {/* Bottom Anchor for Auto-Scroll */}
         <div ref={bottomAnchorRef} className="h-2" />
       </div>
+
+      {/* Live orchestration timeline: exactly what Prism is doing, step by step */}
+      {toolSteps.length > 0 && (
+        <div className="px-5 sm:px-8 lg:px-12 pb-2 font-[family-name:var(--font-geist-sans)]">
+          <ol className="mx-auto flex max-w-3xl flex-col gap-1.5 rounded-xl border border-black/[0.06] bg-white/90 px-4 py-3">
+            {toolSteps.map((step, index) => (
+              <li
+                key={`${step.tool}-${step.startedAt}-${index}`}
+                className="flex items-center gap-2.5 text-[12.5px] text-stone-600"
+              >
+                {step.status === "executing" ? (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500 animate-thinking-glow" />
+                ) : step.status === "failed" ? (
+                  <Warning size={13} weight="bold" className="shrink-0 text-amber-500" />
+                ) : (
+                  <Check size={13} weight="bold" className="shrink-0 text-emerald-500" />
+                )}
+                <span className="truncate">{step.tool}</span>
+                <span className="ml-auto shrink-0 text-[11px] text-stone-400">
+                  {step.status === "executing" ? "working…" : step.status === "failed" ? "failed" : "done"}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {/* Floating Smart Scroll-to-Bottom Pill */}
       {showScrollPill && (

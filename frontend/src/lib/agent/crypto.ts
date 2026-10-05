@@ -2,14 +2,25 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 /**
  * Returns the server-side signing secret for tamper-proof action proposals.
- * Uses PRISM_VAULT_KEY or SUPABASE_SERVICE_ROLE_KEY as fallback.
+ *
+ * There is deliberately no hardcoded fallback: a committed default secret would
+ * let anyone forge an action proposal signature. If no secret is configured the
+ * app must fail loudly rather than silently sign with a public constant.
  */
 function getSigningSecret(): string {
-  const secret =
+  const secret = (
     process.env.PRISM_VAULT_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.COMPOSIO_API_KEY ||
-    "prism_default_local_secret_key_v2";
+    ""
+  ).trim();
+
+  if (secret.length < 16) {
+    throw new Error(
+      "Action proposal signing secret is not configured. Set PRISM_VAULT_KEY (or SUPABASE_SERVICE_ROLE_KEY) before starting Prism."
+    );
+  }
+
   return secret;
 }
 

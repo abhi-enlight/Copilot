@@ -60,6 +60,7 @@ export async function proxy(request: NextRequest) {
 
   // Public paths that do not require an active Supabase session
   const isPublicPath =
+    pathname === "/" || // public marketing landing page
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/integrations") || // OAuth callbacks provide their own tokens/state

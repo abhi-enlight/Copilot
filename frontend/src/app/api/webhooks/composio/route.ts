@@ -8,9 +8,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Canonical registered webhook secret for Composio live trigger subscriptions
-const COMPOSIO_DEFAULT_WEBHOOK_SECRET =
-  "0d6d99da28a41a06cf37a55ae6d352d7aa242874deddca36bb228e7d87ca3f06";
+// Only UUID-shaped identifiers may be used to resolve users; anything else is
+// rejected before it can reach a PostgREST filter string.
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Health check & diagnostic endpoint for Composio Webhook Gateway.
@@ -35,71 +36,65 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const configuredSecret = process.env.COMPOSIO_WEBHOOK_SECRET;
-    const verifySecret = (configuredSecret || COMPOSIO_DEFAULT_WEBHOOK_SECRET).trim();
+    const verifySecret = (process.env.COMPOSIO_WEBHOOK_SECRET || "").trim();
+
+    // Fail closed: without a configured secret nothing can be verified, so every
+    // event is rejected instead of trusting the raw request body.
+    if (verifySecret.length < 16) {
+      console.error(
+        "[Prism Webhook] COMPOSIO_WEBHOOK_SECRET is missing or too short; refusing all events."
+      );
+      return NextResponse.json(
+        {
+          error: "server_misconfigured",
+          detail: "Webhook verification secret is not configured",
+        },
+        { status: 500 }
+      );
+    }
 
     let rawPayload: RawTelemetryEvent;
 
-    // 1. Cryptographic Signature Verification
-    if (verifySecret) {
-      try {
-        const composio = getComposioClient();
-        const result = await composio.triggers.parse(request, {
-          verifySecret,
-          tolerance: 300, // Max 5 minutes age window
-        });
-        rawPayload = (result.payload || {}) as unknown as RawTelemetryEvent;
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.warn("[Prism Webhook] Signature verification failed:", errorMessage);
-
-        // If headers are missing (e.g. manual curl test or non-trigger test ping), fallback safely
-        const hasSigHeaders =
-          request.headers.get("webhook-signature") ||
-          request.headers.get("x-composio-signature");
-
-        if (!hasSigHeaders) {
-          try {
-            const bodyText = await request.text();
-            rawPayload = JSON.parse(bodyText);
-          } catch {
-            return NextResponse.json(
-              { error: "unauthorized", detail: "Missing or invalid webhook signature" },
-              { status: 401 }
-            );
-          }
-        } else {
-          return NextResponse.json(
-            { error: "unauthorized", detail: "Invalid or expired webhook signature" },
-            { status: 401 }
-          );
-        }
-      }
-    } else {
-      try {
-        const bodyText = await request.text();
-        rawPayload = JSON.parse(bodyText);
-      } catch {
-        return NextResponse.json(
-          { error: "bad_request", detail: "Invalid JSON payload" },
-          { status: 400 }
-        );
-      }
+    // 1. Cryptographic Signature Verification — required, with no unsigned fallback.
+    try {
+      const composio = getComposioClient();
+      const result = await composio.triggers.parse(request, {
+        verifySecret,
+        tolerance: 300, // Max 5 minutes age window
+      });
+      rawPayload = (result.payload || {}) as unknown as RawTelemetryEvent;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.warn("[Prism Webhook] Signature verification failed:", errorMessage);
+      return NextResponse.json(
+        { error: "unauthorized", detail: "Missing or invalid webhook signature" },
+        { status: 401 }
+      );
     }
 
     // 2. Normalize disparate event into canonical Prism telemetry model
     const normalized = normalizeTelemetryEvent(rawPayload);
 
-    // Safeguard: Filter out external untracked repositories for GitHub events
+    // Optional GitHub scope, configured per deployment via env instead of a
+    // hardcoded tenant. When unset, nothing is silently dropped.
     if (normalized.source === "github") {
-      const repoUrl = ((normalized.rawPayload?.repository_url as string) || "").toLowerCase();
-      const authorLogin = ((normalized.rawPayload?.author_login as string) || "").toLowerCase();
-      // Drop if event is from an unrelated third-party public repo
-      if (repoUrl && !repoUrl.includes("abhi-enlight") && authorLogin !== "abhi-enlight") {
-        return NextResponse.json(
-          { status: "ignored", reason: "external_untracked_repo" },
-          { status: 200 }
+      const trackedRepos = (process.env.PRISM_TRACKED_GITHUB_REPOS || "")
+        .split(",")
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (trackedRepos.length > 0) {
+        const repoUrl = ((normalized.rawPayload?.repository_url as string) || "").toLowerCase();
+        const authorLogin = ((normalized.rawPayload?.author_login as string) || "").toLowerCase();
+        const isTracked = trackedRepos.some(
+          (repo) => repoUrl.includes(repo) || authorLogin === repo
         );
+        if (repoUrl && !isTracked) {
+          return NextResponse.json(
+            { status: "ignored", reason: "external_untracked_repo" },
+            { status: 200 }
+          );
+        }
       }
     }
 
@@ -108,6 +103,12 @@ export async function POST(request: Request) {
     let organizationId: string | null = null;
 
     let searchCandidate = normalized.userIdRaw;
+
+    // Reject non-UUID identifiers before they are interpolated into `.or()`.
+    if (searchCandidate && !UUID_PATTERN.test(searchCandidate)) {
+      console.warn(`[Prism Webhook] Ignoring non-UUID user identifier: "${searchCandidate}"`);
+      searchCandidate = null;
+    }
 
     // Fallback: If no direct userId in payload, check connectedAccount id from metadata
     if (!searchCandidate) {
@@ -123,7 +124,8 @@ export async function POST(request: Request) {
           const acc = (await composio.connectedAccounts.get(connectedAccountId)) as any;
           const uid = acc?.userId || acc?.user?.id;
           if (uid && typeof uid === "string") {
-            searchCandidate = uid.startsWith("user_") ? uid.slice(5) : uid;
+            const candidate = uid.startsWith("user_") ? uid.slice(5) : uid;
+            searchCandidate = UUID_PATTERN.test(candidate) ? candidate : null;
           }
         } catch {
           // ignore lookup error

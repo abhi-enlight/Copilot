@@ -1,26 +1,27 @@
 /**
  * Scope Limit & Guardrail Engine for Prism Operations Copilot
  *
- * Enforces enterprise operational boundaries: Prism strictly operates as an Executive
- * Workplace Operations Copilot for connected productivity tools:
- * Microsoft Outlook, Microsoft Teams, Slack, Linear, Zoho CRM, GitHub,
- * Gmail, Google Calendar, and Notion.
+ * This module is a deterministic, pre-flight safety gate. It intentionally
+ * handles ONLY categories where a regex decision is safe and the consequence of
+ * a miss is severe and irreversible:
  *
- * Rejects 11 Out-of-Scope Domains:
- * 1. Pure Math & Science (arithmetic, logarithms, calculus, algebra)
- * 2. Unsupported Third-Party SaaS (e.g. MillionVerifier, Salesforce, HubSpot, Stripe)
- * 3. General Trivia & Non-work Q&A (history, geography, pop culture, weather)
- * 4. Creative Writing & Entertainment (jokes, poems, stories, roleplay)
- * 5. Generic Coding / Leetcode Tutoring
- * 6. Secrets, Credentials & Key Exfiltration (API keys, passwords, .env, tokens)
- * 7. Bulk Mass Deletion & Data Destruction (delete all, wipe, drop table)
- * 8. Financial Execution & Payments (wire transfers, payment movement, payroll)
- * 9. Mass Cold Email Blasting & Channel Spamming (bulk campaigns, spam channels)
- * 10. Workplace Surveillance & HR Actions (spying on Slack DMs, sentiment, firings)
- * 11. Jailbreaks & System Prompt Exfiltration (dump prompt, ignore rules, DAN)
+ * 1. Secrets, Credentials & Key Exfiltration (API keys, passwords, .env, tokens)
+ * 2. Jailbreaks & System Prompt Exfiltration (dump prompt, ignore rules, DAN)
+ * 3. Bulk Mass Deletion & Data Destruction (delete all, wipe, drop table)
+ * 4. Financial Execution & Payments (wire transfers, payment movement, payroll)
+ * 5. Mass Cold Email Blasting & Channel Spamming (bulk campaigns, spam channels)
+ * 6. Workplace Surveillance & HR Actions (spying on DMs, sentiment, terminations)
  *
- * Protects legitimate in-scope calculations derived from workplace data
- * (e.g. summing CRM deal amounts, counting sprint tickets).
+ * Everything else (general trivia, math, creative writing, unsupported SaaS
+ * mentions, generic coding questions) is intentionally NOT regex-blocked. Word
+ * matching cannot tell "a meeting on Monday" from the SaaS product "Monday.com",
+ * a colleague named "Hunter" from "Hunter.io", or "Stripe" mentioned inside a
+ * connected inbox thread — so those judgments belong to the model, which is
+ * instructed to decline out-of-scope requests in the system prompt.
+ *
+ * Values returned by this module are not user-facing decisions of last resort:
+ * a blocked category always yields a refusal message, and anything else flows to
+ * the agent with its own system-prompt policy.
  */
 
 export type ScopeCategory =
@@ -45,75 +46,6 @@ export interface ScopeEvaluation {
   matchedEntity?: string;
 }
 
-interface UnsupportedSaaS {
-  name: string;
-  patterns: RegExp[];
-}
-
-const UNSUPPORTED_SAAS_CATALOG: UnsupportedSaaS[] = [
-  // Email verification / scraping services
-  { name: "MillionVerifier", patterns: [/\bmillion\s*verifier\b/i] },
-  { name: "NeverBounce", patterns: [/\bneverbounce\b/i] },
-  { name: "ZeroBounce", patterns: [/\bzerobounce\b/i] },
-  { name: "Debounce", patterns: [/\bdebounce\b/i] },
-  { name: "Hunter.io", patterns: [/\bhunter(?:\.io)?\b/i] },
-  { name: "Apollo.io", patterns: [/\bapollo(?:\.io)?\b/i] },
-  { name: "Snov.io", patterns: [/\bsnov(?:\.io)?\b/i] },
-  { name: "Lusha", patterns: [/\blusha\b/i] },
-  { name: "ZoomInfo", patterns: [/\bzoominfo\b/i] },
-
-  // CRMs not connected
-  { name: "Salesforce", patterns: [/\bsalesforce\b/i] },
-  { name: "HubSpot", patterns: [/\bhubspot\b/i] },
-  { name: "Pipedrive", patterns: [/\bpipedrive\b/i] },
-  { name: "Freshsales", patterns: [/\bfreshsales\b/i] },
-
-  // Issue Trackers / PM tools not connected
-  { name: "Jira", patterns: [/\bjira\b/i] },
-  { name: "Asana", patterns: [/\basana\b/i] },
-  { name: "Trello", patterns: [/\btrello\b/i] },
-  { name: "Monday.com", patterns: [/\bmonday(?:\.com)?\b/i] },
-  { name: "ClickUp", patterns: [/\bclickup\b/i] },
-  { name: "Basecamp", patterns: [/\bbasecamp\b/i] },
-
-  // Payments / Commerce
-  { name: "Stripe", patterns: [/\bstripe\b/i] },
-  { name: "Shopify", patterns: [/\bshopify\b/i] },
-  { name: "QuickBooks", patterns: [/\bquickbooks\b/i] },
-  { name: "Xero", patterns: [/\bxero\b/i] },
-
-  // Helpdesk
-  { name: "Zendesk", patterns: [/\bzendesk\b/i] },
-  { name: "Freshdesk", patterns: [/\bfreshdesk\b/i] },
-  { name: "Intercom", patterns: [/\bintercom\b/i] },
-
-  // Marketing automation
-  { name: "Mailchimp", patterns: [/\bmailchimp\b/i] },
-  { name: "SendGrid", patterns: [/\bsendgrid\b/i] },
-  { name: "Klaviyo", patterns: [/\bklaviyo\b/i] },
-  { name: "ActiveCampaign", patterns: [/\bactivecampaign\b/i] },
-  { name: "Brevo", patterns: [/\bbrevo\b/i] },
-];
-
-/**
- * Words indicating genuine workplace operations context.
- * If present, calculations or mentions are evaluated as workplace context.
- */
-const WORKPLACE_CONTEXT_PATTERNS = [
-  /\b(outlook|gmail|email|emails|mail|inbox|unread|draft|drafts|send|sent|thread|reply|forward)\b/i,
-  /\b(teams|slack|channel|channels|dm|direct\s*message|mention|mentions)\b/i,
-  /\b(linear|github|issue|issues|ticket|tickets|pr|prs|pull\s*request|pull\s*requests|repo|repos|repository|repositories|commit|commits|branch|branches)\b/i,
-  /\b(dynamics|dynamics365|zoho|crm|deal|deals|lead|leads|pipeline|stage|account|accounts|contact|contacts|sales|revenue|customer|client)\b/i,
-  /\b(calendar|meeting|meetings|event|events|schedule|agenda|availability|invite|attendee|attendees)\b/i,
-  /\b(sharepoint|notion|document|documents|doc|docs|page|pages|spec|specs|wiki|notes)\b/i,
-  /\b(invoice|invoices|bill|bills|accounting|expense|expenses|books|zoho\s*books)\b/i,
-  /\b(sprint|standup|backlog|milestone|blocker|blockers|assignee|assigned)\b/i,
-];
-
-function hasWorkplaceContext(text: string): boolean {
-  return WORKPLACE_CONTEXT_PATTERNS.some((p) => p.test(text));
-}
-
 /**
  * Evaluates whether a prompt is within Prism's operational scope.
  * Returns an evaluation object with isInScope boolean and refusal message if out of scope.
@@ -123,8 +55,6 @@ export function evaluateScope(message: string): ScopeEvaluation {
   if (!trimmed) {
     return { isInScope: true, category: "IN_SCOPE" };
   }
-
-  const isWorkContext = hasWorkplaceContext(trimmed);
 
   // 1. Secrets, Passwords & Credential Exfiltration
   const isSecretRequest =
@@ -181,7 +111,7 @@ export function evaluateScope(message: string): ScopeEvaluation {
       category: "OUT_OF_SCOPE_FINANCIAL",
       reason: "Direct money transfers, invoice payments, and financial transaction execution are prohibited.",
       refusalResponse:
-        "Prism does not execute financial transactions, wire transfers, or direct payment operations.\n\nI can review deal values, pipeline revenue, and invoice metadata in your connected Zoho CRM for executive reporting purposes.",
+        "Prism does not execute financial transactions, wire transfers, or direct payment operations.\n\nI can review deal values, pipeline revenue, and invoice metadata in your connected tools for executive reporting purposes.",
     };
   }
 
@@ -196,7 +126,7 @@ export function evaluateScope(message: string): ScopeEvaluation {
       category: "OUT_OF_SCOPE_MASS_COMMUNICATION",
       reason: "Bulk email blasting and multi-channel spamming damage domain deliverability and are prohibited.",
       refusalResponse:
-        "Mass cold email campaigns and multi-channel blast operations are prohibited to protect your organization's domain reputation and email deliverability.\n\nFor mass outreach, please use dedicated marketing automation platforms (such as Mailchimp or Klaviyo) configured with opt-out mechanisms and bounce tracking.",
+        "Mass cold email campaigns and multi-channel blast operations are prohibited to protect your organization's domain reputation and email deliverability.\n\nFor mass outreach, please use dedicated marketing automation platforms configured with opt-out mechanisms and bounce tracking.",
     };
   }
 
@@ -212,85 +142,6 @@ export function evaluateScope(message: string): ScopeEvaluation {
       reason: "Employee surveillance, message sentiment snooping, and automated firings are strictly prohibited.",
       refusalResponse:
         "Prism is designed for executive workplace operations and does not conduct employee surveillance, sentiment monitoring, or automated employment termination workflows.\n\nSensitive HR matters must be handled through designated personnel and legal procedures.",
-    };
-  }
-
-  // 7. Unsupported Third-Party SaaS
-  for (const saas of UNSUPPORTED_SAAS_CATALOG) {
-    if (saas.patterns.some((p) => p.test(trimmed))) {
-      // Allow if the user is simply drafting an email/message that mentions the tool name
-      const isDrafting =
-        /\b(draft|write|compose|send|email|mail)\b/i.test(trimmed) &&
-        /\b(to|about|mentioning|subject|regarding)\b/i.test(trimmed);
-
-      if (!isDrafting) {
-        return {
-          isInScope: false,
-          category: "OUT_OF_SCOPE_UNSUPPORTED_SAAS",
-          matchedEntity: saas.name,
-          reason: `Requested service "${saas.name}" is not connected to Prism.`,
-          refusalResponse: `**${saas.name}** is not currently supported or connected to Prism.\n\nI can orchestrate tasks across your active workplace tools:\n- **Email & Messaging**: Microsoft Outlook, Microsoft Teams, Slack, Gmail\n- **Project & Issues**: Linear, GitHub\n- **CRM & Pipeline**: Zoho CRM, Microsoft Dynamics 365\n- **Intranet, Docs & Calendar**: Microsoft SharePoint, Notion, Google Calendar\n- **Finance & Accounting**: Zoho Books\n\nLet me know if you would like me to retrieve data or take action in any of those.`,
-        };
-      }
-    }
-  }
-
-  // 8. Generic Coding Exercises / LeetCode
-  const isGenericCode =
-    /\b(?:quicksort|mergesort|bubble\s*sort|dijkstra|two\s*sum|fizzbuzz|reverse\s+linked\s+list|binary\s+search)\b/i.test(trimmed) ||
-    /\b(write|solve|implement)\s+(?:a\s+)?(?:leetcode|hackerrank|codeforces)\b/i.test(trimmed);
-
-  if (isGenericCode && !isWorkContext) {
-    return {
-      isInScope: false,
-      category: "OUT_OF_SCOPE_GENERIC_CODE",
-      reason: "Generic coding problem unrelated to connected repositories.",
-      refusalResponse:
-        "I am an operations copilot designed for connected workplace tools rather than standalone coding exercises.\n\nI can inspect connected GitHub repositories, review pull requests, or track issues in Linear and GitHub if you need help with your projects.",
-    };
-  }
-
-  // 9. Pure Math, Logarithms, Arithmetic & Calculus
-  // Out of scope ONLY if NOT connected to workplace metrics (e.g. deals, tickets)
-  const isLogExpr = /(?:\bwhat\s+is\s+)?\d*\.?\d*\s*(?:log|ln|log10|log2)\s*\(?\d*\.?\d*\)?/i.test(trimmed);
-  const isPureArithmetic = /^(?:what\s+is\s+|calculate\s+|solve\s+)?\(?\d+[\d\s\.\+\-\*\/\^\%\(\)]+[?]?$/i.test(trimmed);
-  const isTrigOrCalculus = /\b(sin|cos|tan|arcsin|arccos|arctan|derivative|integral|integrate|differentiate)\s*\(?[0-9x]/i.test(trimmed);
-  const isAlgebraEquation = /\b(solve\s+[0-9a-z\+\-\*\/\s\=\<\>]{3,}|quadratic\s+equation|pythagorean\s+theorem|calculus\s+problem)\b/i.test(trimmed);
-  const isGenericConversion = /\b(?:calculate\s+tip|convert\s+\d+\s*(?:usd|eur|gbp|miles|km|celsius|fahrenheit))\b/i.test(trimmed);
-
-  if ((isLogExpr || isPureArithmetic || isTrigOrCalculus || isAlgebraEquation || isGenericConversion) && !isWorkContext) {
-    return {
-      isInScope: false,
-      category: "OUT_OF_SCOPE_MATH",
-      reason: "Pure math, scientific calculation, or conversion unrelated to connected workplace tools.",
-      refusalResponse:
-        "I am an executive operations copilot focused on managing your connected workplace tools and do not solve general math or science problems.\n\nI can help you review your emails, manage tickets in Linear, check CRM deals, or organize your calendar if you need assistance with your work.",
-    };
-  }
-
-  // 10. Creative Writing & Entertainment
-  const isCreative =
-    /\b(tell\s+me\s+a\s+joke|tell\s+a\s+joke|write\s+a\s+(?:poem|haiku|story|song|script|bedtime\s+story)|tell\s+a\s+story|roleplay\s+as|sing\s+a\s+song|give\s+me\s+a\s+riddle)\b/i.test(trimmed);
-  if (isCreative) {
-    return {
-      isInScope: false,
-      category: "OUT_OF_SCOPE_CREATIVE",
-      reason: "Creative writing, jokes, or entertainment requests are outside workplace operations.",
-      refusalResponse:
-        "I am an executive workplace operations copilot focused on managing your connected tools, so I do not generate jokes, stories, or creative entertainment.\n\nLet me know if you need assistance with your emails, calendar, Linear tickets, or CRM pipeline.",
-    };
-  }
-
-  // 11. General Trivia, Weather & History
-  const isTrivia =
-    /(?:who\s+(?:was|is)\s+[^?]+[?]?$|what\s+is\s+the\s+capital\s+of|how\s+many\s+planets|who\s+invented|when\s+was\s+the\s+war|who\s+won\s+the\s+world\s+cup|who\s+directed|how\s+deep\s+is\s+the|what\s+is\s+the\s+weather\s+in)/i.test(trimmed);
-  if (isTrivia && !isWorkContext) {
-    return {
-      isInScope: false,
-      category: "OUT_OF_SCOPE_TRIVIA",
-      reason: "General trivia, weather, or encyclopedia query.",
-      refusalResponse:
-        "I am an executive operations copilot designed for your connected workplace tools, so I do not answer general trivia, weather, or history questions.\n\nI would be glad to help you manage your emails, calendar, Linear issues, or CRM deals instead.",
     };
   }
 

@@ -214,7 +214,8 @@ async function runPhase3Probe() {
   console.log('\n3️⃣  Atomic Double-Click Concurrency Lock in PostgreSQL:');
 
   // Clean test rows
-  runSql(`DELETE FROM public.agent_audit_logs WHERE tool_slug LIKE 'test_p3_%';`);
+  // The ledger is append-only by design (see migration 11): probe rows are
+  // retained rather than deleted.
   runSql(`DELETE FROM public.chat_sessions WHERE title LIKE 'TEST_P3_%';`);
 
   // Ensure a valid auth.users record is available for FK constraints
@@ -401,7 +402,8 @@ async function runPhase3Probe() {
 
   // ── 8. Cleanup ───────────────────────────────────────────────────
   console.log('\n🧹 Cleaning up test artifacts...');
-  runSql(`DELETE FROM public.agent_audit_logs WHERE tool_slug LIKE 'test_p3_%';`);
+  // The ledger is append-only by design (see migration 11): probe rows are
+  // retained rather than deleted.
   runSql(`DELETE FROM public.chat_sessions WHERE title LIKE 'TEST_P3_%';`);
   if (isCreatedTestAuthUser && effectiveUserId) {
     runSql(`DELETE FROM auth.users WHERE id = '${effectiveUserId}';`);
