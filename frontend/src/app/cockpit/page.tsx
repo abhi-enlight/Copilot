@@ -29,6 +29,7 @@ export default function CockpitPage() {
     input,
     setInput,
     isLoading,
+    isSessionLoading,
     toolSteps,
     sessionId,
     handleSendMessage,
@@ -197,6 +198,7 @@ export default function CockpitPage() {
           <IntelligenceStream
             messages={messages}
             isLoading={isLoading}
+            isSessionLoading={isSessionLoading}
             toolSteps={toolSteps}
             connectedToolsCount={connectedToolsCount}
             totalToolsCount={totalToolsCount}
@@ -215,6 +217,7 @@ export default function CockpitPage() {
             onSubmit={handleSendMessage}
             onStop={stopGeneration}
             isLoading={isLoading}
+            isSessionLoading={isSessionLoading}
             inputRef={inputRef}
           />
         </main>

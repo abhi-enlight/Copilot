@@ -15,6 +15,7 @@ import {
   Warning,
   ArrowsClockwise,
   ArrowRight,
+  SpinnerGap,
   type Icon,
 } from "@phosphor-icons/react";
 import ActionCard from "@/components/copilot/cards/ActionCard";
@@ -34,6 +35,7 @@ function greetingForHour(hour: number): string {
 interface IntelligenceStreamProps {
   messages: Message[];
   isLoading: boolean;
+  isSessionLoading?: boolean;
   toolSteps?: import("@/types").ToolStep[];
   connectedToolsCount?: number;
   totalToolsCount?: number;
@@ -197,6 +199,7 @@ function extractSuggestedActions(text: string): { label: string; prompt: string;
 export default function IntelligenceStream({
   messages,
   isLoading,
+  isSessionLoading = false,
   toolSteps = [],
   connectedToolsCount = 0,
   totalToolsCount = TOTAL_COCKPIT_TOOLS,
@@ -284,7 +287,48 @@ export default function IntelligenceStream({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-5 sm:px-8 lg:px-12 py-8 space-y-5 stream-mask-light prism-scroll"
       >
-        {messages.length === 1 && messages[0].id === "welcome" ? (
+        {isSessionLoading ? (
+          /* Session Loading Animation / Card-Type Session Loader */
+          <div className="max-w-2xl mx-auto py-16 flex flex-col items-center text-center animate-fade-in">
+            {/* Spinning Indicator Badge */}
+            <div className="w-12 h-12 rounded-xl bg-white border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex items-center justify-center mb-5 text-stone-900">
+              <SpinnerGap size={24} className="animate-spin text-stone-900" />
+            </div>
+
+            <h3 className="text-[17px] font-semibold text-stone-950 tracking-[-0.015em] leading-tight">
+              Restoring Operational Workspace
+            </h3>
+            <p className="text-xs text-stone-500 mt-1.5 max-w-sm leading-relaxed">
+              Synchronizing active session state and telemetry history from Supabase…
+            </p>
+
+            {/* Structured Card Skeleton Preview */}
+            <div className="w-full mt-8 space-y-3.5 text-left">
+              <div className="p-5 rounded-xl bg-white border border-stone-200/70 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-[3px] bg-stone-200 animate-shimmer" />
+                    <div className="w-24 h-3.5 rounded-[3px] bg-stone-200 animate-shimmer" />
+                  </div>
+                  <div className="w-14 h-3 rounded-[3px] bg-stone-100 animate-shimmer" />
+                </div>
+                <div className="space-y-2 pt-1">
+                  <div className="w-3/4 h-3.5 rounded-[3px] bg-stone-100 animate-shimmer" />
+                  <div className="w-full h-3.5 rounded-[3px] bg-stone-100 animate-shimmer" />
+                  <div className="w-1/2 h-3.5 rounded-[3px] bg-stone-100 animate-shimmer" />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-stone-50/80 border border-stone-200/50 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-3 h-3 rounded-[2px] bg-stone-300 animate-shimmer flex-shrink-0" />
+                  <div className="w-2/3 h-3 rounded-[3px] bg-stone-200 animate-shimmer" />
+                </div>
+                <div className="w-16 h-3 rounded-[3px] bg-stone-200 animate-shimmer flex-shrink-0" />
+              </div>
+            </div>
+          </div>
+        ) : messages.length === 1 && messages[0].id === "welcome" ? (
           /* Empty / Welcome State */
           <div className="max-w-2xl mx-auto py-16 flex flex-col items-center text-center">
             {/* Logo */}

@@ -9,9 +9,9 @@ export default function RootLoading() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="w-32 h-7 rounded-full animate-shimmer" />
-          <div className="w-20 h-7 rounded-full animate-shimmer" />
-          <div className="w-8 h-8 rounded-full animate-shimmer" />
+          <div className="w-28 h-6 rounded-md animate-shimmer" />
+          <div className="w-20 h-6 rounded-md animate-shimmer" />
+          <div className="w-6 h-6 rounded-md animate-shimmer" />
         </div>
       </header>
 
@@ -64,10 +64,10 @@ export default function RootLoading() {
         <aside className="w-[340px] h-full bg-[#FAFAF9] border-l border-black/[0.06] p-4 hidden xl:flex flex-col space-y-3 flex-shrink-0">
           <div className="flex items-center justify-between pb-2 border-b border-black/[0.05]">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full animate-shimmer" />
+              <div className="w-2.5 h-2.5 rounded-[2px] animate-shimmer" />
               <div className="w-20 h-4 rounded-md animate-shimmer" />
             </div>
-            <div className="w-12 h-4 rounded-full animate-shimmer" />
+            <div className="w-12 h-4 rounded-[3px] animate-shimmer" />
           </div>
           <div className="space-y-3 pt-2">
             <div className="h-28 rounded-2xl animate-shimmer" />

@@ -31,8 +31,7 @@ export default function SessionHistoryDrawer({
 }: SessionHistoryDrawerProps) {
   const toast = useToast();
   const [sessions, setSessions] = useState<ChatSessionRow[]>([]);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const isLoading = !hasLoaded;
+  const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -49,6 +48,7 @@ export default function SessionHistoryDrawer({
   useEffect(() => {
     let ignore = false;
     if (isOpen) {
+      setIsLoading(true);
       fetch("/api/chat/sessions")
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -60,7 +60,7 @@ export default function SessionHistoryDrawer({
           console.warn("[SessionHistoryDrawer] fetch error:", err);
         })
         .finally(() => {
-          if (!ignore) setHasLoaded(true);
+          if (!ignore) setIsLoading(false);
         });
     }
     return () => {
@@ -189,18 +189,18 @@ export default function SessionHistoryDrawer({
 
             {/* Sessions List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-1.5 prism-scroll">
-              {isLoading && sessions.length === 0 ? (
+              {isLoading ? (
                 <div className="space-y-2 p-1">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div
                       key={i}
-                      className="p-3 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-between gap-3"
+                      className="p-3 rounded-md bg-stone-50 border border-stone-100 flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className="w-4 h-4 rounded-full animate-shimmer flex-shrink-0" />
-                        <div className="w-3/4 h-3.5 rounded-md animate-shimmer" />
+                        <div className="w-3.5 h-3.5 rounded-[2px] bg-stone-200 animate-shimmer flex-shrink-0" />
+                        <div className="w-3/4 h-3.5 rounded-[2px] bg-stone-200 animate-shimmer" />
                       </div>
-                      <div className="w-12 h-3 rounded-md animate-shimmer flex-shrink-0" />
+                      <div className="w-12 h-3 rounded-[2px] bg-stone-100 animate-shimmer flex-shrink-0" />
                     </div>
                   ))}
                 </div>

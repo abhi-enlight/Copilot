@@ -20,6 +20,7 @@ interface HardwareInputBarProps {
   setInput: (value: string) => void;
   onSubmit: (textToSend?: string) => void;
   isLoading: boolean;
+  isSessionLoading?: boolean;
   onStop?: () => void;
   inputRef?: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
 }
@@ -45,6 +46,7 @@ export default function HardwareInputBar({
   setInput,
   onSubmit,
   isLoading,
+  isSessionLoading = false,
   onStop,
   inputRef: externalInputRef,
 }: HardwareInputBarProps) {
@@ -177,10 +179,15 @@ export default function HardwareInputBar({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Prism to review emails, post team updates, or update CRM deals…"
+              disabled={isLoading || isSessionLoading}
+              placeholder={
+                isSessionLoading
+                  ? "Restoring operational session from Supabase…"
+                  : "Ask Prism to review emails, post team updates, or update CRM deals…"
+              }
               aria-label="Message Prism Operations"
               rows={1}
-              className="flex-1 bg-transparent border-0 resize-none text-sm text-stone-900 placeholder-stone-400 focus:outline-none leading-relaxed min-h-[44px] max-h-[160px] font-[family-name:var(--font-geist-sans)]"
+              className="flex-1 bg-transparent border-0 resize-none text-sm text-stone-900 placeholder-stone-400 focus:outline-none leading-relaxed min-h-[44px] max-h-[160px] font-[family-name:var(--font-geist-sans)] disabled:opacity-60"
             />
 
             {/* Actions: Voice Dictation + Send/Stop */}
@@ -188,9 +195,10 @@ export default function HardwareInputBar({
               <button
                 type="button"
                 onClick={toggleVoice}
+                disabled={isLoading || isSessionLoading}
                 aria-label={isListening ? "Stop voice dictation" : "Start voice dictation"}
                 title={isListening ? "Listening…" : "Voice dictation"}
-                className={`p-2 rounded-xl border transition-all duration-150 cursor-pointer ${
+                className={`p-2 rounded-xl border transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                   isListening
                     ? "bg-rose-50 text-rose-600 border-rose-200 animate-pulse"
                     : "text-stone-400 hover:text-stone-700 hover:bg-stone-50 border-stone-200/60"
@@ -209,18 +217,18 @@ export default function HardwareInputBar({
                   onClick={onStop}
                   aria-label="Stop generating response"
                   title="Stop generating"
-                  className="w-9 h-9 rounded-full bg-stone-900 hover:bg-stone-800 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.12)] cursor-pointer transition-all duration-150 active:scale-[0.92]"
+                  className="w-9 h-9 rounded-lg bg-stone-900 hover:bg-stone-800 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.12)] cursor-pointer transition-all duration-150 active:scale-[0.92]"
                 >
                   <Square size={14} weight="fill" />
                 </button>
               ) : (
                 <button
                   type="button"
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || isSessionLoading}
                   onClick={() => onSubmit()}
                   aria-label="Send message to Prism"
                   title="Send to Prism"
-                  className="w-9 h-9 rounded-full bg-stone-900 hover:bg-stone-800 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.12)] disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer transition-all duration-150 active:scale-[0.92]"
+                  className="w-9 h-9 rounded-lg bg-stone-900 hover:bg-stone-800 text-white flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.12)] disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer transition-all duration-150 active:scale-[0.92]"
                 >
                   <ArrowUp size={14} weight="bold" />
                 </button>

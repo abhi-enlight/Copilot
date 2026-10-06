@@ -89,6 +89,7 @@ export function useCopilotChat() {
 
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -445,9 +446,11 @@ export function useCopilotChat() {
     setInput("");
     setToolSteps([]);
     setSessionId(null);
+    setIsSessionLoading(false);
   };
 
   const loadSession = useCallback(async (targetSessionId: string) => {
+    setIsSessionLoading(true);
     setIsLoading(true);
     try {
       const res = await fetch(`/api/chat/sessions/${targetSessionId}/messages`);
@@ -498,6 +501,7 @@ export function useCopilotChat() {
       return { success: false };
     } finally {
       setIsLoading(false);
+      setIsSessionLoading(false);
     }
   }, []);
 
@@ -505,14 +509,20 @@ export function useCopilotChat() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    let isMounted = true;
     const isExplicitNew = sessionStorage.getItem("prism_explicit_new") === "true";
     const urlParams = new URLSearchParams(window.location.search);
     const urlSessionId = urlParams.get("session");
     const storedSessionId = localStorage.getItem("prism_active_session_id");
     const targetSessionId = urlSessionId || storedSessionId;
 
+    if (isExplicitNew) {
+      setIsSessionLoading(false);
+      return;
+    }
+
     if (targetSessionId) {
-      let isMounted = true;
+      setIsSessionLoading(true);
       queueMicrotask(async () => {
         const res = await loadSession(targetSessionId);
         if (!isMounted) return;
@@ -522,17 +532,21 @@ export function useCopilotChat() {
           url.searchParams.delete("session");
           window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
         }
+        setIsSessionLoading(false);
       });
       return () => {
         isMounted = false;
       };
-    } else if (!isExplicitNew) {
+    } else {
       // Fallback: If page was refreshed without explicit new session, restore most recent session
-      let isMounted = true;
+      setIsSessionLoading(true);
       queueMicrotask(async () => {
         try {
           const res = await fetch("/api/chat/sessions");
-          if (!res.ok) return;
+          if (!res.ok) {
+            if (isMounted) setIsSessionLoading(false);
+            return;
+          }
           const data = await res.json();
           const latest = data?.sessions?.[0];
           if (latest?.id && isMounted) {
@@ -540,6 +554,10 @@ export function useCopilotChat() {
           }
         } catch {
           // ignore
+        } finally {
+          if (isMounted) {
+            setIsSessionLoading(false);
+          }
         }
       });
       return () => {
@@ -553,6 +571,7 @@ export function useCopilotChat() {
     input,
     setInput,
     isLoading,
+    isSessionLoading,
     toolSteps,
     sessionId,
     handleSendMessage,
