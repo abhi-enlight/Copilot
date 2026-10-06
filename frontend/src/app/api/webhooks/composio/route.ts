@@ -115,14 +115,17 @@ export async function POST(request: Request) {
       const connectedAccountId =
         rawPayload.metadata?.connectedAccount?.id ||
         (rawPayload.metadata?.connectedAccount as Record<string, unknown> | undefined)?.uuid as string | undefined ||
-        (rawPayload as Record<string, unknown>).connectedAccountId as string | undefined;
+        (rawPayload.metadata as Record<string, unknown> | undefined)?.connected_account_id as string | undefined ||
+        (rawPayload as Record<string, unknown>).connectedAccountId as string | undefined ||
+        (rawPayload as Record<string, unknown>).connected_account_id as string | undefined ||
+        (rawPayload as Record<string, unknown>).connection_id as string | undefined;
 
       if (connectedAccountId) {
         try {
           const composio = getComposioClient();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const acc = (await composio.connectedAccounts.get(connectedAccountId)) as any;
-          const uid = acc?.userId || acc?.user?.id;
+          const uid = acc?.userId || acc?.user?.id || acc?.user_id || acc?.data?.user_id;
           if (uid && typeof uid === "string") {
             const candidate = uid.startsWith("user_") ? uid.slice(5) : uid;
             searchCandidate = UUID_PATTERN.test(candidate) ? candidate : null;

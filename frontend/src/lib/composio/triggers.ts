@@ -93,9 +93,16 @@ export async function ensureUserTriggers(
         }
 
         try {
+          const triggerConfig =
+            trigSlug === "GMAIL_NEW_GMAIL_MESSAGE"
+              ? { userId: "me", interval: 1, labelIds: "INBOX" }
+              : trigSlug === "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_CREATED_TRIGGER"
+              ? { interval: 2, calendarId: "primary" }
+              : {};
+
           await composio.triggers.create(entityId, trigSlug, {
             connectedAccountId: acc.id,
-            triggerConfig: {},
+            triggerConfig,
           });
           result.created++;
           activeTriggerMap.add(key);
@@ -159,7 +166,10 @@ export async function ensureAllActiveTriggers(): Promise<EnsureTriggersResult> {
       const triggerSlugs = TOOL_TRIGGER_MAP[slug];
       if (!triggerSlugs || triggerSlugs.length === 0) continue;
 
-      const entityId = acc.userId || (acc.user?.id ? `user_${acc.user.id}` : undefined);
+      const entityId =
+        acc.userId ||
+        (acc as unknown as Record<string, unknown>).user_id as string | undefined ||
+        (acc.user?.id ? `user_${acc.user.id}` : undefined);
       if (!entityId) continue;
 
       for (const trigSlug of triggerSlugs) {
@@ -171,9 +181,16 @@ export async function ensureAllActiveTriggers(): Promise<EnsureTriggersResult> {
         }
 
         try {
+          const triggerConfig =
+            trigSlug === "GMAIL_NEW_GMAIL_MESSAGE"
+              ? { userId: "me", interval: 1, labelIds: "INBOX" }
+              : trigSlug === "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_CREATED_TRIGGER"
+              ? { interval: 2, calendarId: "primary" }
+              : {};
+
           await composio.triggers.create(entityId, trigSlug, {
             connectedAccountId: acc.id,
-            triggerConfig: {},
+            triggerConfig,
           });
           result.created++;
           activeTriggerMap.add(key);

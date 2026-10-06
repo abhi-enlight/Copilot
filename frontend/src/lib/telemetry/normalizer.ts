@@ -173,9 +173,20 @@ export function sanitizeRawPayload(
  * Format is typically `user_${supabaseUserId}`.
  */
 export function extractUserId(event: RawTelemetryEvent): string | null {
-  const directUser = event.userId;
-  const metaUser = event.metadata?.connectedAccount?.userId;
-  const candidate = (directUser || metaUser || "").trim();
+  const directUser =
+    event.userId ||
+    (event as unknown as Record<string, unknown>).user_id ||
+    (event as unknown as Record<string, unknown>).userId;
+  const metaUser =
+    event.metadata?.connectedAccount?.userId ||
+    (event.metadata?.connectedAccount as unknown as Record<string, unknown>)?.user_id ||
+    (event.metadata as unknown as Record<string, unknown>)?.user_id ||
+    (event.metadata as unknown as Record<string, unknown>)?.userId;
+
+  const candidate = (
+    (typeof directUser === "string" ? directUser : "") ||
+    (typeof metaUser === "string" ? metaUser : "")
+  ).trim();
 
   if (!candidate) return null;
   if (candidate.startsWith("user_")) {
@@ -425,13 +436,23 @@ export function normalizeTelemetryEvent(
     case "gmail": {
       const subject = (eventData.subject as string) || (eventData.title as string) || "New Email";
       const sender = (eventData.sender as string) || (eventData.from as string) || "";
-      const preview = (eventData.preview as string) || (eventData.message_text as string) || (eventData.snippet as string) || "";
+      const rawPreview = eventData.preview;
+      const previewText =
+        typeof rawPreview === "string"
+          ? rawPreview
+          : typeof (rawPreview as Record<string, unknown>)?.body === "string"
+          ? ((rawPreview as Record<string, unknown>).body as string)
+          : typeof eventData.message_text === "string"
+          ? eventData.message_text
+          : typeof eventData.snippet === "string"
+          ? eventData.snippet
+          : "";
 
       title = `[Gmail] ${sender ? sender + ": " : ""}${subject}`;
-      summary = preview.slice(0, MAX_SUMMARY_CHARS);
+      summary = previewText.slice(0, MAX_SUMMARY_CHARS);
       externalId = (eventData.message_id as string) || (eventData.id as string) || "";
 
-      const fullText = `${subject} ${preview}`;
+      const fullText = `${subject} ${previewText}`;
       priority = classifyPriority(fullText, source);
       actionable = priority === "critical" || priority === "urgent" || fullText.includes("?");
       break;
