@@ -27,6 +27,7 @@ import ToolDrawer from "@/components/copilot/drawers/ToolDrawer";
 import { InlineErrorBanner } from "@/components/ui/InlineErrorBanner";
 import { useToast } from "@/hooks/useToast";
 import { useLiveStackRadar } from "@/hooks/useLiveStackRadar";
+import { parseEventDetails } from "@/components/copilot/LiveStackRadar";
 import type { ActivityEventRow } from "@/types/database";
 
 export default function RadarPage() {
@@ -63,22 +64,28 @@ export default function RadarPage() {
 
   const getToolMeta = (source: string) => {
     const s = source.toLowerCase();
+    if (s.includes("gmail")) {
+      return { label: "Gmail", icon: EnvelopeSimple, badge: "text-red-700 bg-red-50 border-red-200/70" };
+    }
     if (s.includes("outlook")) {
-      return { label: "Outlook", icon: EnvelopeSimple, badge: "bg-sky-50 text-sky-800 border-sky-200" };
+      return { label: "Outlook", icon: EnvelopeSimple, badge: "text-sky-700 bg-sky-50 border-sky-200/70" };
     }
     if (s.includes("teams")) {
-      return { label: "Teams", icon: ChatsCircle, badge: "bg-indigo-50 text-indigo-800 border-indigo-200" };
+      return { label: "Teams", icon: ChatsCircle, badge: "text-indigo-700 bg-indigo-50 border-indigo-200/70" };
     }
     if (s.includes("slack")) {
-      return { label: "Slack", icon: ChatCircleText, badge: "bg-rose-50 text-rose-800 border-rose-200" };
+      return { label: "Slack", icon: ChatCircleText, badge: "text-emerald-700 bg-emerald-50 border-emerald-200/70" };
     }
     if (s.includes("linear")) {
-      return { label: "Linear", icon: Kanban, badge: "bg-violet-50 text-violet-800 border-violet-200" };
+      return { label: "Linear", icon: Kanban, badge: "text-violet-700 bg-violet-50 border-violet-200/70" };
+    }
+    if (s.includes("github")) {
+      return { label: "GitHub", icon: EnvelopeSimple, badge: "text-stone-700 bg-stone-100 border-stone-200/80" };
     }
     if (s.includes("zoho")) {
-      return { label: "Zoho CRM", icon: Briefcase, badge: "bg-amber-50 text-amber-800 border-amber-200" };
+      return { label: "Zoho CRM", icon: Briefcase, badge: "text-amber-700 bg-amber-50 border-amber-200/70" };
     }
-    return { label: "System", icon: Pulse, badge: "bg-stone-50 text-stone-800 border-stone-200" };
+    return { label: "System", icon: Pulse, badge: "text-stone-600 bg-stone-100 border-stone-200/70" };
   };
 
   const filteredEvents = events.filter((e) => {
@@ -247,34 +254,34 @@ export default function RadarPage() {
             </div>
           </div>
 
-          {/* Filter Pills Bar */}
-          <div className="px-6 py-3 bg-white/70 border-b border-black/[0.04] flex items-center justify-between flex-wrap gap-2 text-xs">
+          {/* Filter Bar */}
+          <div className="px-6 py-3 bg-white border-b border-stone-200/80 flex items-center justify-between flex-wrap gap-2 text-xs">
             {/* Priority filter */}
-            <div className="flex items-center gap-1 bg-stone-100 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-stone-100/90 rounded-md p-0.5 border border-stone-200/60 font-mono text-xs">
               {(["all", "urgent", "actionable"] as const).map((filter) => (
                 <button
                   key={filter}
                   type="button"
                   onClick={() => setActiveFilter(filter)}
-                  className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                  className={`px-3 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${
                     activeFilter === filter
-                      ? "bg-white text-stone-900 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                      ? "bg-white text-stone-900 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-black/[0.04]"
                       : "text-stone-500 hover:text-stone-800"
                   }`}
                 >
                   <span className="capitalize">{filter}</span>
                   {filter === "all" && unreadCount > 0 && (
-                    <span className="ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full bg-stone-200 font-bold">
+                    <span className="ml-1.5 text-[9.5px] px-1 py-0.2 rounded-[2px] bg-stone-200/80 font-bold font-mono">
                       {unreadCount}
                     </span>
                   )}
                   {filter === "urgent" && urgentCount > 0 && (
-                    <span className="ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full bg-red-100 text-red-700 font-bold">
+                    <span className="ml-1.5 text-[9.5px] px-1 py-0.2 rounded-[2px] bg-red-100 text-red-700 font-bold font-mono">
                       {urgentCount}
                     </span>
                   )}
                   {filter === "actionable" && actionableCount > 0 && (
-                    <span className="ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full bg-sky-100 text-sky-800 font-bold">
+                    <span className="ml-1.5 text-[9.5px] px-1 py-0.2 rounded-[2px] bg-stone-200/80 text-stone-800 font-bold font-mono">
                       {actionableCount}
                     </span>
                   )}
@@ -283,20 +290,21 @@ export default function RadarPage() {
             </div>
 
             {/* Source Tool Filter */}
-            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none font-mono text-xs">
               {[
                 { label: "All Sources", value: "all" },
+                { label: "Gmail", value: "gmail" },
                 { label: "Outlook", value: "outlook" },
                 { label: "Teams", value: "teams" },
                 { label: "Slack", value: "slack" },
                 { label: "Linear", value: "linear" },
-                { label: "Zoho CRM", value: "zoho" },
+                { label: "Zoho", value: "zoho" },
               ].map((src) => (
                 <button
                   key={src.value}
                   type="button"
                   onClick={() => setSelectedSource(src.value)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-[4px] text-[11px] font-medium transition-colors cursor-pointer ${
                     selectedSource === src.value
                       ? "bg-stone-900 text-white font-semibold"
                       : "text-stone-500 hover:text-stone-900 hover:bg-stone-100"
@@ -309,7 +317,7 @@ export default function RadarPage() {
           </div>
 
           {/* Events Grid / List */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-3 max-w-4xl mx-auto w-full prism-scroll">
+          <div className="flex-1 overflow-y-auto p-6 space-y-2.5 max-w-4xl mx-auto w-full prism-scroll">
             {status === "error" && filteredEvents.length === 0 ? (
               <InlineErrorBanner
                 title="Telemetry Feed Paused"
@@ -319,27 +327,27 @@ export default function RadarPage() {
                 className="my-6"
               />
             ) : status === "connecting" && filteredEvents.length === 0 ? (
-              <div className="space-y-3.5">
+              <div className="space-y-2.5">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
                     key={i}
-                    className="p-5 rounded-2xl bg-white border border-black/[0.07] space-y-3"
+                    className="p-4 rounded-md bg-white border border-stone-200/70 space-y-2.5"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="w-20 h-5 rounded-md animate-shimmer" />
-                      <div className="w-16 h-4 rounded-md animate-shimmer" />
+                      <div className="w-20 h-4 rounded bg-stone-100 animate-pulse" />
+                      <div className="w-16 h-3 rounded bg-stone-100 animate-pulse" />
                     </div>
-                    <div className="w-3/4 h-4 rounded-md animate-shimmer" />
-                    <div className="w-full h-3 rounded-md animate-shimmer" />
+                    <div className="w-3/4 h-4 rounded bg-stone-100 animate-pulse" />
+                    <div className="w-full h-3 rounded bg-stone-100 animate-pulse" />
                   </div>
                 ))}
               </div>
             ) : filteredEvents.length === 0 ? (
               <div className="py-24 text-center text-stone-400 flex flex-col items-center justify-center gap-3">
-                <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center">
-                  <CheckCircle size={26} weight="light" className="text-stone-300" />
+                <div className="w-10 h-10 rounded bg-stone-100 flex items-center justify-center">
+                  <CheckCircle size={20} weight="bold" className="text-stone-400" />
                 </div>
-                <p className="text-sm font-semibold text-stone-700">Radar feed is clear</p>
+                <p className="text-xs font-semibold text-stone-700 font-mono uppercase tracking-wider">Radar feed is clear</p>
                 <p className="text-xs text-stone-400 max-w-sm leading-relaxed">
                   No alerts match your current filter. Incoming messages and webhook events from your connected tools will stream here live.
                 </p>
@@ -349,80 +357,110 @@ export default function RadarPage() {
                 const meta = getToolMeta(event.source);
                 const ToolIcon = meta.icon;
                 const isUrgent = event.priority === "urgent" || event.priority === "critical";
+                const details = parseEventDetails(event);
 
                 return (
                   <div
                     key={event.id}
-                    className={`p-5 rounded-2xl bg-white border transition-all duration-150 ${
+                    className={`group relative p-4 rounded-md bg-white border transition-all duration-150 ${
                       !event.is_read
                         ? isUrgent
-                          ? "border-red-200 border-l-[4px] border-l-red-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-                          : "border-black/[0.08] border-l-[4px] border-l-sky-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-                        : "border-black/[0.05] opacity-60 hover:opacity-100"
+                          ? "border-red-200 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+                          : "border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
+                        : "border-stone-200/60 opacity-60 hover:opacity-95"
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-3 mb-2.5">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold border ${meta.badge}`}
-                        >
-                          <ToolIcon size={12} weight="bold" />
-                          <span>{meta.label}</span>
-                        </span>
-                        <span className="text-xs text-stone-400 font-mono">
-                          {event.event_type}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {isUrgent && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
-                            <Warning size={10} weight="bold" />
-                            URGENT
-                          </span>
-                        )}
-                        <span className="text-xs text-stone-400 font-mono">
-                          {new Date(event.created_at).toLocaleString([], {
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3 className="text-sm font-semibold text-stone-900 tracking-tight leading-snug">
-                      {event.title}
-                    </h3>
-                    {event.summary && (
-                      <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
-                        {event.summary}
-                      </p>
+                    {!event.is_read && (
+                      <div
+                        className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-r-[1px] ${
+                          isUrgent ? "bg-red-500" : "bg-stone-900"
+                        }`}
+                      />
                     )}
 
-                    <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between">
-                      {!event.is_read ? (
-                        <button
-                          type="button"
-                          onClick={() => markAsRead(event.id)}
-                          className="text-xs text-stone-400 hover:text-stone-700 flex items-center gap-1 transition-colors cursor-pointer"
-                        >
-                          <Check size={12} weight="bold" />
-                          <span>Mark as read</span>
-                        </button>
-                      ) : (
-                        <span className="text-xs text-stone-300 font-mono">Read</span>
+                    <div className="pl-1.5">
+                      <div className="flex items-center justify-between gap-3 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] text-[10.5px] font-mono font-semibold border ${meta.badge}`}
+                          >
+                            <ToolIcon size={12} weight="bold" />
+                            <span>{meta.label}</span>
+                          </span>
+
+                          {details.senderName && (
+                            <span
+                              className="text-xs font-medium text-stone-700 truncate"
+                              title={
+                                details.senderEmail
+                                  ? `${details.senderName} <${details.senderEmail}>`
+                                  : details.senderName
+                              }
+                            >
+                              {details.senderName}
+                            </span>
+                          )}
+
+                          {details.senderEmail && (
+                            <span className="text-[10.5px] text-stone-400 font-mono hidden md:inline truncate">
+                              &lt;{details.senderEmail}&gt;
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isUrgent && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-[9.5px] font-mono font-bold bg-red-50 text-red-700 border border-red-200">
+                              <Warning size={10} weight="bold" />
+                              URGENT
+                            </span>
+                          )}
+                          <span className="text-xs text-stone-400 font-mono whitespace-nowrap">
+                            {new Date(event.created_at).toLocaleString([], {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h3 className="text-sm font-semibold text-stone-950 tracking-tight leading-snug">
+                        {details.headline}
+                      </h3>
+                      {details.summary && (
+                        <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
+                          {details.summary}
+                        </p>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => handleInvestigate(event)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition-all cursor-pointer active:scale-[0.98]"
-                      >
-                        <span>Investigate in Cockpit</span>
-                        <ArrowRight size={11} weight="bold" />
-                      </button>
+                      <div className="mt-3.5 pt-2.5 border-t border-stone-100 flex items-center justify-between">
+                        {!event.is_read ? (
+                          <button
+                            type="button"
+                            onClick={() => markAsRead(event.id)}
+                            className="text-xs text-stone-400 hover:text-stone-700 flex items-center gap-1 transition-colors cursor-pointer font-mono"
+                          >
+                            <Check size={12} weight="bold" />
+                            <span>Mark as read</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-stone-300 font-mono flex items-center gap-1">
+                            <Check size={11} weight="bold" />
+                            <span>Read</span>
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleInvestigate(event)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[3px] bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-all cursor-pointer font-mono"
+                        >
+                          <span>Investigate in Cockpit</span>
+                          <ArrowRight size={11} weight="bold" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
