@@ -8,7 +8,7 @@ import PrismLogo from "@/components/brand/PrismLogo";
 import { humanizeError } from "@/lib/errors/humanize";
 
 const inputClass =
-  "w-full px-4 py-3 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all duration-150";
+  "w-full px-4 py-3 rounded-xl border border-black/[0.08] bg-white text-sm text-[#1C1917] placeholder-[#A8A29E] outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400 transition-all duration-150";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -92,19 +92,21 @@ export default function SignupPage() {
   if (isEmailVerificationSent) {
     return (
       <div className="w-full text-center">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-6">
-          <PrismLogo size={36} variant="tile" />
+        <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-sky-100 bg-sky-50">
+          <PrismLogo size={32} variant="tile" />
         </div>
-        <h2 className="text-[24px] font-bold text-stone-900 tracking-[-0.02em]">Check your email</h2>
-        <p className="text-sm text-stone-500 mt-2 leading-relaxed">
-          We&apos;ve sent a confirmation link to <span className="font-semibold text-stone-800">{email}</span>. Please verify your email to log in to Prism.
+        <h2 className="text-[24px] font-bold tracking-[-0.02em] text-[#1C1917]">Check your email</h2>
+        <p className="mt-2 text-sm leading-relaxed text-[#57534E]">
+          We sent a confirmation link to{" "}
+          <span className="font-semibold text-[#1C1917]">{email}</span>. Confirm it and your
+          briefing setup takes about two minutes.
         </p>
         <div className="mt-8">
           <Link
             href="/auth/login"
-            className="inline-flex items-center justify-center w-full py-3 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold transition-all duration-150 active:scale-[0.98]"
+            className="inline-flex w-full items-center justify-center rounded-full bg-[#1C1917] px-4 py-3 text-sm font-medium text-white transition-all duration-150 hover:bg-black active:scale-[0.98]"
           >
-            Back to Sign In
+            Back to sign in
           </Link>
         </div>
       </div>
@@ -123,11 +125,11 @@ export default function SignupPage() {
       </div>
 
       <div className="mb-8">
-        <h1 className="text-[26px] font-bold text-stone-900 tracking-[-0.025em] leading-tight">
-          Create account
+        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.025em] text-[#1C1917]">
+          Get your first briefing
         </h1>
-        <p className="text-sm text-stone-500 mt-1.5">
-          Your workspace and operational telemetry will be set up automatically.
+        <p className="mt-1.5 text-sm text-[#57534E]">
+          Two minutes to set up. Tomorrow, your morning is already sorted.
         </p>
       </div>
 
@@ -204,15 +206,15 @@ export default function SignupPage() {
           style={{
             background:
               loading || !email || !password || !displayName
-                ? "#94a3b8"
-                : "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+                ? "#A8A29E"
+                : "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)",
             boxShadow:
               !loading && email && password && displayName
-                ? "0 2px 8px rgba(99, 102, 241, 0.3)"
+                ? "0 2px 8px rgba(2, 132, 199, 0.28)"
                 : "none",
           }}
         >
-          {loading ? "Creating account…" : "Create account →"}
+          {loading ? "Setting up…" : "Get my first briefing →"}
         </button>
       </form>
 
@@ -220,7 +222,7 @@ export default function SignupPage() {
         Already have an account?{" "}
         <Link
           href="/auth/login"
-          className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors"
+          className="font-semibold text-sky-700 transition-colors hover:text-sky-800"
         >
           Sign in
         </Link>

@@ -8,7 +8,7 @@ import PrismLogo from "@/components/brand/PrismLogo";
 import { humanizeError } from "@/lib/errors/humanize";
 
 const inputClass =
-  "w-full px-4 py-3 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all duration-150";
+  "w-full px-4 py-3 rounded-xl border border-black/[0.08] bg-white text-sm text-[#1C1917] placeholder-[#A8A29E] outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-400 transition-all duration-150";
 
 function LoginForm() {
   const router = useRouter();
@@ -22,7 +22,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(
-    magicLinkSent ? "Check your inbox — we sent you a sign-in link." : null
+    magicLinkSent ? "Check your inbox. We sent you a sign-in link." : null
   );
   const [loading, setLoading] = useState(false);
   const [magicLinkLoading, setMagicLinkLoading] = useState(false);
@@ -90,7 +90,7 @@ function LoginForm() {
       try {
         sessionStorage.setItem("prism_magic_return_to", returnTo);
       } catch {}
-      setNotice("Check your inbox — we sent you a magic sign-in link.");
+      setNotice("Check your inbox. We sent you a magic sign-in link.");
     } catch {
       setError("Could not send the sign-in link. Try again.");
     } finally {
@@ -110,11 +110,11 @@ function LoginForm() {
       </div>
 
       <div className="mb-8">
-        <h1 className="text-[26px] font-bold text-stone-900 tracking-[-0.025em] leading-tight">
-          Sign in
+        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.025em] text-[#1C1917]">
+          Welcome back
         </h1>
-        <p className="text-sm text-stone-500 mt-1.5">
-          Enter your credentials to access your operational cockpit.
+        <p className="mt-1.5 text-sm text-[#57534E]">
+          Sign in and your morning briefing is waiting.
         </p>
       </div>
 
@@ -158,7 +158,7 @@ function LoginForm() {
           </div>
         )}
         {notice && (
-          <div className="rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-800">
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
             {notice}
           </div>
         )}
@@ -168,10 +168,13 @@ function LoginForm() {
           disabled={loading || magicLinkLoading || !email || !password}
           className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] cursor-pointer"
           style={{
-            background: loading || !email || !password ? "#94a3b8" : "#0369a1",
+            background:
+              loading || !email || !password
+                ? "#A8A29E"
+                : "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)",
             boxShadow:
               !loading && email && password
-                ? "0 2px 8px rgba(3, 105, 161, 0.28)"
+                ? "0 2px 8px rgba(2, 132, 199, 0.28)"
                 : "none",
           }}
         >
@@ -196,7 +199,7 @@ function LoginForm() {
 
       <p className="mt-6 text-center text-[12.5px] text-stone-400">
         Don&apos;t have an account?{" "}
-        <Link href="/auth/signup" className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors">
+        <Link href="/auth/signup" className="font-semibold text-sky-700 transition-colors hover:text-sky-800">
           Create one
         </Link>
       </p>

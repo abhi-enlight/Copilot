@@ -44,7 +44,7 @@ export function RouteProgressBar() {
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[99999] h-[2.5px] pointer-events-none overflow-hidden bg-transparent">
-      <div className="h-full w-full bg-gradient-to-r from-indigo-500 via-sky-400 to-indigo-600 animate-shimmer shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+      <div className="h-full w-full bg-gradient-to-r from-sky-600 via-sky-400 to-amber-500 animate-shimmer shadow-[0_0_8px_rgba(2,132,199,0.6)]" />
     </div>
   );
 }

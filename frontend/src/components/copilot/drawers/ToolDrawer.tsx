@@ -437,7 +437,7 @@ export default function ToolDrawer({ isOpen, onClose, onStatusChange }: ToolDraw
                         <button
                           disabled={isConnecting || Boolean(connectingTool)}
                           onClick={() => handleConnect(tool.slug)}
-                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-all disabled:opacity-40 cursor-pointer active:scale-[0.98]"
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-all disabled:opacity-40 cursor-pointer active:scale-[0.98]"
                         >
                           {isConnecting ? (
                             <><SpinnerGap size={13} className="animate-spin" /><span>Connecting…</span></>

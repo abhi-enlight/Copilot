@@ -344,9 +344,9 @@ export default function IntegrationsPage() {
 
               <Link
                 href="/integrations"
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-indigo-500 pl-[calc(0.75rem-3px)]"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-sky-500 pl-[calc(0.75rem-3px)]"
               >
-                <PlugsConnected size={16} weight="bold" className="text-indigo-600" />
+                <PlugsConnected size={16} weight="bold" className="text-sky-700" />
                 <span>Connect Hub</span>
               </Link>
             </div>
@@ -509,7 +509,7 @@ export default function IntegrationsPage() {
                             type="button"
                             disabled={isConnecting || Boolean(connectingTool)}
                             onClick={() => handleConnect(tool.slug)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-all cursor-pointer active:scale-[0.98] disabled:opacity-40"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.25)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-all cursor-pointer active:scale-[0.98] disabled:opacity-40"
                           >
                             {isConnecting ? (
                               <>

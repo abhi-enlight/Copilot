@@ -200,7 +200,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     ? "border-emerald-200/80 border-l-[4px] border-l-emerald-500"
                     : isWarning
                     ? "border-amber-200/80 border-l-[4px] border-l-amber-500"
-                    : "border-stone-200 border-l-[4px] border-l-indigo-500"
+                    : "border-stone-200 border-l-[4px] border-l-sky-500"
                 }`}
               >
                 {/* Icon */}
@@ -212,7 +212,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                       ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
                       : isWarning
                       ? "bg-amber-50 text-amber-600 border border-amber-100"
-                      : "bg-indigo-50 text-indigo-600 border border-indigo-100"
+                      : "bg-sky-50 text-sky-700 border border-sky-100"
                   }`}
                 >
                   {isError && <Warning size={16} weight="duotone" />}

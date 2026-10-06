@@ -225,9 +225,9 @@ export default function ActionsPage() {
 
               <Link
                 href="/actions"
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-indigo-500 pl-[calc(0.75rem-3px)]"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-sky-500 pl-[calc(0.75rem-3px)]"
               >
-                <ShieldCheck size={16} weight="bold" className="text-indigo-600" />
+                <ShieldCheck size={16} weight="bold" className="text-sky-700" />
                 <span>Action Ledger</span>
               </Link>
 

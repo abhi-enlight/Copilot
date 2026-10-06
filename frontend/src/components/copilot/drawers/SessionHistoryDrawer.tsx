@@ -235,7 +235,7 @@ export default function SessionHistoryDrawer({
                           size={15}
                           weight={isActive ? "fill" : "regular"}
                           className={`mt-0.5 flex-shrink-0 ${
-                            isActive ? "text-indigo-600" : "text-stone-400 group-hover:text-stone-600"
+                            isActive ? "text-sky-700" : "text-stone-400 group-hover:text-stone-600"
                           }`}
                         />
                         <div className="min-w-0 flex-1">

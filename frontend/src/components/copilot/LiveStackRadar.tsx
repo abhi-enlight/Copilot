@@ -166,7 +166,7 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
   };
 
   return (
-    <aside className={`w-full h-full flex flex-col bg-[#FAFAF9] border-l border-black/[0.06] font-[family-name:var(--font-geist-sans)] ${className}`}>
+    <aside className={`flex h-full w-full flex-col border-l border-black/[0.06] bg-[#FAFAF9]/80 font-[family-name:var(--font-geist-sans)] ${className}`}>
       {/* Header */}
       <div className="p-4 bg-white/80 backdrop-blur-xl border-b border-black/[0.05] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -237,7 +237,7 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                 <span className="text-[10px] px-1 rounded-full font-bold bg-red-100 text-red-700">{urgentCount}</span>
               )}
               {filter === "actionable" && actionableCount > 0 && (
-                <span className="text-[10px] px-1 rounded-full font-bold bg-indigo-100 text-indigo-700">{actionableCount}</span>
+                <span className="text-[10px] px-1 rounded-full font-bold bg-sky-100 text-sky-800">{actionableCount}</span>
               )}
             </button>
           ))}
@@ -311,7 +311,7 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                     !event.is_read
                       ? isUrgent
                         ? "border-l-red-500 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                        : "border-l-indigo-400 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                        : "border-l-sky-400 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
                       : "border-l-transparent opacity-50"
                   }`}
                 >
@@ -375,7 +375,7 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
                                   `Investigate telemetry event from ${meta.label}. [prism:telemetry:${event.id}]`
                                 );
                               }}
-                              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-700 hover:text-sky-800 transition-colors cursor-pointer"
                             >
                               Ask Prism
                               <ArrowRight size={10} weight="bold" />

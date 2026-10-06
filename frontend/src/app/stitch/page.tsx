@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Prism | Stitch-Generated Enterprise Landing Page Preview",
@@ -23,9 +24,9 @@ export default function StitchPreviewPage() {
             Open Standalone HTML ↗
           </a>
           <span className="text-stone-500">|</span>
-          <a href="/" className="text-stone-300 hover:text-white">
+          <Link href="/" className="text-stone-300 hover:text-white">
             Return to App
-          </a>
+          </Link>
         </div>
       </div>
       <iframe

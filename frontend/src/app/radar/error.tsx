@@ -26,7 +26,7 @@ export default function RadarError({
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FAFAF9]">
       <div className="w-full max-w-md bg-white rounded-3xl border border-stone-200 shadow-xl shadow-stone-900/5 p-8 flex flex-col items-center text-center gap-5">
-        <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700">
+        <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-800">
           <Pulse size={24} weight="duotone" />
         </div>
 

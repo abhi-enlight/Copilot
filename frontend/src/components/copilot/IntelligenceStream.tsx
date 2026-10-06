@@ -400,8 +400,8 @@ export default function IntelligenceStream({
                           {/* Multi-phase status pill */}
                           <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-stone-100 border border-stone-200/80 text-xs text-stone-700">
                             <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
                             </span>
                             <span className="font-medium">Thinking…</span>
                           </div>
@@ -540,7 +540,7 @@ export default function IntelligenceStream({
                                             <button
                                               type="button"
                                               onClick={() => onQuickPrompt(`Draft a reply to "${item.subject}" from ${item.sender}`)}
-                                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-800 transition-colors cursor-pointer"
                                             >
                                               <span>Draft Reply</span>
                                               <ArrowRight size={10} weight="bold" />
@@ -627,7 +627,7 @@ export default function IntelligenceStream({
                                   h3: ({ children }) => (
                                     <div className="mt-3.5 mb-1.5 pt-2.5 border-t border-stone-100 first:mt-0 first:pt-0 first:border-0">
                                       <h3 className="text-[13.5px] font-semibold text-stone-900 tracking-tight flex items-center gap-2">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block" />
                                         <span>{children}</span>
                                       </h3>
                                     </div>
@@ -642,7 +642,7 @@ export default function IntelligenceStream({
                                   p: ({ children }) => <p className="my-1.5 leading-relaxed text-stone-700 text-xs sm:text-[13px]">{children}</p>,
                                   strong: ({ children }) => <strong className="font-semibold text-stone-950">{children}</strong>,
                                   blockquote: ({ children }) => (
-                                    <blockquote className="my-3 border-l-2 border-indigo-500 bg-stone-50 rounded-r-xl px-4 py-2.5 text-xs text-stone-700">
+                                    <blockquote className="my-3 border-l-2 border-sky-500 bg-stone-50 rounded-r-xl px-4 py-2.5 text-xs text-stone-700">
                                       {children}
                                     </blockquote>
                                   ),
@@ -726,7 +726,7 @@ export default function IntelligenceStream({
                 className="flex items-center gap-2.5 text-[12.5px] text-stone-600"
               >
                 {step.status === "executing" ? (
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500 animate-thinking-glow" />
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500 animate-thinking-glow" />
                 ) : step.status === "failed" ? (
                   <Warning size={13} weight="bold" className="shrink-0 text-amber-500" />
                 ) : (

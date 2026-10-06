@@ -1,10 +1,12 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap");
 
 /* Map Tailwind's font utilities to the Geist variables loaded in app/layout.tsx,
    so shells using `font-sans` and components using the Geist family match. */
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: var(--font-plus-jakarta), "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+  --font-sans: var(--font-geist-sans), "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* ── Design Tokens ───────────────────────────────────────────────── */
@@ -28,10 +30,11 @@
   --text-tertiary: #A8A29E;
   --text-inverse: #FAFAF9;
 
-  /* Accent */
-  --accent: #6366F1;
-  --accent-subtle: #EEF2FF;
-  --accent-muted: #C7D2FE;
+  /* Accent — Prism sky. The product rule is no violet, so the app accent
+     matches the marketing page instead of the old indigo. */
+  --accent: #0284C7;
+  --accent-subtle: #E0F2FE;
+  --accent-muted: #BAE6FD;
 
   /* Signals */
   --signal-success: #22C55E;
@@ -110,9 +113,19 @@ body {
 /* ── Aurora background for cockpit ──────────────────────────────── */
 .prism-aurora {
   background:
-    radial-gradient(600px 260px at 12% -6%, rgba(99,102,241,0.05), transparent 60%),
-    radial-gradient(520px 240px at 92% -4%, rgba(99,102,241,0.04), transparent 60%),
+    radial-gradient(600px 260px at 12% -6%, rgba(2,132,199,0.07), transparent 60%),
+    radial-gradient(520px 240px at 92% -4%, rgba(245,158,11,0.06), transparent 60%),
     var(--bg-base);
+}
+
+/* ── App shell wash ─────────────────────────────────────────────────
+   Mirrors the marketing page ambient gradient (sky across the top,
+   sunrise toward the right) so the product matches the landing page
+   the moment someone signs in. Lives on a wrapper, not on content. */
+.prism-app-wash {
+  background-image:
+    linear-gradient(180deg, #DCEDFA 0%, rgba(248,251,253,0.6) 40%, rgba(250,250,249,0) 72%),
+    linear-gradient(115deg, rgba(2,132,199,0.08) 0%, rgba(250,250,249,0) 45%, rgba(245,158,11,0.10) 100%);
 }
 
 /* ── Floating input dock ─────────────────────────────────────────── */

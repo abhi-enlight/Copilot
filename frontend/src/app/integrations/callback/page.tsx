@@ -129,7 +129,7 @@ function CallbackContent() {
       <div className="w-full max-w-sm text-center bg-white rounded-2xl border border-black/[0.07] shadow-[0_8px_24px_rgba(0,0,0,0.06),0_16px_48px_rgba(0,0,0,0.04)] p-8">
         {statusState === "verifying" && (
           <>
-            <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 mx-auto mb-4 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-sky-50 border border-sky-200 text-sky-700 mx-auto mb-4 flex items-center justify-center">
               <SpinnerGap size={28} className="animate-spin" />
             </div>
             <h1 className="text-base font-bold text-stone-900 tracking-tight mb-1">

@@ -3,407 +3,341 @@
 import React, { useState } from "react";
 import { motion } from "motion/react";
 import {
-  ShieldCheck,
-  Check,
-  X,
-  EnvelopeSimple,
+  ArrowsClockwise,
   Briefcase,
-  GitBranch,
-  Warning,
-  Sparkle,
+  ChatCircleDots,
   CheckCircle,
+  EnvelopeSimple,
+  SunHorizon,
 } from "@phosphor-icons/react";
 
 interface ProposalData {
-  actionType: string;
-  targetSystem: string;
-  recipient: string;
-  subject: string;
+  /** Small label above the details, e.g. "Reply to Dana" */
+  action: string;
+  to: string;
+  /** Optional: channel messages don't have a subject line */
+  subject?: string;
   body: string;
-  risk: string;
-  hash: string;
+  tag: string;
+  /** Where Prism pulled this from, in plain English */
+  basis: string;
 }
 
 interface FeedItem {
   id: string;
   source: string;
-  icon: React.ReactNode;
   time: string;
   title: string;
   detail: string;
-  category: "deal" | "email" | "sprint";
   badge: string;
+  icon: React.ReactNode;
   proposal: ProposalData;
 }
 
 const BRIEFING_ITEMS: FeedItem[] = [
   {
     id: "item-1",
-    source: "Zoho CRM",
-    icon: <Briefcase weight="duotone" className="text-amber-600" size={18} />,
-    time: "06:40",
-    title: "Halcyon Freight deal moved to legal review",
-    detail: "Deal value $240,000 ARR. Legal flagged an indemnity clause on the SLA renewal. Prepared revision summary for executive review.",
-    category: "deal",
-    badge: "Contract Flag",
+    source: "Email",
+    time: "11:20 PM",
+    title: "Dana confirmed the renewal",
+    detail: "She agreed to two more years and asked for the paperwork.",
+    badge: "Reply ready",
+    icon: <EnvelopeSimple weight="duotone" size={16} className="text-sky-600" />,
     proposal: {
-      actionType: "ZOHO_UPDATE_DEAL",
-      targetSystem: "Zoho CRM / Update Deal",
-      recipient: "Legal and Deal Desk Queue",
-      subject: "Halcyon Freight Contract: Attach SLA Rider",
-      body: "Update deal stage to 'Legal Review' ($240,000 ARR) and attach revised indemnity addendum for COO review.",
-      risk: "Medium Risk",
-      hash: "8a4f91e2b5c7d0e34f1a9b2c8e7d4a1b",
+      action: "Reply to Dana",
+      to: "dana@halcyonfreight.com",
+      subject: "Here’s the paperwork for the two-year renewal",
+      body: "Dana, thanks for confirming last night. The order form is attached for two years at your current rate, billed every 30 days. I’ll send the countersigned copy this week.",
+      tag: "Ready to send",
+      basis: "Written from Dana’s email at 11:20 PM",
     },
   },
   {
     id: "item-2",
-    source: "Microsoft Outlook",
-    icon: <EnvelopeSimple weight="duotone" className="text-sky-600" size={18} />,
-    time: "07:05",
-    title: "Dana Okafor confirmed renewal terms",
-    detail: "VP confirmed 24-month term with net-30 invoicing. Prism drafted the confirmation email and staged it for your review.",
-    category: "email",
-    badge: "Approval Staged",
+    source: "Your deals",
+    time: "3:05 AM",
+    title: "The Halcyon renewal has been sitting for four days",
+    detail: "It’s waiting on legal for one clause, and nobody has chased it.",
+    badge: "Needs a nudge",
+    icon: <Briefcase weight="duotone" size={16} className="text-amber-600" />,
     proposal: {
-      actionType: "OUTLOOK_SEND_EMAIL",
-      targetSystem: "Microsoft Outlook / Send Email",
-      recipient: "dana.okafor@halcyonfreight.com",
-      subject: "Confirmation: 24-month term and net-30 schedule",
-      body: "Dana, confirming our agreed terms: 24-month commitment at standard tier with net-30 payment schedule, effective December 1. Finalizing order form now.",
-      risk: "Requires Sign-Off",
-      hash: "9f2c41d7a0b8e5c36f4a1d9e7b0c2a5f",
+      action: "Nudge legal",
+      to: "Priya Raman (Legal)",
+      subject: "Can we clear the Halcyon renewal today?",
+      body: "Priya, the Halcyon renewal has been with legal since Thursday and Dana is expecting paperwork. It’s the standard two-year agreement at the same rate. Can we get it cleared today? Happy to jump on a call if anything looks off.",
+      tag: "Ready to send",
+      basis: "Written from the deal record and Thursday’s handoff",
     },
   },
   {
     id: "item-3",
-    source: "Linear",
-    icon: <GitBranch weight="duotone" className="text-purple-600" size={18} />,
-    time: "07:50",
-    title: "Platform migration sprint tickets blocked past Friday",
-    detail: "Sprint cycle #41 has 2 unassigned blockers impacting deployment dates. Reassignment proposal queued.",
-    category: "sprint",
-    badge: "Sprint Blocker",
+    source: "Team messages",
+    time: "5:40 AM",
+    title: "Friday’s launch is short two people",
+    detail: "Two jobs on the list have nobody assigned, and the team doesn’t know yet.",
+    badge: "Team blocked",
+    icon: <ChatCircleDots weight="duotone" size={16} className="text-sky-600" />,
     proposal: {
-      actionType: "LINEAR_REASSIGN_ISSUE",
-      targetSystem: "Linear / Reassign Issue",
-      recipient: "DevOps Sprint Cycle #41",
-      subject: "OPS-284: Reassign Database Blocker",
-      body: "Reassign unowned ticket OPS-284 to DevOps Lead and escalate priority to Urgent to protect Friday deployment window.",
-      risk: "Low Risk",
-      hash: "3c7e82b1d9a0f5e42a1b6c8d7e0f9a2b",
+      action: "Message to your team",
+      to: "#launch",
+      body: "Good morning. We’re two items short for Friday’s launch: the final stock check and the support handover. Both need an owner by the end of today. Can anyone pick one up?",
+      tag: "Ready to send",
+      basis: "Written from the launch list and this morning’s team messages",
     },
   },
 ];
 
+type ItemStatus = "pending" | "approved" | "dismissed";
+
 export default function InteractiveBriefingDemo() {
-  const [activeTab, setActiveTab] = useState<"all" | "approvals">("all");
-  const [selectedId, setSelectedId] = useState<string>("item-2");
-  const [itemStatuses, setItemStatuses] = useState<Record<string, "pending" | "approved" | "rejected">>({
+  const [selectedId, setSelectedId] = useState<string>("item-1");
+  const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({
     "item-1": "pending",
     "item-2": "pending",
     "item-3": "pending",
   });
-  const [executing, setExecuting] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  const selectedItem = BRIEFING_ITEMS.find((it) => it.id === selectedId) || BRIEFING_ITEMS[1];
-  const currentStatus = itemStatuses[selectedItem.id] || "pending";
+  const selected = BRIEFING_ITEMS.find((item) => item.id === selectedId) ?? BRIEFING_ITEMS[0];
+  const selectedStatus = statuses[selected.id] ?? "pending";
+  const waiting = BRIEFING_ITEMS.filter((item) => statuses[item.id] === "pending").length;
 
-  const pendingCount = BRIEFING_ITEMS.filter((it) => itemStatuses[it.id] === "pending").length;
-
-  const visibleItems =
-    activeTab === "approvals"
-      ? BRIEFING_ITEMS.filter((it) => itemStatuses[it.id] === "pending")
-      : BRIEFING_ITEMS;
+  const handleSelect = (id: string) => {
+    setSending(false);
+    setSelectedId(id);
+  };
 
   const handleApprove = () => {
-    setExecuting(true);
-    setTimeout(() => {
-      setExecuting(false);
-      setItemStatuses((prev) => ({ ...prev, [selectedItem.id]: "approved" }));
-    }, 500);
+    setSending(true);
+    window.setTimeout(() => {
+      setSending(false);
+      setStatuses((prev) => ({ ...prev, [selected.id]: "approved" }));
+    }, 400);
   };
 
-  const handleReject = () => {
-    setItemStatuses((prev) => ({ ...prev, [selectedItem.id]: "rejected" }));
+  const handleDismiss = () => {
+    setStatuses((prev) => ({ ...prev, [selected.id]: "dismissed" }));
   };
 
-  const handleResetAll = () => {
-    setItemStatuses({
-      "item-1": "pending",
-      "item-2": "pending",
-      "item-3": "pending",
-    });
-    setSelectedId("item-2");
+  const handleUndo = () => {
+    setStatuses((prev) => ({ ...prev, [selected.id]: "pending" }));
+  };
+
+  const handleReset = () => {
+    setStatuses({ "item-1": "pending", "item-2": "pending", "item-3": "pending" });
+    setSelectedId("item-1");
   };
 
   return (
     <div className="relative mx-auto w-full max-w-5xl">
-      {/* Outer container: Machined secondary chassis */}
-      <div className="relative rounded-2xl border border-black/[0.08] bg-[#F5F5F4] p-2.5 sm:p-3 shadow-lg">
-        {/* Inner core display */}
-        <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-[#FAFAF9]">
-          {/* Executive Cockpit Header Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/[0.06] bg-[#F5F5F4] px-5 py-3.5 sm:px-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1C1917] text-white">
-                <Sparkle weight="fill" size={14} className="text-sky-300" />
-              </div>
-              <div>
-                <span className="text-[13px] font-semibold text-[#1C1917]">Executive Morning Briefing</span>
-                <p className="font-mono text-[11px] text-[#78716C]">TUESDAY 08:12 AM / 12 SYSTEMS SYNTHESIZED</p>
-              </div>
-            </div>
+      {/* Soft gradient halo behind the panel, bleeding downward */}
+      <div className="pointer-events-none absolute inset-x-4 top-4 -bottom-16 -z-10 rounded-[44px] bg-gradient-to-br from-sky-300/45 via-sky-100/35 to-amber-200/40 blur-3xl" />
 
-            {/* Filter and Reset Controls */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 rounded-lg border border-black/[0.08] bg-[#EFECE8] p-0.5">
-                <button
-                  onClick={() => setActiveTab("all")}
-                  className={`rounded-md px-3 py-1 text-[12px] font-medium transition-all cursor-pointer ${
-                    activeTab === "all"
-                      ? "bg-[#1C1917] text-white"
-                      : "text-[#78716C] hover:text-[#1C1917]"
-                  }`}
-                >
-                  All Signals ({BRIEFING_ITEMS.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab("approvals")}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-[12px] font-medium transition-all cursor-pointer ${
-                    activeTab === "approvals"
-                      ? "bg-[#1C1917] text-white"
-                      : "text-[#78716C] hover:text-[#1C1917]"
-                  }`}
-                >
-                  <span>Pending Sign-Off</span>
-                  <span className="font-mono text-[11px] font-bold">
-                    {pendingCount}
-                  </span>
-                </button>
-              </div>
-
-              {pendingCount < BRIEFING_ITEMS.length && (
-                <button
-                  onClick={handleResetAll}
-                  className="rounded-lg border border-black/[0.08] bg-[#F5F5F4] px-2.5 py-1 text-[11px] font-mono text-[#78716C] hover:text-[#1C1917] hover:bg-[#EFECE8] transition-colors cursor-pointer"
-                  title="Reset simulation"
-                >
-                  Reset
-                </button>
-              )}
+      <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_36px_90px_-60px_rgba(15,23,42,0.55)]">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#0284C7] to-[#0369A1] text-white">
+              <SunHorizon weight="fill" size={16} />
+            </span>
+            <div>
+              <p className="font-display text-[13.5px] font-bold text-[#1C1917]">Your morning briefing</p>
+              <p className="font-mono text-[11.5px] text-[#A8A29E]">Tuesday, 7:58 AM</p>
             </div>
           </div>
 
-          {/* Interactive Workspace Grid */}
+          <span className="font-mono text-[12px] text-[#78716C]">
+            {waiting === 0 ? "Nothing waiting on you" : `${waiting} waiting on you`}
+          </span>
+        </div>
+
+        {waiting === 0 ? (
+          /* Everything handled, the good part of the morning */
+          <div className="px-6 py-20 text-center">
+            <h3 className="font-display text-[19px] font-bold tracking-tight text-[#1C1917]">
+              Morning handled.
+            </h3>
+            <p className="mx-auto mt-2 max-w-sm text-[14px] leading-relaxed text-[#57534E]">
+              Everything that came in overnight has been dealt with. Nothing is waiting on you.
+            </p>
+            <button
+              onClick={handleReset}
+              className="mt-6 inline-flex items-center gap-2 rounded-xl border border-black/[0.1] bg-white px-5 py-2.5 text-[13px] font-medium text-[#1C1917] transition-colors hover:bg-[#FAFAF9]"
+            >
+              <ArrowsClockwise size={14} />
+              Run it again
+            </button>
+          </div>
+        ) : (
           <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-12">
-            {/* Left Column: Assembled Signal Stream */}
-            <div className="space-y-3 lg:col-span-7">
-              <div className="flex items-center justify-between pb-1">
-                <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#A8A29E]">
-                  Proactive Morning Signals
+            {/* Overnight updates */}
+            <div className="lg:col-span-7">
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#A8A29E]">
+                  What came in overnight
                 </span>
-                <span className="text-[11px] text-[#78716C]">Select any event to inspect proposal</span>
+                <span className="text-[11.5px] text-[#A8A29E]">Click to see the follow-up</span>
               </div>
 
-              {visibleItems.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50 p-8 text-center">
-                  <CheckCircle weight="fill" size={28} className="mx-auto text-emerald-600" />
-                  <h4 className="mt-2 text-[14px] font-semibold text-emerald-950">Inbox Zero: All Proposals Resolved</h4>
-                  <p className="mt-1 text-[12.5px] text-emerald-800">
-                    Every state-modifying action was signed off or declined. Zero pending mutations.
-                  </p>
-                  <button
-                    onClick={handleResetAll}
-                    className="mt-4 rounded-lg bg-emerald-700 px-4 py-1.5 text-[12px] font-medium text-white hover:bg-emerald-800 transition-colors cursor-pointer"
-                  >
-                    Replay All Proposals
-                  </button>
-                </div>
-              ) : (
-                visibleItems.map((item) => {
-                  const isSelected = selectedItem.id === item.id;
-                  const status = itemStatuses[item.id];
+              <div className="space-y-2.5">
+                {BRIEFING_ITEMS.map((item) => {
+                  const status = statuses[item.id];
+                  const isSelected = selected.id === item.id;
 
                   return (
-                    <div
+                    <button
                       key={item.id}
-                      onClick={() => setSelectedId(item.id)}
-                      className={`group relative rounded-xl border p-4 transition-all duration-200 cursor-pointer ${
+                      onClick={() => handleSelect(item.id)}
+                      className={`w-full rounded-xl border p-4 text-left transition-all duration-200 ${
                         isSelected
-                          ? "border-sky-500/60 bg-sky-50/50 shadow-xs"
-                          : "border-black/[0.08] bg-[#F5F5F4] hover:border-black/[0.14] hover:bg-[#EFECE8]"
+                          ? "border-sky-300 bg-sky-50/50"
+                          : "border-black/[0.07] bg-white hover:border-black/[0.14]"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/[0.06] bg-white">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/[0.06] bg-[#FAFAF9]">
                             {item.icon}
-                          </div>
-                          <div>
-                            <span className="text-[12px] font-semibold text-[#1C1917]">{item.source}</span>
-                            <span className="ml-2 font-mono text-[11px] text-[#A8A29E]">{item.time}</span>
-                          </div>
+                          </span>
+                          <span className="font-mono text-[11.5px] text-[#78716C]">
+                            {item.source} · {item.time}
+                          </span>
                         </div>
 
                         {status === "approved" ? (
-                          <span className="flex items-center gap-1 font-mono text-[10.5px] font-semibold uppercase tracking-wider text-emerald-600">
+                          <span className="flex items-center gap-1 text-[11.5px] font-medium text-emerald-700">
                             <CheckCircle weight="fill" size={13} />
-                            Executed
+                            Sent
                           </span>
-                        ) : status === "rejected" ? (
-                          <span className="flex items-center gap-1 font-mono text-[10.5px] font-semibold uppercase tracking-wider text-stone-500">
-                            <X weight="bold" size={12} />
-                            Declined
+                        ) : status === "dismissed" ? (
+                          <span className="text-[11.5px] font-medium text-[#A8A29E]">
+                            Dismissed
                           </span>
                         ) : (
-                          <span className="font-mono text-[10.5px] font-semibold uppercase tracking-wider text-[#78716C]">
+                          <span className="font-mono rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
                             {item.badge}
                           </span>
                         )}
                       </div>
 
-                      <h4 className="mt-2.5 text-[14px] font-semibold tracking-tight text-[#1C1917]">
+                      <h3 className="font-display mt-3 text-[14.5px] font-bold tracking-tight text-[#1C1917]">
                         {item.title}
-                      </h4>
+                      </h3>
                       <p className="mt-1 text-[13px] leading-relaxed text-[#57534E]">
                         {item.detail}
                       </p>
-                    </div>
+                    </button>
                   );
-                })
-              )}
+                })}
+              </div>
             </div>
 
-            {/* Right Column: Physical Staged Approval Card */}
+            {/* What Prism wrote */}
             <div className="lg:col-span-5">
-              <div className="flex items-center justify-between pb-1">
-                <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#A8A29E]">
-                  Deterministic Gatekeeper
-                </span>
-                <span className="font-mono text-[11px] font-semibold text-[#0284c7]">
-                  FAIL-CLOSED RUNTIME
+              <div className="flex items-center justify-between pb-3">
+                <span className="text-[11.5px] font-semibold uppercase tracking-[0.14em] text-[#A8A29E]">
+                  What Prism wrote
                 </span>
               </div>
 
-              {/* The Staged Action Proposal Card */}
               <motion.div
-                key={selectedItem.id}
+                key={selected.id}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.18 }}
-                className="relative mt-3 overflow-hidden rounded-xl border border-black/[0.08] bg-[#F5F5F4] p-5 shadow-xs"
+                className="rounded-2xl border border-black/[0.07] bg-[#FAFAF9] p-5"
               >
-                {/* Header ribbon */}
-                <div className="flex items-center justify-between border-b border-black/[0.06] pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#1C1917] text-white">
-                      <EnvelopeSimple size={13} weight="bold" />
-                    </div>
-                    <span className="text-[12.5px] font-semibold text-[#1C1917]">Staged Action Proposal</span>
-                  </div>
-                  <span className="font-mono text-[11px] font-medium text-amber-800">
-                    {selectedItem.proposal.risk}
+                <div className="flex items-center justify-between gap-3 border-b border-black/[0.06] pb-3">
+                  <span className="font-display text-[13px] font-bold text-[#1C1917]">
+                    {selected.proposal.action}
+                  </span>
+                  <span className="font-mono rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-[#0369A1] ring-1 ring-black/[0.05]">
+                    {selected.proposal.tag}
                   </span>
                 </div>
 
-                {/* Staged Content */}
-                <div className="mt-3.5 space-y-3">
+                <div className="mt-4 space-y-3.5">
                   <div>
-                    <span className="font-mono text-[10.5px] uppercase tracking-wider text-[#A8A29E]">Target System</span>
-                    <p className="text-[12.5px] font-semibold text-[#1C1917]">{selectedItem.proposal.targetSystem}</p>
+                    <p className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[#A8A29E]">To</p>
+                    <p className="mt-0.5 text-[13px] font-medium text-[#1C1917]">
+                      {selected.proposal.to}
+                    </p>
                   </div>
 
-                  <div>
-                    <span className="font-mono text-[10.5px] uppercase tracking-wider text-[#A8A29E]">Recipient / Target</span>
-                    <p className="font-mono text-[12px] text-[#44403C]">{selectedItem.proposal.recipient}</p>
-                  </div>
+                  {selected.proposal.subject && (
+                    <div>
+                      <p className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[#A8A29E]">
+                        Subject
+                      </p>
+                      <p className="font-display mt-0.5 text-[13.5px] font-bold text-[#1C1917]">
+                        {selected.proposal.subject}
+                      </p>
+                    </div>
+                  )}
 
-                  <div>
-                    <span className="font-mono text-[10.5px] uppercase tracking-wider text-[#A8A29E]">Action Context</span>
-                    <p className="text-[12.5px] font-medium text-[#1C1917]">{selectedItem.proposal.subject}</p>
-                  </div>
+                  <p className="rounded-xl border border-black/[0.05] bg-white p-4 text-[13px] leading-relaxed text-[#44403C]">
+                    {selected.proposal.body}
+                  </p>
 
-                  <div className="rounded-lg border border-black/[0.06] bg-[#EFECE8] p-3 text-[12px] leading-relaxed text-[#44403C]">
-                    &ldquo;{selectedItem.proposal.body}&rdquo;
-                  </div>
-
-                  {/* Verification Ledger Hash */}
-                  <div className="flex items-center justify-between font-mono text-[10px] text-[#78716C]">
-                    <span>SHA-256</span>
-                    <span className="truncate max-w-[170px]">{selectedItem.proposal.hash}</span>
-                  </div>
+                  <p className="text-[11.5px] text-[#A8A29E]">{selected.proposal.basis}</p>
                 </div>
 
-                {/* Interactive Action Controls */}
-                <div className="mt-4 pt-3.5 border-t border-black/[0.06]">
-                  {currentStatus === "pending" && (
-                    <div className="flex items-center gap-2">
+                <div className="mt-5 border-t border-black/[0.06] pt-4">
+                  {selectedStatus === "pending" && (
+                    <div className="flex items-center gap-3">
                       <button
                         onClick={handleApprove}
-                        disabled={executing}
-                        className="flex-1 rounded-lg bg-[#0369a1] py-2.5 px-4 text-[13px] font-medium text-white transition-all hover:bg-[#075985] active:scale-[0.98] cursor-pointer disabled:opacity-60"
+                        disabled={sending}
+                        className="flex-1 rounded-xl bg-gradient-to-r from-[#0284C7] to-[#0369A1] py-2.5 text-[13px] font-medium text-white shadow-xs transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
                       >
-                        {executing ? "Signing and Executing..." : "Approve and Execute"}
+                        {sending ? "Sending…" : "Approve & send"}
                       </button>
                       <button
-                        onClick={handleReject}
-                        className="flex items-center justify-center rounded-lg border border-black/[0.1] bg-[#F5F5F4] px-3 py-2.5 text-[13px] font-medium text-[#57534E] transition-all hover:bg-[#EFECE8] active:scale-[0.98] cursor-pointer"
-                        title="Decline Proposal"
+                        onClick={handleDismiss}
+                        className="rounded-xl px-4 py-2.5 text-[13px] font-medium text-[#78716C] transition-colors hover:text-[#1C1917]"
                       >
-                        <X weight="bold" size={15} />
+                        Not this one
                       </button>
                     </div>
                   )}
 
-                  {currentStatus === "approved" && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5"
-                    >
-                      <div className="flex items-center gap-2 text-emerald-900">
-                        <CheckCircle weight="fill" size={17} className="text-emerald-600 flex-shrink-0" />
-                        <span className="text-[12.5px] font-semibold">Executed and Recorded to Ledger</span>
-                      </div>
+                  {selectedStatus === "approved" && (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+                      <span className="flex items-center gap-2 text-[13px] font-medium text-emerald-900">
+                        <CheckCircle weight="fill" size={16} className="shrink-0 text-emerald-600" />
+                        Sent. Your records were updated.
+                      </span>
                       <button
-                        onClick={() => setItemStatuses((prev) => ({ ...prev, [selectedItem.id]: "pending" }))}
-                        className="text-[11px] font-medium text-emerald-800 underline hover:text-emerald-950 cursor-pointer"
+                        onClick={handleUndo}
+                        className="text-[12px] font-medium text-emerald-800 underline hover:text-emerald-950"
                       >
                         Undo
                       </button>
-                    </motion.div>
+                    </div>
                   )}
 
-                  {currentStatus === "rejected" && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-100 px-3.5 py-2.5"
-                    >
-                      <div className="flex items-center gap-2 text-stone-800">
-                        <X weight="bold" size={16} className="text-stone-500 flex-shrink-0" />
-                        <span className="text-[12.5px] font-semibold">Declined: Proposal dropped safely</span>
-                      </div>
+                  {selectedStatus === "dismissed" && (
+                    <div className="flex items-center justify-between rounded-xl border border-black/[0.07] bg-white px-3.5 py-2.5">
+                      <span className="text-[13px] font-medium text-[#57534E]">
+                        Dismissed. Nothing went out.
+                      </span>
                       <button
-                        onClick={() => setItemStatuses((prev) => ({ ...prev, [selectedItem.id]: "pending" }))}
-                        className="text-[11px] font-medium text-stone-600 underline hover:text-stone-900 cursor-pointer"
+                        onClick={handleUndo}
+                        className="text-[12px] font-medium text-[#78716C] underline hover:text-[#1C1917]"
                       >
                         Undo
                       </button>
-                    </motion.div>
+                    </div>
                   )}
                 </div>
               </motion.div>
+
+              <p className="mt-3 text-center text-[11.5px] text-[#A8A29E]">
+                Nothing sends until you approve it.
+              </p>
             </div>
           </div>
-
-          {/* Bottom Dock Control */}
-          <div className="flex items-center justify-between border-t border-black/[0.05] bg-[#F5F5F4]/70 px-6 py-2.5 text-[11px] text-[#78716C] font-mono">
-            <span>Zero unapproved changes / Proposals expire after 24 hours</span>
-            <span className="text-[#A8A29E]">SYSTEM STATUS: HEALTHY</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

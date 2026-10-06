@@ -573,7 +573,7 @@ export default function ActionCard({ proposal, onApprove, onReject, className = 
                 type="button"
                 onClick={() => handleApprove(true)}
                 disabled={isExecuting}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
               >
                 {isExecuting ? (
                   <><SpinnerGap size={13} className="animate-spin" /><span>Executing…</span></>
@@ -609,7 +609,7 @@ export default function ActionCard({ proposal, onApprove, onReject, className = 
               <button
                 onClick={() => handleApprove(false)}
                 disabled={isExecuting}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.35)] transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold shadow-[0_2px_8px_rgba(99,102,241,0.3)] hover:shadow-[0_4px_16px_rgba(99,102,241,0.35)] transition-all disabled:opacity-50 cursor-pointer active:scale-[0.98]"
               >
                 {isExecuting ? (
                   <><SpinnerGap size={13} className="animate-spin" /><span>Executing…</span></>

@@ -82,7 +82,10 @@ export default function CockpitPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAFAF9] text-stone-900 font-sans">
+    <div className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-[#FAFAF9] font-sans text-stone-900">
+      {/* Ambient wash — the same sky-to-sunrise gradient family as the marketing page */}
+      <div className="prism-app-wash pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]" />
+
       {/* Top Telemetry Header */}
       <CockpitHeader
         connectedToolsCount={connectedToolsCount}
@@ -119,7 +122,7 @@ export default function CockpitPage() {
             <div className="space-y-1">
               <button
                 type="button"
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-indigo-500 pl-[calc(0.75rem-3px)] transition cursor-pointer ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-sky-500 pl-[calc(0.75rem-3px)] transition cursor-pointer ${
                   isNavRailCollapsed ? "justify-center px-0 border-l-0 pl-0" : ""
                 }`}
               >

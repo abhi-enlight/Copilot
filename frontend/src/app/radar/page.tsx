@@ -141,9 +141,9 @@ export default function RadarPage() {
 
               <Link
                 href="/radar"
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-indigo-500 pl-[calc(0.75rem-3px)]"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-stone-900 bg-stone-100 border-l-[3px] border-sky-500 pl-[calc(0.75rem-3px)]"
               >
-                <Pulse size={16} weight="bold" className="text-indigo-600" />
+                <Pulse size={16} weight="bold" className="text-sky-700" />
                 <span>Live Radar Feed</span>
               </Link>
 
@@ -222,7 +222,7 @@ export default function RadarPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter events…"
-                  className="pl-8 pr-3 py-1.5 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 w-44 md:w-56"
+                  className="pl-8 pr-3 py-1.5 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 placeholder-stone-400 outline-none focus:ring-2 focus:ring-sky-500/25 focus:border-sky-400 w-44 md:w-56"
                 />
               </div>
 
@@ -274,7 +274,7 @@ export default function RadarPage() {
                     </span>
                   )}
                   {filter === "actionable" && actionableCount > 0 && (
-                    <span className="ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700 font-bold">
+                    <span className="ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full bg-sky-100 text-sky-800 font-bold">
                       {actionableCount}
                     </span>
                   )}
@@ -357,7 +357,7 @@ export default function RadarPage() {
                       !event.is_read
                         ? isUrgent
                           ? "border-red-200 border-l-[4px] border-l-red-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-                          : "border-black/[0.08] border-l-[4px] border-l-indigo-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+                          : "border-black/[0.08] border-l-[4px] border-l-sky-500 shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
                         : "border-black/[0.05] opacity-60 hover:opacity-100"
                     }`}
                   >

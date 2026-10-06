@@ -3,173 +3,184 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import PrismLogo from "@/components/brand/PrismLogo";
-import { List, X } from "@phosphor-icons/react";
+import { List, X, ArrowRight } from "@phosphor-icons/react";
 
 const NAV_LINKS = [
-  { label: "Morning Briefing", href: "#briefing" },
-  { label: "Safety Gatekeeper", href: "#approvals" },
-  { label: "Cross-Suite Workflows", href: "#orchestration" },
-  { label: "Integrations", href: "#toolkits" },
-  { label: "Security", href: "#security" },
+  { label: "The difference", href: "#difference" },
+  { label: "How it works", href: "#how-it-works" },
+  { label: "Safety", href: "#safety" },
+  { label: "Questions", href: "#questions" },
 ];
 
 export function MarketingNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-black/[0.05] bg-[#FAFAF9]/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-5 sm:px-8">
-        {/* Brand identity */}
-        <Link href="/" className="flex items-center gap-2.5">
-          <PrismLogo size={28} variant="tile" />
-          <span className="text-[15px] font-bold tracking-tight text-[#1C1917]">
-            Prism
-          </span>
+    <div className="sticky top-0 z-50 px-4 pt-3 sm:pt-4">
+      <header className="mx-auto flex h-14 max-w-6xl items-center justify-between rounded-2xl border border-black/[0.07] bg-white/80 px-4 shadow-[0_10px_36px_-24px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:px-6">
+        {/* Brand */}
+        <Link href="/" className="group flex items-center gap-2.5">
+          <div className="transition-transform duration-300 group-hover:scale-105">
+            <PrismLogo size={28} variant="tile" />
+          </div>
+          <span className="font-display text-[15.5px] font-bold tracking-tight text-[#1C1917]">Prism</span>
         </Link>
 
-        {/* Minimal clean center nav */}
-        <nav
-          aria-label="Main navigation"
-          className="hidden items-center gap-7 lg:flex"
-        >
+        {/* Center nav */}
+        <nav aria-label="Main navigation" className="hidden items-center gap-7 md:flex">
           {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="text-[13px] font-medium text-[#78716C] transition-colors hover:text-[#1C1917] focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden rounded-xs"
+              className="rounded-xs text-[13px] font-medium text-[#78716C] transition-colors hover:text-[#1C1917]"
             >
               {link.label}
             </a>
           ))}
         </nav>
 
-        {/* Clean action buttons */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link
             href="/auth/login"
-            className="hidden text-[13px] font-medium text-[#78716C] transition-colors hover:text-[#1C1917] sm:block focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden rounded-xs"
+            className="hidden rounded-xs text-[13px] font-medium text-[#78716C] transition-colors hover:text-[#1C1917] sm:block"
           >
             Sign in
           </Link>
           <Link
             href="/auth/signup"
-            className="rounded-lg bg-[#1C1917] px-3.5 py-1.5 text-[13px] font-medium text-white transition-all hover:bg-black active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden"
+            className="group flex items-center gap-1.5 rounded-xl bg-[#1C1917] px-4 py-2 text-[13px] font-medium text-white shadow-xs transition-all hover:bg-black hover:shadow-md active:scale-[0.98]"
           >
-            Get Started
+            <span>Start free</span>
+            <ArrowRight
+              size={13}
+              weight="bold"
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
+            />
           </Link>
 
-          {/* Mobile hamburger */}
+          {/* Mobile menu */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex h-8 w-8 items-center justify-center text-[#1C1917] lg:hidden cursor-pointer focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-hidden rounded-xs"
+            className="flex h-8 w-8 items-center justify-center rounded-xs text-[#1C1917] md:hidden"
             aria-label="Toggle navigation"
             aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? <X size={20} /> : <List size={20} />}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* Mobile Drawer */}
+      {/* Mobile drawer */}
       {mobileMenuOpen && (
-        <div className="border-b border-black/[0.06] bg-[#FAFAF9] px-6 py-6 lg:hidden">
+        <div className="mx-auto mt-2 max-w-6xl rounded-2xl border border-black/[0.08] bg-white/95 p-5 shadow-xl backdrop-blur-2xl md:hidden">
           <div className="flex flex-col space-y-3">
             {NAV_LINKS.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-[15px] font-medium text-[#1C1917]"
+                className="py-1 text-[14px] font-medium text-[#1C1917] transition-colors hover:text-sky-600"
               >
                 {link.label}
               </a>
             ))}
-            <div className="pt-4 border-t border-black/[0.06] flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2.5 border-t border-black/[0.06] pt-3">
               <Link
                 href="/auth/login"
-                className="w-full text-center rounded-lg border border-black/[0.08] py-2 text-[14px] font-medium text-[#1C1917]"
+                className="w-full rounded-xl border border-black/[0.08] py-2.5 text-center text-[14px] font-medium text-[#1C1917]"
               >
                 Sign in
               </Link>
               <Link
                 href="/auth/signup"
-                className="w-full text-center rounded-lg bg-[#1C1917] py-2 text-[14px] font-medium text-white"
+                className="w-full rounded-xl bg-[#1C1917] py-2.5 text-center text-[14px] font-medium text-white"
               >
-                Get Started
+                Start free
               </Link>
             </div>
           </div>
         </div>
       )}
-    </header>
+    </div>
   );
 }
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-black/[0.06] bg-[#F5F5F4]">
-      <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
-        <div className="grid gap-10 md:grid-cols-12">
-          {/* Brand info */}
-          <div className="md:col-span-5">
+    <footer className="relative isolate overflow-hidden bg-[#0A0F1D] pt-16 pb-10 text-white">
+      {/* Ambient glow + watermark, continuing the closing panel */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-24 left-1/2 h-[440px] w-[860px] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.35)_0%,rgba(2,132,199,0.28)_36%,rgba(245,158,11,0.16)_62%,transparent_78%)] blur-3xl" />
+        <div className="absolute -bottom-40 -left-20 h-80 w-80 rounded-full bg-sky-500/15 blur-3xl" />
+        <div className="absolute -bottom-40 -right-16 h-80 w-80 rounded-full bg-amber-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 select-none whitespace-nowrap text-center text-[18vw] font-bold leading-none tracking-tight text-white/[0.02]">
+          PRISM
+        </div>
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-5 sm:px-8">
+        <div className="grid gap-10 pb-12 md:grid-cols-12">
+          <div className="md:col-span-6">
             <div className="flex items-center gap-2.5">
-              <PrismLogo size={26} variant="tile" />
-              <span className="text-[15px] font-bold tracking-tight text-[#1C1917]">Prism</span>
+              <PrismLogo size={28} variant="tile" />
+              <span className="font-display text-[16px] font-bold tracking-tight text-white">Prism</span>
             </div>
-            <p className="mt-3.5 max-w-sm text-[13px] leading-relaxed text-[#78716C]">
-              The proactive operations copilot. Synthesizes Microsoft 365, Zoho, Google,
-              and developer suites into one morning briefing, staging all actions for your sign-off.
+            <p className="mt-4 max-w-sm text-[14px] leading-relaxed text-[#94A3B8]">
+              Prism reads across your work overnight and hands you one short briefing, with every
+              follow-up already written. You approve; it sends.
             </p>
-            <div className="mt-5 text-[12px] text-[#A8A29E]">
-              Engineered by Enlight Lab. Built for operations leaders where mistakes have real costs.
-            </div>
           </div>
 
-          {/* Product Links */}
-          <div className="md:col-span-3 md:col-start-7">
-            <h4 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#A8A29E]">
+          <div className="md:col-span-3">
+            <h4 className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B]">
               Product
             </h4>
-            <ul className="mt-4 space-y-2.5 text-[13px]">
+            <ul className="mt-4 space-y-3 text-[14px]">
               {NAV_LINKS.map((link) => (
                 <li key={link.href}>
-                  <a href={link.href} className="text-[#57534E] hover:text-[#1C1917] transition-colors">
+                  <a href={link.href} className="text-[#CBD5E1] transition-colors hover:text-white">
                     {link.label}
                   </a>
                 </li>
               ))}
+            </ul>
+          </div>
+
+          <div className="md:col-span-3">
+            <h4 className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B]">
+              Get started
+            </h4>
+            <ul className="mt-4 space-y-3 text-[14px]">
               <li>
-                <Link href="/cockpit" className="text-[#0369a1] font-medium hover:underline">
-                  Live Executive Cockpit
+                <Link
+                  href="/auth/signup"
+                  className="font-medium text-sky-400 transition-colors hover:text-sky-300"
+                >
+                  Start free
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/auth/login"
+                  className="text-[#CBD5E1] transition-colors hover:text-white"
+                >
+                  Sign in
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/cockpit"
+                  className="text-[#CBD5E1] transition-colors hover:text-white"
+                >
+                  Live demo
                 </Link>
               </li>
             </ul>
           </div>
-
-          {/* Security & Access */}
-          <div className="md:col-span-3">
-            <h4 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#A8A29E]">
-              Security and Governance
-            </h4>
-            <ul className="mt-4 space-y-2.5 text-[13px] text-[#57534E]">
-              <li>Fail-Closed Action Classifier</li>
-              <li>Row-Level Tenant Isolation</li>
-              <li>Append-Only Cryptographic Ledger</li>
-              <li>24-Hour Proposal Auto-Expiry</li>
-              <li>Deterministic Refusal Policy</li>
-            </ul>
-          </div>
         </div>
 
-        {/* Bottom Bar */}
-        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-black/[0.06] pt-8 text-[12px] text-[#A8A29E] sm:flex-row">
-          <p>© 2026 Enlight Lab. All rights reserved. Prism is an operations copilot.</p>
-          <div className="flex items-center gap-6">
-            <span>Microsoft 365</span>
-            <span>Zoho CRM</span>
-            <span>Google Workspace</span>
-            <span>Linear and GitHub</span>
-          </div>
+        <div className="border-t border-white/[0.08] pt-6 text-[12.5px] text-[#64748B]">
+          © 2026 Enlight Lab. All rights reserved.
         </div>
       </div>
     </footer>
