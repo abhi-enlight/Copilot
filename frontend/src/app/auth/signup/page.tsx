@@ -104,7 +104,7 @@ export default function SignupPage() {
         <div className="mt-8">
           <Link
             href="/auth/login"
-            className="inline-flex w-full items-center justify-center rounded-full bg-[#1C1917] px-4 py-3 text-sm font-medium text-white transition-all duration-150 hover:bg-black active:scale-[0.98]"
+            className="inline-flex w-full items-center justify-center rounded-xl bg-[#1C1917] px-4 py-3 text-sm font-medium text-white transition-all duration-150 hover:bg-black active:scale-[0.98]"
           >
             Back to sign in
           </Link>

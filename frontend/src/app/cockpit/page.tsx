@@ -83,8 +83,8 @@ export default function CockpitPage() {
 
   return (
     <div className="relative isolate flex h-screen w-screen flex-col overflow-hidden bg-[#FAFAF9] font-sans text-stone-900">
-      {/* Ambient wash — the same sky-to-sunrise gradient family as the marketing page */}
-      <div className="prism-app-wash pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px]" />
+      {/* Ambient wash — the same sky-to-sunrise gradient family as the marketing page, spanning full height without breaks */}
+      <div className="prism-app-wash pointer-events-none absolute inset-0 -z-10" />
 
       {/* Top Telemetry Header */}
       <CockpitHeader

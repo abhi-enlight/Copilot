@@ -309,7 +309,7 @@ export default function IntelligenceStream({
             {connectedToolsCount === 0 && (
               <button
                 onClick={() => onOpenConnectHub?.()}
-                className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.12)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)] transition-all duration-250 cursor-pointer active:scale-[0.97]"
+                className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.12)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)] transition-all duration-250 cursor-pointer active:scale-[0.97]"
               >
                 <PlugsConnected size={14} weight="bold" />
                 Connect your first tool
@@ -397,12 +397,9 @@ export default function IntelligenceStream({
                       {/* Active thinking indicator inside assistant bubble while loading and no content yet */}
                       {!message.content && (!message.action_proposals || message.action_proposals.length === 0) && isLoading && (
                         <div className="py-1 space-y-3">
-                          {/* Multi-phase status pill */}
-                          <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-stone-100 border border-stone-200/80 text-xs text-stone-700">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
-                            </span>
+                          {/* Multi-phase status badge */}
+                          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-stone-100 border border-stone-200/80 text-xs text-stone-700">
+                            <span className="h-1.5 w-1.5 rounded-sm bg-sky-500" />
                             <span className="font-medium">Thinking…</span>
                           </div>
 
@@ -492,7 +489,7 @@ export default function IntelligenceStream({
                                         {/* Top row: Sender + Date */}
                                         <div className="flex items-center justify-between gap-3">
                                           <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-5 h-5 rounded-full bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center shrink-0">
+                                            <div className="w-5 h-5 rounded-md bg-sky-50 text-sky-700 border border-sky-200/80 flex items-center justify-center shrink-0">
                                               <EnvelopeSimple size={11} weight="bold" />
                                             </div>
                                             <span className="text-xs font-semibold text-stone-900 truncate">
@@ -522,15 +519,15 @@ export default function IntelligenceStream({
                                         <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] text-xs">
                                           <div>
                                             {isUrgent ? (
-                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                                                 Action Needed
                                               </span>
                                             ) : isReview ? (
-                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                                                 Review
                                               </span>
                                             ) : (
-                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-stone-100 text-stone-600 border border-stone-200/80">
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-stone-100 text-stone-600 border border-stone-200/80">
                                                 Informational
                                               </span>
                                             )}
@@ -579,7 +576,7 @@ export default function IntelligenceStream({
                                     >
                                       <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-2 min-w-0">
-                                          <div className="w-5 h-5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80 flex items-center justify-center shrink-0">
+                                          <div className="w-5 h-5 rounded-md bg-amber-50 text-amber-700 border border-amber-200/80 flex items-center justify-center shrink-0">
                                             <Briefcase size={11} weight="bold" />
                                           </div>
                                           <h4 className="text-[13.5px] font-semibold text-stone-900 truncate">
@@ -694,7 +691,7 @@ export default function IntelligenceStream({
                                   key={i}
                                   type="button"
                                   onClick={() => onQuickPrompt?.(action.prompt)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-sm transition-all duration-150 cursor-pointer active:scale-95"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold shadow-sm transition-all duration-150 cursor-pointer active:scale-95"
                                 >
                                   <ActionIcon size={12} weight="bold" />
                                   <span>{action.label}</span>
@@ -746,12 +743,12 @@ export default function IntelligenceStream({
       {showScrollPill && (
         <button
           onClick={() => scrollToBottom(true)}
-          className="absolute bottom-5 right-6 z-20 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-stone-900/90 hover:bg-stone-900 text-white text-xs font-medium shadow-md border border-white/10 backdrop-blur-md transition-all duration-150 cursor-pointer active:scale-95"
+          className="absolute bottom-5 right-6 z-20 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-900/90 hover:bg-stone-900 text-white text-xs font-medium shadow-md border border-white/10 backdrop-blur-md transition-all duration-150 cursor-pointer active:scale-95"
           title="Scroll to latest message"
         >
           {isLoading ? (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
               <span>Generating…</span>
             </>
           ) : (

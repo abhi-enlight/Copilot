@@ -20,7 +20,7 @@ export default function LandingPage() {
   return (
     <div className="relative isolate flex min-h-[100dvh] flex-col bg-[#FAFAF9] font-sans text-[#1C1917] selection:bg-sky-500/20 selection:text-sky-950">
       {/* Page-level ambient wash: deep sky at top, bleeding down past hero, marquee, and into the difference section */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[2200px] overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[2200px] overflow-hidden [mask-image:linear-gradient(to_bottom,black_75%,transparent_100%)]">
         {/* Soft atmospheric gradient cascading from sapphire sky to morning sun to warm ivory */}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,#C5E4F9_0%,#DCF0FD_18%,rgba(224,242,254,0.75)_36%,rgba(240,249,255,0.6)_54%,rgba(254,243,199,0.35)_72%,rgba(250,250,249,0.85)_88%,#FAFAF9_100%)]" />
         {/* Deep sky radiance on the left flank */}

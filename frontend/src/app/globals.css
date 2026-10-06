@@ -124,8 +124,9 @@ body {
    the moment someone signs in. Lives on a wrapper, not on content. */
 .prism-app-wash {
   background-image:
-    linear-gradient(180deg, #DCEDFA 0%, rgba(248,251,253,0.6) 40%, rgba(250,250,249,0) 72%),
-    linear-gradient(115deg, rgba(2,132,199,0.08) 0%, rgba(250,250,249,0) 45%, rgba(245,158,11,0.10) 100%);
+    linear-gradient(180deg, #DCEDFA 0%, rgba(248,251,253,0.7) 35%, rgba(250,250,249,0.92) 75%, #FAFAF9 100%),
+    linear-gradient(115deg, rgba(2,132,199,0.06) 0%, rgba(250,250,249,0) 50%, rgba(245,158,11,0.05) 100%);
+  background-color: var(--bg-base);
 }
 
 /* ── Floating input dock ─────────────────────────────────────────── */
