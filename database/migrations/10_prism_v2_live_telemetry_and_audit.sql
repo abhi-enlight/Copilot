@@ -112,9 +112,10 @@ CREATE TABLE IF NOT EXISTS public.activity_events (
 ALTER TABLE public.activity_events ADD COLUMN IF NOT EXISTS external_id TEXT;
 ALTER TABLE public.activity_events REPLICA IDENTITY FULL;
 
--- Webhook deduplication unique index
+-- Webhook deduplication unique index (scoped per user, source, external_id)
+DROP INDEX IF EXISTS public.idx_activity_events_dedup;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_events_dedup 
-  ON public.activity_events(source, external_id) WHERE external_id IS NOT NULL;
+  ON public.activity_events(user_id, source, external_id) WHERE external_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_activity_events_user 
   ON public.activity_events(user_id, created_at DESC);

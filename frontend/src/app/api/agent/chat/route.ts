@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { requireAuth } from "@/lib/auth-helpers";
 import { adminSupabase } from "@/lib/supabase-admin";
+import { tenantRateLimiter, RateLimitExceededError } from "@/lib/resilience";
 import { getComposioSessionForUser } from "@/lib/composio/session";
 import { executeSimulatedAgent, formatSSE, type AgentChatMessage } from "@/lib/agent/llm";
 import { evaluateScope } from "@/lib/agent/scope-limit";
@@ -26,17 +27,28 @@ const TELEMETRY_MARKER = /\[prism:telemetry:([0-9a-f-]{36})\]/i;
  */
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    const auth = await requireAuth(request);
+    if (auth instanceof Response) {
+      return auth;
+    }
+    const { user, orgId } = auth;
 
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "unauthorized", detail: "Active session required" },
-        { status: 401 }
-      );
+    // Dedicated rate limiting for agent chat runtime
+    const tenantKey = orgId || user.id;
+    try {
+      tenantRateLimiter.consume(tenantKey, "agent-chat");
+    } catch (err) {
+      if (err instanceof RateLimitExceededError) {
+        return NextResponse.json(
+          {
+            error: "rate_limited",
+            detail: "Agent runtime request limit exceeded. Please retry shortly.",
+            retryAfterSeconds: err.retryAfterSeconds,
+          },
+          { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } }
+        );
+      }
+      throw err;
     }
 
     const body = await request.json().catch(() => ({}));
@@ -94,14 +106,17 @@ export async function POST(request: Request) {
     }
 
     // 1. Resolve caller's organization context
-    const { data: memberRow } = await adminSupabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
+    let organizationId = orgId;
+    if (!organizationId) {
+      const { data: memberRow } = await adminSupabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
 
-    const organizationId = memberRow?.organization_id || null;
+      organizationId = memberRow?.organization_id || null;
+    }
 
     let isNewSession = false;
 

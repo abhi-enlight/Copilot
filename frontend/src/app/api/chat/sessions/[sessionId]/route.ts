@@ -10,17 +10,15 @@ import { adminSupabase } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-async function verifySessionOwner(sessionId: string, userId: string, orgId?: string | null): Promise<boolean> {
+async function verifySessionOwner(sessionId: string, userId: string): Promise<boolean> {
   const { data } = await adminSupabase
     .from("chat_sessions")
-    .select("id, user_id, organization_id")
+    .select("id, user_id")
     .eq("id", sessionId)
     .maybeSingle();
 
   if (!data) return false;
-  if (data.user_id === userId) return true;
-  if (orgId && data.organization_id === orgId) return true;
-  return false;
+  return data.user_id === userId;
 }
 
 export async function GET(
@@ -31,7 +29,7 @@ export async function GET(
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
 
-  const isOwner = await verifySessionOwner(sessionId, auth.user.id, auth.orgId);
+  const isOwner = await verifySessionOwner(sessionId, auth.user.id);
   if (!isOwner) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -57,7 +55,7 @@ export async function PATCH(
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
 
-  const isOwner = await verifySessionOwner(sessionId, auth.user.id, auth.orgId);
+  const isOwner = await verifySessionOwner(sessionId, auth.user.id);
   if (!isOwner) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
@@ -96,7 +94,7 @@ export async function DELETE(
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
 
-  const isOwner = await verifySessionOwner(sessionId, auth.user.id, auth.orgId);
+  const isOwner = await verifySessionOwner(sessionId, auth.user.id);
   if (!isOwner) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

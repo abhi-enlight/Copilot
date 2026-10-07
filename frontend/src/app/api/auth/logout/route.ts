@@ -55,9 +55,6 @@ export async function POST() {
  * GET /api/auth/logout — browser redirect logout
  */
 export async function GET(request: Request) {
-  const host = request.headers.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-
   const supabase = await createClient();
   try {
     const {
@@ -70,7 +67,11 @@ export async function GET(request: Request) {
 
   await supabase.auth.signOut();
 
-  const response = NextResponse.redirect(`${protocol}://${host}/auth/login`);
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const safeBase = configuredAppUrl || new URL(request.url).origin;
+  const redirectUrl = new URL('/auth/login', safeBase);
+
+  const response = NextResponse.redirect(redirectUrl);
 
   const cookiesToClear = [
     'sb-access-token', 'sb-refresh-token', 'ms_access_token',

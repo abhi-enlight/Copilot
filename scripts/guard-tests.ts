@@ -19,6 +19,7 @@ const BASE = new URL("../frontend/src/lib/agent/", import.meta.url).href;
 const { classifyToolTier, isRoutineTriage } = await import(`${BASE}tools.ts`);
 const { evaluateScope } = await import(`${BASE}scope-limit.ts`);
 const { generateActionSignature, verifyActionSignature } = await import(`${BASE}crypto.ts`);
+const { tenantRateLimiter, RateLimitExceededError } = await import(new URL("../frontend/src/lib/resilience.ts", import.meta.url).href);
 
 let passed = 0;
 const failures: string[] = [];
@@ -157,6 +158,20 @@ check(
     signature,
   }) === false
 );
+
+// ── 7. Rate limiter throttles noisy tenants. ─────────────────────────────────
+const dummyTenant = "tenant-test-ratelimit-" + Date.now();
+let rateLimitHit = false;
+try {
+  for (let i = 0; i < 35; i++) {
+    tenantRateLimiter.consume(dummyTenant, "agent-chat");
+  }
+} catch (err) {
+  if (err instanceof RateLimitExceededError) {
+    rateLimitHit = true;
+  }
+}
+check("rate limiter trips after exceeding bucket capacity", rateLimitHit === true);
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 for (const failure of failures) {
