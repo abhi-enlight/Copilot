@@ -22,6 +22,9 @@ import {
   Buildings,
   Folders,
   Receipt,
+  Bug,
+  Columns,
+  CheckSquareOffset,
 } from "@phosphor-icons/react";
 import type { ActionProposal } from "@/types/database";
 import { humanizeError } from "@/lib/errors/humanize";
@@ -256,6 +259,27 @@ export default function ActionCard({ proposal, onApprove, onReject, className = 
         label: "Zoho Books",
         icon: Receipt,
         badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
+      };
+    }
+    if (s.includes("jira")) {
+      return {
+        label: "Jira",
+        icon: Bug,
+        badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+      };
+    }
+    if (s.includes("monday")) {
+      return {
+        label: "Monday.com",
+        icon: Columns,
+        badgeClass: "bg-amber-50 text-amber-900 border-amber-200",
+      };
+    }
+    if (s.includes("clickup")) {
+      return {
+        label: "ClickUp",
+        icon: CheckSquareOffset,
+        badgeClass: "bg-purple-50 text-purple-800 border-purple-200",
       };
     }
     return {

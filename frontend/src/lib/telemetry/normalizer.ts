@@ -88,6 +88,15 @@ export function normalizeSourceSlug(rawSource?: string): string {
   if (slug === "zoho_books" || slug === "zohobooks" || slug === "zoho-books") {
     return "zoho_books";
   }
+  if (slug === "jira" || slug === "atlassian" || slug === "atlassian-jira") {
+    return "jira";
+  }
+  if (slug === "monday" || slug === "monday-com" || slug === "mondaycom") {
+    return "monday";
+  }
+  if (slug === "clickup" || slug === "click-up") {
+    return "clickup";
+  }
   return slug;
 }
 
@@ -120,6 +129,12 @@ export function formatSourceLabel(source: string): string {
       return "Microsoft SharePoint";
     case "zoho_books":
       return "Zoho Books";
+    case "jira":
+      return "Jira";
+    case "monday":
+      return "Monday.com";
+    case "clickup":
+      return "ClickUp";
     default:
       return source.charAt(0).toUpperCase() + source.slice(1);
   }

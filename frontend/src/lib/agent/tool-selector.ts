@@ -95,6 +95,30 @@ export const CURATED_TOOLKIT_ACTIONS: Record<string, string[]> = {
     "ZOHO_BOOKS_CREATE_CONTACT",
     "ZOHO_BOOKS_CREATE_BANK_TRANSACTION",
   ],
+  jira: [
+    "JIRA_CREATE_ISSUE",
+    "JIRA_GET_ISSUE",
+    "JIRA_UPDATE_ISSUE",
+    "JIRA_SEARCH_ISSUES",
+    "JIRA_ADD_COMMENT",
+    "JIRA_GET_ALL_PROJECTS",
+    "JIRA_TRANSITION_ISSUE",
+  ],
+  monday: [
+    "MONDAY_LIST_BOARDS",
+    "MONDAY_LIST_ITEMS",
+    "MONDAY_GET_ITEMS",
+    "MONDAY_CREATE_ITEM",
+    "MONDAY_CREATE_UPDATE",
+    "MONDAY_GET_WORKSPACES",
+  ],
+  clickup: [
+    "CLICKUP_GET_TASK",
+    "CLICKUP_CREATE_TASK",
+    "CLICKUP_CREATE_TASK_COMMENT",
+    "CLICKUP_GET_SPACES",
+    "CLICKUP_GET_LISTS",
+  ],
 };
 
 /**
@@ -266,6 +290,33 @@ export const TOOLKIT_INTENT_KEYWORDS: Record<string, string[]> = {
     "credit note",
     "purchase order",
   ],
+  jira: [
+    "jira",
+    "atlassian",
+    "jql",
+    "jira ticket",
+    "jira issue",
+    "jira bug",
+    "sprint backlog",
+    "jira project",
+    "jira board",
+  ],
+  monday: [
+    "monday",
+    "monday.com",
+    "monday board",
+    "board pulse",
+    "monday item",
+    "monday workspace",
+  ],
+  clickup: [
+    "clickup",
+    "click up",
+    "clickup task",
+    "clickup space",
+    "clickup list",
+    "task list",
+  ],
 };
 
 /**
@@ -307,6 +358,9 @@ export function detectToolkitForTool(toolName: string): string | null {
   if (upper.startsWith("ZOHO_") || upper.includes("ZOHO")) return "zoho";
   if (upper.startsWith("DYNAMICS365_") || upper.includes("DYNAMICS")) return "dynamics365";
   if (upper.startsWith("SHARE_POINT_") || upper.includes("SHAREPOINT") || upper.includes("SHARE_POINT")) return "share_point";
+  if (upper.startsWith("JIRA_") || upper.includes("JIRA")) return "jira";
+  if (upper.startsWith("MONDAY_") || upper.includes("MONDAY")) return "monday";
+  if (upper.startsWith("CLICKUP_") || upper.includes("CLICKUP")) return "clickup";
   return null;
 }
 

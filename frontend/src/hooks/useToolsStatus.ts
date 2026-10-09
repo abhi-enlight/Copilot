@@ -19,6 +19,9 @@ export const COCKPIT_TOOL_SLUGS: SupportedToolSlug[] = [
   "dynamics365",
   "share_point",
   "zoho_books",
+  "jira",
+  "monday",
+  "clickup",
 ];
 
 export interface UseToolsStatusResult {

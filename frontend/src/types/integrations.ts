@@ -15,7 +15,10 @@ export type SupportedToolSlug =
   | 'notion'
   | 'dynamics365'
   | 'share_point'
-  | 'zoho_books';
+  | 'zoho_books'
+  | 'jira'
+  | 'monday'
+  | 'clickup';
 
 export type ToolConnectionState = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'ERROR';
 

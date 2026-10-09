@@ -169,6 +169,54 @@ export const PRISM_TOOL_REGISTRY: Record<string, PrismToolMetadata> = {
     category: "Finance & Accounting",
     description: "Track unpaid invoices, review bills, manage expenses, and reconcile accounts.",
   },
+  jira: {
+    slug: "jira",
+    name: "Jira",
+    category: "Project & Sprint Tracking",
+    description: "Search backlogs, triage Jira issues, manage sprint boards, and transition tickets.",
+  },
+  "atlassian-jira": {
+    slug: "jira",
+    name: "Jira",
+    category: "Project & Sprint Tracking",
+    description: "Search backlogs, triage Jira issues, manage sprint boards, and transition tickets.",
+  },
+  atlassian: {
+    slug: "jira",
+    name: "Jira",
+    category: "Project & Sprint Tracking",
+    description: "Search backlogs, triage Jira issues, manage sprint boards, and transition tickets.",
+  },
+  monday: {
+    slug: "monday",
+    name: "Monday.com",
+    category: "Work Management & Boards",
+    description: "Query workspaces, inspect board pulses, track status columns, and post project updates.",
+  },
+  "monday-com": {
+    slug: "monday",
+    name: "Monday.com",
+    category: "Work Management & Boards",
+    description: "Query workspaces, inspect board pulses, track status columns, and post project updates.",
+  },
+  mondaycom: {
+    slug: "monday",
+    name: "Monday.com",
+    category: "Work Management & Boards",
+    description: "Query workspaces, inspect board pulses, track status columns, and post project updates.",
+  },
+  clickup: {
+    slug: "clickup",
+    name: "ClickUp",
+    category: "Tasks & Team Productivity",
+    description: "Manage hierarchical tasks, inspect lists, organize spaces, and coordinate deliverables.",
+  },
+  "click-up": {
+    slug: "clickup",
+    name: "ClickUp",
+    category: "Tasks & Team Productivity",
+    description: "Manage hierarchical tasks, inspect lists, organize spaces, and coordinate deliverables.",
+  },
 };
 
 export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
@@ -184,6 +232,9 @@ export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
   "dynamics365",
   "share_point",
   "zoho_books",
+  "jira",
+  "monday",
+  "clickup",
 ];
 
 export function normalizeToolSlug(app: string): SupportedToolSlug {

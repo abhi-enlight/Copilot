@@ -219,3 +219,78 @@ export function NotionLogo({ size = 56, className = "" }: LogoProps) {
     </svg>
   );
 }
+
+/**
+ * 13. Atlassian Jira
+ */
+export function JiraLogo({ size = 56, className = "" }: LogoProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={className} aria-label="Atlassian Jira">
+      <rect width="64" height="64" rx="16" fill="#0052CC" />
+      <path
+        d="M32 16C37.52 21.52 37.52 30.48 32 36C26.48 30.48 26.48 21.52 32 16Z"
+        fill="#FFFFFF"
+        fillOpacity="0.8"
+      />
+      <path
+        d="M32 36C37.52 41.52 37.52 50.48 32 56C26.48 50.48 26.48 41.52 32 36Z"
+        fill="#FFFFFF"
+      />
+      <path
+        d="M20 28C25.52 33.52 25.52 42.48 20 48C14.48 42.48 14.48 33.52 20 28Z"
+        fill="#FFFFFF"
+        fillOpacity="0.5"
+      />
+    </svg>
+  );
+}
+
+/**
+ * 14. Monday.com
+ */
+export function MondayLogo({ size = 56, className = "" }: LogoProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={className} aria-label="Monday.com">
+      <rect width="64" height="64" rx="16" fill="#181B34" />
+      <circle cx="20" cy="38" r="6" fill="#F43F5E" />
+      <circle cx="32" cy="38" r="6" fill="#FBBF24" />
+      <circle cx="44" cy="38" r="6" fill="#10B981" />
+      <path
+        d="M17 26C17 24.34 18.34 23 20 23C21.66 23 23 24.34 23 26V32H17V26Z"
+        fill="#F43F5E"
+      />
+      <path
+        d="M29 20C29 18.34 30.34 17 32 17C33.66 17 35 18.34 35 20V32H29V20Z"
+        fill="#FBBF24"
+      />
+      <path
+        d="M41 24C41 22.34 42.34 21 44 21C45.66 21 47 22.34 47 24V32H41V24Z"
+        fill="#10B981"
+      />
+    </svg>
+  );
+}
+
+/**
+ * 15. ClickUp
+ */
+export function ClickUpLogo({ size = 56, className = "" }: LogoProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={className} aria-label="ClickUp">
+      <rect width="64" height="64" rx="16" fill="#7B68EE" />
+      <path
+        d="M20 38L32 26L44 38"
+        stroke="#FFFFFF"
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M23 46C26 49 29 50 32 50C35 50 38 49 41 46"
+        stroke="#FFB900"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

@@ -731,6 +731,112 @@ export function generateProposalSummary(
     };
   }
 
+  // Jira
+  if (slug.includes("jira")) {
+    const summary =
+      (payload.summary as string) ||
+      (payload.issue_key as string) ||
+      (payload.issue_id as string) ||
+      (payload.title as string) ||
+      "Jira Issue";
+    if (slug.includes("delete")) {
+      return {
+        title: "Delete Jira Issue",
+        description: `Issue: "${summary}"`,
+        actionType: "JIRA_DELETE_ISSUE",
+      };
+    }
+    if (slug.includes("comment")) {
+      const comment = (payload.comment as string) || (payload.body as string) || "";
+      return {
+        title: "Add Comment to Jira Issue",
+        description: `Issue: "${summary}" • "${comment.slice(0, 60)}"`,
+        actionType: "JIRA_ADD_COMMENT",
+      };
+    }
+    if (slug.includes("transition") || slug.includes("update")) {
+      const status = (payload.status as string) || (payload.transition as string) || "Updated";
+      return {
+        title: "Update Jira Issue",
+        description: `"${summary}" • Status: ${status}`,
+        actionType: "JIRA_UPDATE_ISSUE",
+      };
+    }
+    const issueType = (payload.issue_type as string) || (payload.type as string) || "Task";
+    return {
+      title: "Create Jira Issue",
+      description: `"${summary}" • Type: ${issueType}`,
+      actionType: "JIRA_CREATE_ISSUE",
+    };
+  }
+
+  // Monday.com
+  if (slug.includes("monday")) {
+    const itemName =
+      (payload.item_name as string) ||
+      (payload.name as string) ||
+      (payload.board_name as string) ||
+      "Monday Item";
+    if (slug.includes("delete") || slug.includes("archive")) {
+      return {
+        title: "Delete Monday Item",
+        description: `Item: "${itemName}"`,
+        actionType: "MONDAY_DELETE_ITEM",
+      };
+    }
+    if (slug.includes("update") || slug.includes("comment")) {
+      const body = (payload.body as string) || (payload.update_text as string) || "";
+      return {
+        title: "Post Update on Monday.com",
+        description: `Item: "${itemName}" • "${body.slice(0, 60)}"`,
+        actionType: "MONDAY_CREATE_UPDATE",
+      };
+    }
+    return {
+      title: "Create Monday Item",
+      description: `Item: "${itemName}"`,
+      actionType: "MONDAY_CREATE_ITEM",
+    };
+  }
+
+  // ClickUp
+  if (slug.includes("clickup")) {
+    const taskName =
+      (payload.name as string) ||
+      (payload.task_name as string) ||
+      (payload.title as string) ||
+      "ClickUp Task";
+    if (slug.includes("delete")) {
+      return {
+        title: "Delete ClickUp Task",
+        description: `Task: "${taskName}"`,
+        actionType: "CLICKUP_DELETE_TASK",
+      };
+    }
+    if (slug.includes("comment")) {
+      const comment = (payload.comment_text as string) || (payload.comment as string) || "";
+      return {
+        title: "Comment on ClickUp Task",
+        description: `Task: "${taskName}" • "${comment.slice(0, 60)}"`,
+        actionType: "CLICKUP_CREATE_COMMENT",
+      };
+    }
+    if (slug.includes("update")) {
+      const status = (payload.status as string) || "Updated";
+      return {
+        title: "Update ClickUp Task",
+        description: `"${taskName}" • Status: ${status}`,
+        actionType: "CLICKUP_UPDATE_TASK",
+      };
+    }
+    const priority = payload.priority ? `Priority ${payload.priority}` : "Normal";
+    return {
+      title: "Create ClickUp Task",
+      description: `"${taskName}" • ${priority}`,
+      actionType: "CLICKUP_CREATE_TASK",
+    };
+  }
+
   // Generic executive-friendly fallback: clean name, never "COMPOSIO"
   const cleanTitle = toolSlug
     .replace(/^composio_/i, "")

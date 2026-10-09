@@ -19,6 +19,9 @@ import {
   Buildings,
   Folders,
   Receipt,
+  Bug,
+  Columns,
+  CheckSquareOffset,
 } from "@phosphor-icons/react";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
 import { notifyToolsUpdated } from "@/hooks/useToolsStatus";
@@ -150,6 +153,33 @@ const TOOLS: ToolDefinition[] = [
     icon: Receipt,
     badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
     color: "#E54332",
+  },
+  {
+    slug: "jira",
+    name: "Jira",
+    category: "Project & Sprint Tracking",
+    description: "Search backlogs, triage Jira issues, manage sprint boards, and transition tickets.",
+    icon: Bug,
+    badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+    color: "#0052CC",
+  },
+  {
+    slug: "monday",
+    name: "Monday.com",
+    category: "Work Management & Boards",
+    description: "Query workspaces, inspect board pulses, track status columns, and post project updates.",
+    icon: Columns,
+    badgeClass: "bg-amber-50 text-amber-900 border-amber-200",
+    color: "#FF3D57",
+  },
+  {
+    slug: "clickup",
+    name: "ClickUp",
+    category: "Tasks & Team Productivity",
+    description: "Manage hierarchical tasks, inspect lists, organize spaces, and coordinate deliverables.",
+    icon: CheckSquareOffset,
+    badgeClass: "bg-purple-50 text-purple-800 border-purple-200",
+    color: "#7B68EE",
   },
 ];
 

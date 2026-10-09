@@ -244,7 +244,7 @@ function formatToolActivity(slug: string): string | null {
   if (s.includes("outlook") || s.includes("mail")) return "email";
   if (s.includes("teams")) return "teams";
   if (s.includes("slack")) return "slack";
-  if (s.includes("linear")) return "linear";
+  if (s.includes("linear") || s.includes("jira") || s.includes("monday") || s.includes("clickup")) return "project";
   if (s.includes("zoho_books") || s.includes("invoice") || s.includes("bill")) return "finance";
   if (s.includes("zoho") || s.includes("dynamics")) return "crm";
   if (s.includes("github")) return "github";

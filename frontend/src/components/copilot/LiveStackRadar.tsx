@@ -19,6 +19,9 @@ import {
   FolderSimple,
   CurrencyDollar,
   Lightning,
+  Bug,
+  Columns,
+  CheckSquareOffset,
 } from "@phosphor-icons/react";
 import { useLiveStackRadar } from "@/hooks/useLiveStackRadar";
 import type { ActivityEventRow } from "@/types/database";
@@ -219,6 +222,15 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
     }
     if (s.includes("share_point") || s.includes("sharepoint")) {
       return { label: "SharePoint", icon: FolderSimple, tag: "text-teal-700 bg-teal-50 border-teal-200/70" };
+    }
+    if (s.includes("jira")) {
+      return { label: "Jira", icon: Bug, tag: "text-blue-700 bg-blue-50 border-blue-200/70" };
+    }
+    if (s.includes("monday")) {
+      return { label: "Monday.com", icon: Columns, tag: "text-amber-700 bg-amber-50 border-amber-200/70" };
+    }
+    if (s.includes("clickup")) {
+      return { label: "ClickUp", icon: CheckSquareOffset, tag: "text-purple-700 bg-purple-50 border-purple-200/70" };
     }
     return { label: "System", icon: Lightning, tag: "text-stone-600 bg-stone-100 border-stone-200/70" };
   };

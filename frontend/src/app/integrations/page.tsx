@@ -23,6 +23,9 @@ import {
   Buildings,
   Folders,
   Receipt,
+  Bug,
+  Columns,
+  CheckSquareOffset,
 } from "@phosphor-icons/react";
 import CockpitHeader from "@/components/copilot/CockpitHeader";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
@@ -162,6 +165,36 @@ const TOOLS: ToolDefinition[] = [
     badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
     color: "#E54332",
     scopes: ["ZohoBooks.invoices.ALL", "ZohoBooks.bills.ALL", "ZohoBooks.contacts.ALL"],
+  },
+  {
+    slug: "jira",
+    name: "Jira",
+    category: "Project & Sprint Tracking",
+    description: "Search backlogs, triage Jira issues, manage sprint boards, and transition tickets with team context.",
+    icon: Bug,
+    badgeClass: "bg-blue-50 text-blue-800 border-blue-200",
+    color: "#0052CC",
+    scopes: ["read:jira-work", "write:jira-work", "read:jira-user"],
+  },
+  {
+    slug: "monday",
+    name: "Monday.com",
+    category: "Work Management & Boards",
+    description: "Query workspaces, inspect board pulses, track status columns, and post project updates.",
+    icon: Columns,
+    badgeClass: "bg-amber-50 text-amber-900 border-amber-200",
+    color: "#FF3D57",
+    scopes: ["boards:read", "boards:write", "updates:read", "updates:write"],
+  },
+  {
+    slug: "clickup",
+    name: "ClickUp",
+    category: "Tasks & Team Productivity",
+    description: "Manage hierarchical tasks, inspect lists, organize spaces, and coordinate deliverables.",
+    icon: CheckSquareOffset,
+    badgeClass: "bg-purple-50 text-purple-800 border-purple-200",
+    color: "#7B68EE",
+    scopes: ["task:read", "task:write", "space:read"],
   },
 ];
 

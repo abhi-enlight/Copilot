@@ -15,6 +15,9 @@ import {
   LinearLogo,
   GitHubLogo,
   NotionLogo,
+  JiraLogo,
+  MondayLogo,
+  ClickUpLogo,
 } from "./ToolkitLogos";
 
 export interface ToolkitItem {
@@ -33,6 +36,9 @@ const TOOLKIT_ITEMS: ToolkitItem[] = [
   { name: "Google Calendar", logo: <GoogleCalendarLogo size={28} /> },
   { name: "Slack", logo: <SlackLogo size={28} /> },
   { name: "Linear", logo: <LinearLogo size={28} /> },
+  { name: "Jira", logo: <JiraLogo size={28} /> },
+  { name: "Monday.com", logo: <MondayLogo size={28} /> },
+  { name: "ClickUp", logo: <ClickUpLogo size={28} /> },
   { name: "GitHub", logo: <GitHubLogo size={28} /> },
   { name: "Notion", logo: <NotionLogo size={28} /> },
 ];
