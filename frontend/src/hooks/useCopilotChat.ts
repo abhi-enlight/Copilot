@@ -517,6 +517,7 @@ export function useCopilotChat() {
     const targetSessionId = urlSessionId || storedSessionId;
 
     if (isExplicitNew) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSessionLoading(false);
       return;
     }

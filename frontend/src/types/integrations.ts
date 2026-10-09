@@ -18,7 +18,8 @@ export type SupportedToolSlug =
   | 'zoho_books'
   | 'jira'
   | 'monday'
-  | 'clickup';
+  | 'clickup'
+  | 'zoho_projects';
 
 export type ToolConnectionState = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'ERROR';
 

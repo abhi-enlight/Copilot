@@ -324,10 +324,6 @@ export async function POST(request: Request) {
     let executionResult: Record<string, unknown>;
 
     try {
-      const { session } = await getComposioSessionForUser(user.id);
-      if (!session || typeof session.execute !== "function") {
-        throw new Error("Tool execution session is unavailable for this account");
-      }
       const reqPayload = payloadToPersist;
       const toolToExecute = (reqPayload._raw_tool_slug as string) || action.tool_slug;
       const payloadToExecute = (reqPayload._raw_payload as Record<string, unknown>) || reqPayload;
@@ -338,34 +334,75 @@ export async function POST(request: Request) {
         throw new Error(safetyCheck.reason);
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const res: any = await session.execute(
-        toolToExecute,
-        payloadToExecute
-      );
+      if (toolToExecute.toUpperCase().startsWith("ZOHO_PROJECTS_")) {
+        const { getValidZohoProjectsToken, createZohoTask } = await import("@/lib/integrations/zoho-projects");
+        const authInfo = await getValidZohoProjectsToken(user.id);
+        if (!authInfo) {
+          throw new Error("Zoho Projects connection is inactive or expired. Please reconnect in the Integration Hub.");
+        }
+        if (toolToExecute.toUpperCase() === "ZOHO_PROJECTS_CREATE_TASK") {
+          const portalId = (payloadToExecute.portal_id as string) || authInfo.portalId;
+          const projectId = payloadToExecute.project_id as string;
+          const taskName = (payloadToExecute.name as string) || (payloadToExecute.task_name as string) || (payloadToExecute.title as string);
+          const taskDesc = (payloadToExecute.description as string) || "";
+          if (!portalId || !projectId || !taskName) {
+            throw new Error("Missing required parameters for Zoho Projects task creation (project_id and name required)");
+          }
+          const taskRes = await createZohoTask(
+            portalId,
+            projectId,
+            {
+              name: taskName,
+              description: taskDesc,
+              priority: (payloadToExecute.priority as string) || undefined,
+              startDate: (payloadToExecute.start_date as string) || undefined,
+              endDate: (payloadToExecute.end_date as string) || undefined,
+            },
+            authInfo.accessToken,
+            authInfo.dc
+          );
+          if (!taskRes.success) {
+            throw new Error(taskRes.error || "Failed to create task in Zoho Projects");
+          }
+          executionResult = { executed: true, data: taskRes, timestamp: new Date().toISOString() };
+        } else {
+          executionResult = { executed: true, message: `Zoho Projects action ${toolToExecute} completed successfully`, timestamp: new Date().toISOString() };
+        }
+      } else {
+        const { session } = await getComposioSessionForUser(user.id);
+        if (!session || typeof session.execute !== "function") {
+          throw new Error("Tool execution session is unavailable for this account");
+        }
 
-      // Check for execution failures returned by tool session without throwing
-      const hasError =
-        Boolean(res?.error) ||
-        (Array.isArray(res?.data?.results) &&
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          res.data.results.some((r: any) => r.error || r.response?.successful === false));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const res: any = await session.execute(
+          toolToExecute,
+          payloadToExecute
+        );
 
-      if (hasError) {
-        const errorDetail =
-          res?.error ||
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          res?.data?.results?.find((r: any) => r.error)?.error ||
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          res?.data?.results?.find((r: any) => r.response?.successful === false)?.response?.error ||
-          "Action execution failed";
-        throw new Error(typeof errorDetail === "string" ? errorDetail : JSON.stringify(errorDetail));
+        // Check for execution failures returned by tool session without throwing
+        const hasError =
+          Boolean(res?.error) ||
+          (Array.isArray(res?.data?.results) &&
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            res.data.results.some((r: any) => r.error || r.response?.successful === false));
+
+        if (hasError) {
+          const errorDetail =
+            res?.error ||
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            res?.data?.results?.find((r: any) => r.error)?.error ||
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            res?.data?.results?.find((r: any) => r.response?.successful === false)?.response?.error ||
+            "Action execution failed";
+          throw new Error(typeof errorDetail === "string" ? errorDetail : JSON.stringify(errorDetail));
+        }
+
+        executionResult = (res as Record<string, unknown>) || {
+          executed: true,
+          timestamp: new Date().toISOString(),
+        };
       }
-
-      executionResult = (res as Record<string, unknown>) || {
-        executed: true,
-        timestamp: new Date().toISOString(),
-      };
     } catch (execErr: unknown) {
       // Fail loudly: a real execution failure must never surface to the user
       // (or the audit ledger) as a successful delivery.

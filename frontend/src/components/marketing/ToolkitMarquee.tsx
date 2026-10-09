@@ -18,6 +18,7 @@ import {
   JiraLogo,
   MondayLogo,
   ClickUpLogo,
+  ZohoProjectsLogo,
 } from "./ToolkitLogos";
 
 export interface ToolkitItem {
@@ -31,6 +32,7 @@ const TOOLKIT_ITEMS: ToolkitItem[] = [
   { name: "SharePoint", logo: <SharePointLogo size={28} /> },
   { name: "Dynamics 365", logo: <DynamicsLogo size={28} /> },
   { name: "Zoho CRM", logo: <ZohoCrmLogo size={28} /> },
+  { name: "Zoho Projects", logo: <ZohoProjectsLogo size={28} /> },
   { name: "Zoho Books", logo: <ZohoBooksLogo size={28} /> },
   { name: "Gmail", logo: <GmailLogo size={28} /> },
   { name: "Google Calendar", logo: <GoogleCalendarLogo size={28} /> },

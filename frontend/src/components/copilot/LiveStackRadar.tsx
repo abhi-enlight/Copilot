@@ -208,6 +208,9 @@ export default function LiveStackRadar({ onInvestigate, className = "" }: LiveSt
     if (s.includes("github")) {
       return { label: "GitHub", icon: GitPullRequest, tag: "text-stone-700 bg-stone-100 border-stone-200/80" };
     }
+    if (s.includes("zoho_projects") || s.includes("zohoprojects")) {
+      return { label: "Zoho Projects", icon: Kanban, tag: "text-red-700 bg-red-50 border-red-200/70" };
+    }
     if (s.includes("zoho_books") || s.includes("books")) {
       return { label: "Zoho Books", icon: CurrencyDollar, tag: "text-emerald-700 bg-emerald-50 border-emerald-200/70" };
     }

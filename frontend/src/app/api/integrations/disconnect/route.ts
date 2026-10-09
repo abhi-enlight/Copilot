@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
+import { adminSupabase } from "@/lib/supabase-admin";
 import {
   getComposioClient,
   normalizeToolSlug,
@@ -32,6 +33,24 @@ export async function POST(request: Request) {
       );
     }
 
+    let targetSlug = app ? normalizeToolSlug(app) : undefined;
+
+    if (targetSlug === "zoho_projects") {
+      await adminSupabase
+        .from("user_integrations")
+        .delete()
+        .eq("auth_user_id", user.id)
+        .eq("provider", "zoho")
+        .eq("product", "projects");
+
+      clearSessionCacheForUser(user.id);
+      return NextResponse.json({
+        success: true,
+        disconnected: true,
+        app: "zoho_projects",
+      });
+    }
+
     const entityId = `user_${user.id}`;
     const composio = getComposioClient();
 
@@ -42,7 +61,6 @@ export async function POST(request: Request) {
     });
 
     let targetAccountId = accountId;
-    let targetSlug: string | undefined;
 
     if (targetAccountId) {
       // Assert that targetAccountId belongs to caller

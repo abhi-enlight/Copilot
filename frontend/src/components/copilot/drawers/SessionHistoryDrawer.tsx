@@ -48,6 +48,7 @@ export default function SessionHistoryDrawer({
   useEffect(() => {
     let ignore = false;
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(true);
       fetch("/api/chat/sessions")
         .then((res) => (res.ok ? res.json() : null))

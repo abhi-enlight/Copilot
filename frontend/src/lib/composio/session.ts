@@ -217,6 +217,24 @@ export const PRISM_TOOL_REGISTRY: Record<string, PrismToolMetadata> = {
     category: "Tasks & Team Productivity",
     description: "Manage hierarchical tasks, inspect lists, organize spaces, and coordinate deliverables.",
   },
+  zoho_projects: {
+    slug: "zoho_projects",
+    name: "Zoho Projects",
+    category: "Project Management",
+    description: "Portals, projects, tasks, milestones, and bug tracking across teams.",
+  },
+  zohoprojects: {
+    slug: "zoho_projects",
+    name: "Zoho Projects",
+    category: "Project Management",
+    description: "Portals, projects, tasks, milestones, and bug tracking across teams.",
+  },
+  "zoho-projects": {
+    slug: "zoho_projects",
+    name: "Zoho Projects",
+    category: "Project Management",
+    description: "Portals, projects, tasks, milestones, and bug tracking across teams.",
+  },
 };
 
 export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
@@ -235,6 +253,7 @@ export const CORE_PRISM_TOOL_SLUGS: SupportedToolSlug[] = [
   "jira",
   "monday",
   "clickup",
+  "zoho_projects",
 ];
 
 export function normalizeToolSlug(app: string): SupportedToolSlug {

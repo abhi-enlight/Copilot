@@ -26,6 +26,7 @@ import {
   Bug,
   Columns,
   CheckSquareOffset,
+  FolderSimple,
 } from "@phosphor-icons/react";
 import CockpitHeader from "@/components/copilot/CockpitHeader";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
@@ -195,6 +196,22 @@ const TOOLS: ToolDefinition[] = [
     badgeClass: "bg-purple-50 text-purple-800 border-purple-200",
     color: "#7B68EE",
     scopes: ["task:read", "task:write", "space:read"],
+  },
+  {
+    slug: "zoho_projects",
+    name: "Zoho Projects",
+    category: "Project Management",
+    description: "Manage projects, track milestones, assign tasks, and monitor issues across team portals.",
+    icon: FolderSimple,
+    badgeClass: "bg-red-50 text-red-800 border-red-200",
+    color: "#E42528",
+    scopes: [
+      "ZohoProjects.portals.READ",
+      "ZohoProjects.projects.READ",
+      "ZohoProjects.tasks.ALL",
+      "ZohoProjects.milestones.READ",
+      "ZohoProjects.bugs.READ",
+    ],
   },
 ];
 

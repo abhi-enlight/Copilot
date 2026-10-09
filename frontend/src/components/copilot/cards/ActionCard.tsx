@@ -25,6 +25,7 @@ import {
   Bug,
   Columns,
   CheckSquareOffset,
+  FolderSimple,
 } from "@phosphor-icons/react";
 import type { ActionProposal } from "@/types/database";
 import { humanizeError } from "@/lib/errors/humanize";
@@ -203,6 +204,20 @@ export default function ActionCard({ proposal, onApprove, onReject, className = 
         label: "Linear",
         icon: Kanban,
         badgeClass: "bg-violet-50 text-violet-800 border-violet-200",
+      };
+    }
+    if (s.includes("zoho_projects") || s.includes("zohoprojects")) {
+      return {
+        label: "Zoho Projects",
+        icon: FolderSimple,
+        badgeClass: "bg-red-50 text-red-800 border-red-200",
+      };
+    }
+    if (s.includes("zoho_books") || s.includes("zohobooks")) {
+      return {
+        label: "Zoho Books",
+        icon: Receipt,
+        badgeClass: "bg-orange-50 text-orange-800 border-orange-200",
       };
     }
     if (s.includes("zoho")) {

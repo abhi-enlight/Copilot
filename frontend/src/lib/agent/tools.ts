@@ -158,11 +158,16 @@ export function extractInnerToolDetails(
       else if (innerLower.includes("teams")) normalized = "microsoft_teams";
       else if (innerLower.includes("slack")) normalized = "slack";
       else if (innerLower.includes("linear")) normalized = "linear";
+      else if (innerLower.includes("zoho_projects") || innerLower.includes("zohoprojects")) normalized = "zoho_projects";
+      else if (innerLower.includes("zoho_books") || innerLower.includes("zohobooks")) normalized = "zoho_books";
       else if (innerLower.includes("zoho")) normalized = "zoho";
       else if (innerLower.includes("github")) normalized = "github";
       else if (innerLower.includes("gmail")) normalized = "gmail";
       else if (innerLower.includes("calendar")) normalized = "googlecalendar";
       else if (innerLower.includes("notion")) normalized = "notion";
+      else if (innerLower.includes("jira")) normalized = "jira";
+      else if (innerLower.includes("monday")) normalized = "monday";
+      else if (innerLower.includes("clickup")) normalized = "clickup";
       else if (innerLower.includes("mail")) normalized = "outlook";
 
       return {
@@ -178,11 +183,16 @@ export function extractInnerToolDetails(
   else if (lower.includes("teams")) normalized = "microsoft_teams";
   else if (lower.includes("slack")) normalized = "slack";
   else if (lower.includes("linear")) normalized = "linear";
+  else if (lower.includes("zoho_projects") || lower.includes("zohoprojects")) normalized = "zoho_projects";
+  else if (lower.includes("zoho_books") || lower.includes("zohobooks")) normalized = "zoho_books";
   else if (lower.includes("zoho")) normalized = "zoho";
   else if (lower.includes("github")) normalized = "github";
   else if (lower.includes("gmail")) normalized = "gmail";
   else if (lower.includes("calendar")) normalized = "googlecalendar";
   else if (lower.includes("notion")) normalized = "notion";
+  else if (lower.includes("jira")) normalized = "jira";
+  else if (lower.includes("monday")) normalized = "monday";
+  else if (lower.includes("clickup")) normalized = "clickup";
   else if (lower.includes("mail")) normalized = "outlook";
 
   return {
@@ -593,6 +603,35 @@ export function generateProposalSummary(
       title: "Create Zoho Books Entry",
       description: `Target: "${target}"`,
       actionType: "ZOHO_BOOKS_CREATE",
+    };
+  }
+
+  // Zoho Projects
+  if (slug.includes("zoho_projects") || slug.includes("zohoprojects")) {
+    const taskName =
+      (payload.name as string) ||
+      (payload.task_name as string) ||
+      (payload.title as string) ||
+      "Zoho Projects Task";
+    const projectId = (payload.project_id as string) || "";
+    if (slug.includes("delete")) {
+      return {
+        title: "Delete Zoho Projects Task",
+        description: `Task: "${taskName}"`,
+        actionType: "ZOHO_PROJECTS_DELETE_TASK",
+      };
+    }
+    if (slug.includes("create")) {
+      return {
+        title: "Create Zoho Projects Task",
+        description: `Task: "${taskName}"${projectId ? ` • Project: ${projectId}` : ""}`,
+        actionType: "ZOHO_PROJECTS_CREATE_TASK",
+      };
+    }
+    return {
+      title: "Update Zoho Projects Task",
+      description: `Task: "${taskName}"`,
+      actionType: "ZOHO_PROJECTS_UPDATE_TASK",
     };
   }
 

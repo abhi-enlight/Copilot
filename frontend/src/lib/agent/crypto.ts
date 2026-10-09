@@ -1,4 +1,11 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  timingSafeEqual,
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+} from "node:crypto";
 
 /**
  * Returns the server-side signing secret for tamper-proof action proposals.
@@ -108,3 +115,55 @@ export function verifyActionSignature(params: {
     return false;
   }
 }
+
+/**
+ * Derives a 32-byte AES-256-GCM key from INTEGRATION_ENCRYPTION_KEY or PRISM_VAULT_KEY.
+ */
+function getIntegrationEncryptionKey(): Buffer {
+  const rawKey = (
+    process.env.INTEGRATION_ENCRYPTION_KEY ||
+    process.env.PRISM_VAULT_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    ""
+  ).trim();
+
+  if (rawKey.length === 64) {
+    return Buffer.from(rawKey, "hex");
+  }
+  return createHash("sha256").update(rawKey).digest();
+}
+
+/**
+ * Encrypts an OAuth token at rest using AES-256-GCM with a random IV.
+ * Format: iv.authTag.ciphertext (base64)
+ */
+export function encryptIntegrationToken(token: string): string {
+  const key = getIntegrationEncryptionKey();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  let ciphertext = cipher.update(token, "utf8", "base64");
+  ciphertext += cipher.final("base64");
+  const authTag = cipher.getAuthTag().toString("base64");
+  return `${iv.toString("base64")}.${authTag}.${ciphertext}`;
+}
+
+/**
+ * Decrypts an OAuth token using AES-256-GCM.
+ */
+export function decryptIntegrationToken(encrypted: string): string {
+  const key = getIntegrationEncryptionKey();
+  const parts = encrypted.split(".");
+  if (parts.length !== 3) {
+    throw new Error("Invalid encrypted token format");
+  }
+  const iv = Buffer.from(parts[0], "base64");
+  const authTag = Buffer.from(parts[1], "base64");
+  const ciphertext = Buffer.from(parts[2], "base64");
+
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(ciphertext, undefined, "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+

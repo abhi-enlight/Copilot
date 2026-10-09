@@ -294,3 +294,23 @@ export function ClickUpLogo({ size = 56, className = "" }: LogoProps) {
     </svg>
   );
 }
+
+/**
+ * 16. Zoho Projects (Official Zoho Projects red tile with project task flow)
+ */
+export function ZohoProjectsLogo({ size = 56, className = "" }: LogoProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={className} aria-label="Zoho Projects">
+      <rect width="64" height="64" rx="16" fill="#E42528" />
+      <circle cx="22" cy="22" r="4.5" fill="white" />
+      <rect x="31" y="20" width="16" height="4" rx="2" fill="white" />
+      <circle cx="22" cy="32" r="4.5" fill="white" />
+      <rect x="31" y="30" width="20" height="4" rx="2" fill="white" />
+      <circle cx="22" cy="42" r="4.5" fill="white" />
+      <rect x="31" y="40" width="13" height="4" rx="2" fill="white" />
+      <line x1="22" y1="26.5" x2="22" y2="27.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="22" y1="36.5" x2="22" y2="37.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+

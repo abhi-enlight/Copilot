@@ -22,6 +22,7 @@ import {
   Bug,
   Columns,
   CheckSquareOffset,
+  FolderSimple,
 } from "@phosphor-icons/react";
 import { openPrismConnectPopup } from "@/lib/integrations/popup";
 import { notifyToolsUpdated } from "@/hooks/useToolsStatus";
@@ -180,6 +181,15 @@ const TOOLS: ToolDefinition[] = [
     icon: CheckSquareOffset,
     badgeClass: "bg-purple-50 text-purple-800 border-purple-200",
     color: "#7B68EE",
+  },
+  {
+    slug: "zoho_projects",
+    name: "Zoho Projects",
+    category: "Project Management",
+    description: "Manage projects, track milestones, assign tasks, and monitor issues across team portals.",
+    icon: FolderSimple,
+    badgeClass: "bg-red-50 text-red-800 border-red-200",
+    color: "#E42528",
   },
 ];
 

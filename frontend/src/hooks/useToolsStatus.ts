@@ -5,7 +5,7 @@ import type { SupportedToolSlug, ToolConnectionStatus } from "@/types/integratio
 import { TOTAL_COCKPIT_TOOLS } from "@/lib/constants";
 import { useOptionalAuth } from "@/components/providers/AuthProvider";
 
-// All 12 core enterprise tools configured in Prism V2
+// All 16 core enterprise tools configured in Prism V2
 export const COCKPIT_TOOL_SLUGS: SupportedToolSlug[] = [
   "outlook",
   "microsoft_teams",
@@ -22,6 +22,7 @@ export const COCKPIT_TOOL_SLUGS: SupportedToolSlug[] = [
   "jira",
   "monday",
   "clickup",
+  "zoho_projects",
 ];
 
 export interface UseToolsStatusResult {

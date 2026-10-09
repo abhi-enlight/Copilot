@@ -119,6 +119,13 @@ export const CURATED_TOOLKIT_ACTIONS: Record<string, string[]> = {
     "CLICKUP_GET_SPACES",
     "CLICKUP_GET_LISTS",
   ],
+  zoho_projects: [
+    "ZOHO_PROJECTS_LIST_PROJECTS",
+    "ZOHO_PROJECTS_GET_TASKS",
+    "ZOHO_PROJECTS_CREATE_TASK",
+    "ZOHO_PROJECTS_GET_MILESTONES",
+    "ZOHO_PROJECTS_GET_BUGS",
+  ],
 };
 
 /**
@@ -317,6 +324,17 @@ export const TOOLKIT_INTENT_KEYWORDS: Record<string, string[]> = {
     "clickup list",
     "task list",
   ],
+  zoho_projects: [
+    "zoho projects",
+    "zoho project",
+    "zoho task",
+    "zoho tasks",
+    "zoho milestone",
+    "zoho milestones",
+    "zoho bug",
+    "zoho bugs",
+    "zoho portal",
+  ],
 };
 
 /**
@@ -354,6 +372,7 @@ export function detectToolkitForTool(toolName: string): string | null {
   )
     return "googlecalendar";
   if (upper.startsWith("NOTION_") || upper.includes("NOTION")) return "notion";
+  if (upper.startsWith("ZOHO_PROJECTS_") || upper.includes("ZOHO_PROJECTS") || upper.includes("ZOHOPROJECTS")) return "zoho_projects";
   if (upper.startsWith("ZOHO_BOOKS_") || upper.includes("ZOHO_BOOKS") || upper.includes("ZOHOBOOKS")) return "zoho_books";
   if (upper.startsWith("ZOHO_") || upper.includes("ZOHO")) return "zoho";
   if (upper.startsWith("DYNAMICS365_") || upper.includes("DYNAMICS")) return "dynamics365";

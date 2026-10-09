@@ -13,9 +13,9 @@ Use these credentials to access the live test environment:
 
 ## 2. Tool Connectivity & Environment Status
 
-Prism is architected to orchestrate across **15 core enterprise tools**. In this demo account, here is the exact breakdown:
+Prism is architected to orchestrate across **16 core enterprise tools**. In this demo account, here is the exact breakdown:
 
-### Connected & Ready for Live Prompts (10 Tools)
+### Connected & Ready for Live Prompts (11 Tools)
 1. **Google Gmail** — Corporate inbox search, thread context retrieval, and email drafting.
 2. **Google Calendar** — Executive schedule, meeting conflicts, and team availability.
 3. **Slack** — Internal channel monitoring, broadcast announcements, and message drafting.
@@ -24,8 +24,9 @@ Prism is architected to orchestrate across **15 core enterprise tools**. In this
 6. **Monday.com** — Visual work execution, board pulses, cross-team roadmap columns, and status updates.
 7. **Zoho CRM** — Pipeline deals, account stages, revenue figures, and contact records.
 8. **Zoho Books** — Invoices, billing status, overdue receivables, and expense records.
-9. **GitHub** — Repositories, open pull requests, stale branches, and code review status.
-10. **Notion** — Workspace knowledge base, operating runbooks, and meeting notes.
+9. **Zoho Projects** — Portals, project roadmaps, task hierarchies, milestones, and bug tracking. (Native direct REST integration via Zoho OAuth 2.0 with AES-256-GCM vault security).
+10. **GitHub** — Repositories, open pull requests, stale branches, and code review status.
+11. **Notion** — Workspace knowledge base, operating runbooks, and meeting notes.
 
 ### Native Work Management (Ready for 1-Click Connection)
 - **ClickUp** — Hierarchical task structures, space/list management, and coordinated deliverables. Fully wired into Prism's engine; can be authorized with 1 click directly in the **Connect Hub** (`/integrations`).
@@ -42,7 +43,7 @@ Prism is architected to orchestrate across **15 core enterprise tools**. In this
 
 ## 3. High-Impact Demo Prompts
 
-Here are 8 tested prompts tailored for clients. Each highlights a different capability: cross-tool data merging, proactive morning briefings, and human-in-the-loop action proposals.
+Here are 9 tested prompts tailored for clients. Each highlights a different capability: cross-tool data merging, proactive morning briefings, and human-in-the-loop action proposals.
 
 ---
 
@@ -159,6 +160,20 @@ Check Zoho CRM for our latest interactions with our top active deal, look for re
 
 ---
 
+### Prompt 9: Project Milestones & Task Creation (Zoho Projects + Slack)
+**Goal:** Showcase native Zoho Projects roadmap tracking and task creation with human sign-off.
+
+```text
+Inspect our active projects in Zoho Projects for any overdue milestones or high-priority tasks. Summarize the deliverable status and propose creating a follow-up task titled 'Executive Roadmap Review' assigned to the team.
+```
+
+**What to point out on screen:**
+- **Native REST Query:** Prism accesses Zoho Projects via OAuth 2.0 with AES-256-GCM token encryption, retrieving portals, projects, and task lists without third-party vendor middleware.
+- **Action Proposal Card:** When proposing to create the task, Prism generates a structured **Action Card** specifying the project, task name, and priority, waiting for your one-click approval before saving to Zoho Projects.
+- **Client Talking Point:** *"Prism orchestrates deep project hierarchies directly in Zoho Projects, ensuring your roadmap and task backlog are always up to date without manual data entry."*
+
+---
+
 ## 4. Suggested Demo Flow (10-15 Minutes)
 
 ### Step 1: Sign In & The Command Cockpit (2 mins)
@@ -166,12 +181,12 @@ Check Zoho CRM for our latest interactions with our top active deal, look for re
 2. Introduce the **Prism Cockpit**:
    - Clean, hardware-grade interface designed specifically for executive and operations triage.
    - Show the 3-panel layout: Left navigation rail, Center intelligence stream, Right live telemetry radar.
-   - Point out the **Tools Connected** indicator in the top header (reflecting connected tools out of 15).
+   - Point out the **Tools Connected** indicator in the top header (reflecting connected tools out of 16).
 
 ### Step 2: Show the Connect Hub (2 mins)
 1. Click the tool counter badge in the header or go to `/integrations`.
-2. Show the **15 Enterprise Toolkits**:
-   - Highlight the **10 connected tools** (Gmail, Google Calendar, Slack, Linear, Jira, Monday.com, Zoho CRM, Zoho Books, GitHub, Notion).
+2. Show the **16 Enterprise Toolkits**:
+   - Highlight the **11 connected tools** (Gmail, Google Calendar, Slack, Linear, Jira, Monday.com, Zoho CRM, Zoho Books, Zoho Projects, GitHub, Notion).
    - Point out **ClickUp** as native and ready to connect with 1 click.
    - Address the Microsoft stack (Outlook, Teams, Dynamics 365, SharePoint):
      *"These four are fully integrated into Prism's engine. On this shared demo seat, we don't have global admin rights to our enterprise Microsoft tenant, so we haven't connected them here. In your own deployment, an IT administrator can connect your Microsoft 365 tenant in one click without any custom API or OAuth configuration."*

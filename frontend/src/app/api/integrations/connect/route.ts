@@ -5,6 +5,10 @@ import {
   clearSessionCacheForUser,
   sanitizeIntegrationError,
 } from "@/lib/composio/session";
+import {
+  getZohoAccountsDomain,
+  getZohoProjectsScopes,
+} from "@/lib/integrations/zoho-projects";
 import type { ConnectResponse } from "@/types/integrations";
 import { NextResponse } from "next/server";
 
@@ -90,6 +94,42 @@ export async function POST(request: Request) {
       authorizeOptions.data = {
         "suffix.one": suffix,
       };
+    }
+
+    if (toolkitSlug === "zoho_projects") {
+      const clientId = process.env.ZOHO_CLIENT_ID;
+      if (!clientId) {
+        return NextResponse.json(
+          { error: "Zoho OAuth Client ID is not configured (ZOHO_CLIENT_ID)" },
+          { status: 500 }
+        );
+      }
+
+      const dc = body.datacenter || process.env.ZOHO_DATACENTER || "com";
+      const accountsDomain = getZohoAccountsDomain(dc);
+      const redirectUri =
+        process.env.ZOHO_REDIRECT_URI ||
+        `${origin}/api/integrations/zoho/callback`;
+
+      const statePayload = {
+        userId: user.id,
+        dc,
+        app: "zoho_projects",
+        timestamp: Date.now(),
+      };
+      const state = encodeURIComponent(JSON.stringify(statePayload));
+      const scopes = getZohoProjectsScopes();
+
+      const authUrl = `${accountsDomain}/oauth/v2/auth?scope=${scopes}&client_id=${clientId}&response_type=code&access_type=offline&redirect_uri=${encodeURIComponent(redirectUri)}&prompt=consent&state=${state}`;
+
+      const response: ConnectResponse = {
+        success: true,
+        app: "zoho_projects",
+        connectionId: `zoho_proj_${user.id}`,
+        redirectUrl: authUrl,
+      };
+
+      return NextResponse.json(response);
     }
 
     const connectionRequest = await session.authorize(toolkitSlug, authorizeOptions);

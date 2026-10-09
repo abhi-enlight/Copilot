@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import OpenAI from "openai";
+import { adminSupabase } from "@/lib/supabase-admin";
 import type { ActionProposal } from "@/types/database";
 import type { AgentSSEEvent } from "@/types";
 import {
@@ -9,6 +10,14 @@ import {
   explodeToolCalls,
 } from "./tools";
 import { selectScopedTools } from "./tool-selector";
+import {
+  ZOHO_PROJECTS_AGENT_TOOLS,
+  getValidZohoProjectsToken,
+  fetchProjects,
+  fetchTasks,
+  fetchMilestones,
+  fetchBugs,
+} from "@/lib/integrations/zoho-projects";
 
 export interface AgentChatMessage {
   role: "user" | "assistant" | "system" | "tool";
@@ -101,7 +110,7 @@ export function getOpenAIClient(): OpenAI | null {
   return new OpenAI({ apiKey, baseURL });
 }
 
-const SYSTEM_PROMPT = `You are Prism, an Executive Workplace Operations Copilot. You are purpose-built to orchestrate actions, summarize updates, and retrieve information strictly across connected enterprise productivity tools: Microsoft Outlook, Microsoft Teams, Slack, Linear, Zoho CRM, GitHub, Gmail, Google Calendar, Notion, Microsoft Dynamics 365, Microsoft SharePoint, and Zoho Books.
+const SYSTEM_PROMPT = `You are Prism, an Executive Workplace Operations Copilot. You are purpose-built to orchestrate actions, summarize updates, and retrieve information strictly across connected enterprise productivity tools: Microsoft Outlook, Microsoft Teams, Slack, Linear, Zoho CRM, GitHub, Gmail, Google Calendar, Notion, Microsoft Dynamics 365, Microsoft SharePoint, Zoho Books, Jira, Monday.com, ClickUp, and Zoho Projects.
 
 OPERATIONAL BOUNDARIES & REFUSAL POLICY:
 Prism is an executive workplace operations copilot, NOT a general-purpose conversational chatbot, homework solver, encyclopedia, or entertainment engine. You must strictly decline out-of-scope requests immediately without calling any tools.
@@ -111,7 +120,7 @@ OUT-OF-SCOPE DOMAINS (STRICTLY REFUSE):
    -> Refusal: Politely state in 1-2 concise sentences that you are an operations copilot for connected workplace tools and do not solve general math or science problems, then offer to help with their emails, tickets, CRM deals, or team channels.
    *NOTE*: Computing counts, sums, or metrics directly derived from connected workplace data (e.g., "sum the value of deals closing this month in CRM" or "how many open issues are in Linear") IS strictly IN-SCOPE.
 2. Unsupported Third-Party Services / SaaS: Tools or services not connected to Prism (e.g., MillionVerifier, Salesforce, HubSpot, Stripe, Shopify, Zendesk, etc.).
-   -> Refusal: State clearly that the requested service is not currently connected or supported. State your supported integrations (Microsoft Outlook, Microsoft Teams, Slack, Linear, Zoho CRM, GitHub, Gmail, Google Calendar, Notion, Microsoft Dynamics 365, Microsoft SharePoint, and Zoho Books) and ask if they would like help with any of those.
+   -> Refusal: State clearly that the requested service is not currently connected or supported. State your supported integrations (Microsoft Outlook, Microsoft Teams, Slack, Linear, Zoho CRM, GitHub, Gmail, Google Calendar, Notion, Microsoft Dynamics 365, Microsoft SharePoint, Zoho Books, Jira, Monday.com, ClickUp, and Zoho Projects) and ask if they would like help with any of those.
 3. General Trivia, History & Factoids: Encyclopedia facts, historical figures, geography, pop culture, movie plots, sports trivia, weather forecasts.
    -> Refusal: Decline politely in 1-2 sentences and redirect to connected work tools.
 4. Creative Writing & Entertainment: Poems, jokes, riddles, roleplaying, bedtime stories, fantasy generation.
@@ -244,7 +253,7 @@ function formatToolActivity(slug: string): string | null {
   if (s.includes("outlook") || s.includes("mail")) return "email";
   if (s.includes("teams")) return "teams";
   if (s.includes("slack")) return "slack";
-  if (s.includes("linear") || s.includes("jira") || s.includes("monday") || s.includes("clickup")) return "project";
+  if (s.includes("linear") || s.includes("jira") || s.includes("monday") || s.includes("clickup") || s.includes("zoho_projects") || s.includes("zohoprojects")) return "project";
   if (s.includes("zoho_books") || s.includes("invoice") || s.includes("bill")) return "finance";
   if (s.includes("zoho") || s.includes("dynamics")) return "crm";
   if (s.includes("github")) return "github";
@@ -283,6 +292,23 @@ export async function executeSimulatedAgent(params: {
         chatHistory,
         maxTools: 18,
       });
+    }
+
+    // Check if user has active native Zoho Projects integration
+    try {
+      const { data: zohoRow } = await adminSupabase
+        .from("user_integrations")
+        .select("status, zoho_portal_id")
+        .eq("auth_user_id", userId)
+        .eq("provider", "zoho")
+        .eq("product", "projects")
+        .maybeSingle();
+
+      if (zohoRow && zohoRow.status === "active") {
+        openAITools = [...openAITools, ...ZOHO_PROJECTS_AGENT_TOOLS];
+      }
+    } catch (zErr) {
+      console.warn("[Agent] Failed to check native Zoho Projects integration:", zErr);
     }
   } catch (err: unknown) {
     console.warn("[Agent] Failed to load tools:", err);
@@ -462,6 +488,55 @@ export async function executeSimulatedAgent(params: {
     if (readOnlyCalls.length > 0) {
       const readResults = await Promise.allSettled(
         readOnlyCalls.map(async (call) => {
+          if (call.name.startsWith("ZOHO_PROJECTS_")) {
+            try {
+              const authInfo = await getValidZohoProjectsToken(userId);
+              if (!authInfo) {
+                return {
+                  id: call.id,
+                  result: { error: "Zoho Projects connection is inactive or expired. Please reconnect in the Integration Hub." },
+                };
+              }
+              const portalId = call.parsedArgs.portal_id || authInfo.portalId;
+              if (call.name === "ZOHO_PROJECTS_LIST_PROJECTS") {
+                const projects = await fetchProjects(portalId, authInfo.accessToken, authInfo.dc);
+                return { id: call.id, result: { projects } };
+              }
+              if (call.name === "ZOHO_PROJECTS_GET_TASKS") {
+                const tasks = await fetchTasks(
+                  portalId,
+                  call.parsedArgs.project_id,
+                  authInfo.accessToken,
+                  authInfo.dc
+                );
+                return { id: call.id, result: { tasks } };
+              }
+              if (call.name === "ZOHO_PROJECTS_GET_MILESTONES") {
+                const milestones = await fetchMilestones(
+                  portalId,
+                  call.parsedArgs.project_id,
+                  authInfo.accessToken,
+                  authInfo.dc
+                );
+                return { id: call.id, result: { milestones } };
+              }
+              if (call.name === "ZOHO_PROJECTS_GET_BUGS") {
+                const bugs = await fetchBugs(
+                  portalId,
+                  call.parsedArgs.project_id,
+                  authInfo.accessToken,
+                  authInfo.dc
+                );
+                return { id: call.id, result: { bugs } };
+              }
+            } catch (err: unknown) {
+              return {
+                id: call.id,
+                result: { error: err instanceof Error ? err.message : String(err) },
+              };
+            }
+          }
+
           if (!composioSession) return { id: call.id, result: { error: "No tool execution session available." } };
           try {
             const result = await executeToolWithRetry(composioSession, call.name, call.parsedArgs, signal);

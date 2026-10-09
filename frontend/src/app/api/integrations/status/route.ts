@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
+import { adminSupabase } from "@/lib/supabase-admin";
 import {
   getComposioSessionForUser,
   getComposioClient,
@@ -115,6 +116,33 @@ export async function GET(request: Request) {
 
     if (appQuery) {
       const toolkitSlug = normalizeToolSlug(appQuery);
+
+      if (toolkitSlug === "zoho_projects") {
+        const { data: zohoIntegration } = await adminSupabase
+          .from("user_integrations")
+          .select("status, zoho_user_id, zoho_portal_id, updated_at")
+          .eq("auth_user_id", user.id)
+          .eq("provider", "zoho")
+          .eq("product", "projects")
+          .maybeSingle();
+
+        const isConnected = !!zohoIntegration && zohoIntegration.status === "active";
+        const toolStatus: ToolConnectionStatus = {
+          slug: "zoho_projects",
+          name: "Zoho Projects",
+          category: "Project Management",
+          isConnected,
+          status: isConnected ? "ACTIVE" : "INACTIVE",
+          connectedAccountId: isConnected ? `zoho_proj_${user.id}` : undefined,
+          connectedAccountName: zohoIntegration?.zoho_user_id || (isConnected ? "Connected Account" : undefined),
+        };
+
+        return NextResponse.json(
+          { success: true, ...toolStatus },
+          { headers: NO_CACHE_HEADERS }
+        );
+      }
+
       const [details, userAccounts] = await Promise.all([
         session.toolkits({ toolkits: [toolkitSlug] }),
         accountsPromise,
@@ -147,11 +175,22 @@ export async function GET(request: Request) {
     void ensureUserTriggers(user.id);
 
     // Query status across all core MVP tools
-    const [details, userAccounts] = await Promise.all([
-      session.toolkits({ toolkits: [...CORE_PRISM_TOOL_SLUGS] }),
+    const composioSlugs = CORE_PRISM_TOOL_SLUGS.filter((s) => s !== "zoho_projects");
+    const [details, userAccounts, zohoRes] = await Promise.all([
+      session.toolkits({ toolkits: [...composioSlugs] }),
       accountsPromise,
+      Promise.resolve(
+        adminSupabase
+          .from("user_integrations")
+          .select("status, zoho_user_id, zoho_portal_id, updated_at")
+          .eq("auth_user_id", user.id)
+          .eq("provider", "zoho")
+          .eq("product", "projects")
+          .maybeSingle()
+      ).catch(() => ({ data: null })),
     ]);
 
+    const zohoIntegration = zohoRes?.data;
     const userAccountsList = (userAccounts.items as ComposioAccountLike[] | undefined) || [];
     const accountDisplayNames = new Map<string, string>();
     const userAccountBySlug = new Map<string, ComposioAccountLike>();
@@ -183,6 +222,19 @@ export async function GET(request: Request) {
 
     const tools: ToolConnectionStatus[] = CORE_PRISM_TOOL_SLUGS.map(
       (slug: SupportedToolSlug) => {
+        if (slug === "zoho_projects") {
+          const isConnected = !!zohoIntegration && zohoIntegration.status === "active";
+          return {
+            slug: "zoho_projects",
+            name: "Zoho Projects",
+            category: "Project Management",
+            isConnected,
+            status: isConnected ? "ACTIVE" : "INACTIVE",
+            connectedAccountId: isConnected ? `zoho_proj_${user.id}` : undefined,
+            connectedAccountName: zohoIntegration?.zoho_user_id || (isConnected ? "Connected Account" : undefined),
+          };
+        }
+
         const slugKey = slug.toLowerCase();
         const item = itemsMap.get(slugKey) || itemsMap.get(slug);
         const directAcc = userAccountBySlug.get(slugKey) || userAccountBySlug.get(slug);
