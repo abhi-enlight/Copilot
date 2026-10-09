@@ -155,7 +155,10 @@ export async function GET(request: Request) {
         const name = resolveAccountName(acc);
         if (name) {
           if (acc.id) accountDisplayNames.set(acc.id, name);
-          if (acc.toolkit?.slug) accountDisplayNames.set(acc.toolkit.slug, name);
+          if (acc.toolkit?.slug) {
+            accountDisplayNames.set(acc.toolkit.slug, name);
+            accountDisplayNames.set(acc.toolkit.slug.toLowerCase(), name);
+          }
         }
       }
     }
@@ -163,15 +166,15 @@ export async function GET(request: Request) {
     const itemsMap = new Map<string, ToolkitItemLike>();
     for (const item of (details.items as ToolkitItemLike[] | undefined) || []) {
       if (item.slug) {
-        itemsMap.set(item.slug, item);
+        itemsMap.set(item.slug.toLowerCase(), item);
       }
     }
 
     const tools: ToolConnectionStatus[] = CORE_PRISM_TOOL_SLUGS.map(
       (slug: SupportedToolSlug) => {
-        const item = itemsMap.get(slug);
+        const item = itemsMap.get(slug.toLowerCase()) || itemsMap.get(slug);
         const accountId = item?.connection?.connectedAccount?.id;
-        const displayName = (accountId ? accountDisplayNames.get(accountId) : undefined) || accountDisplayNames.get(slug);
+        const displayName = (accountId ? accountDisplayNames.get(accountId) : undefined) || accountDisplayNames.get(slug.toLowerCase()) || accountDisplayNames.get(slug);
         return formatToolStatus(slug, item, displayName);
       }
     );
