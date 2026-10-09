@@ -93,20 +93,25 @@ export function getZohoProjectsScopes(): string {
  * Retrieves a valid Zoho Projects access token for the given user,
  * automatically handling proactive token refresh if expired.
  */
-export async function getValidZohoProjectsToken(userId: string): Promise<{
+export async function getValidZohoProjectsToken(userIdentifier: string): Promise<{
   accessToken: string;
   portalId: string;
   dc: string;
   accountName: string;
 } | null> {
   try {
+    const isEmail = userIdentifier.includes("@");
+    const filter = isEmail
+      ? `user_email.eq.${userIdentifier.toLowerCase()}`
+      : `auth_user_id.eq.${userIdentifier}`;
+
     const { data: row, error } = await adminSupabase
       .from("user_integrations")
       .select("*")
-      .eq("auth_user_id", userId)
+      .or(filter)
       .eq("provider", "zoho")
       .eq("product", "projects")
-      .single();
+      .maybeSingle();
 
     if (error || !row || row.status !== "active") {
       return null;

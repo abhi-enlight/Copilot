@@ -118,10 +118,14 @@ export async function GET(request: Request) {
       const toolkitSlug = normalizeToolSlug(appQuery);
 
       if (toolkitSlug === "zoho_projects") {
+        const filter = user.email
+          ? `auth_user_id.eq.${user.id},user_email.eq.${user.email.toLowerCase()}`
+          : `auth_user_id.eq.${user.id}`;
+
         const { data: zohoIntegration } = await adminSupabase
           .from("user_integrations")
           .select("status, zoho_user_id, zoho_portal_id, updated_at")
-          .eq("auth_user_id", user.id)
+          .or(filter)
           .eq("provider", "zoho")
           .eq("product", "projects")
           .maybeSingle();
@@ -183,7 +187,11 @@ export async function GET(request: Request) {
         adminSupabase
           .from("user_integrations")
           .select("status, zoho_user_id, zoho_portal_id, updated_at")
-          .eq("auth_user_id", user.id)
+          .or(
+            user.email
+              ? `auth_user_id.eq.${user.id},user_email.eq.${user.email.toLowerCase()}`
+              : `auth_user_id.eq.${user.id}`
+          )
           .eq("provider", "zoho")
           .eq("product", "projects")
           .maybeSingle()

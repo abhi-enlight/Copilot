@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
+import { adminSupabase } from "@/lib/supabase-admin";
 import {
   getComposioSessionForUser,
   normalizeToolSlug,
@@ -105,6 +106,23 @@ export async function POST(request: Request) {
         );
       }
 
+      const userEmail = (user.email || (user.user_metadata?.email as string | undefined))?.toLowerCase();
+      if (userEmail) {
+        try {
+          await adminSupabase.from("app_users").upsert(
+            {
+              auth_user_id: user.id,
+              email: userEmail,
+              role: "member",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "email" }
+          );
+        } catch (syncErr) {
+          console.warn("[connect/zoho] app_users proactive sync notice:", syncErr);
+        }
+      }
+
       const dc = body.datacenter || process.env.ZOHO_DATACENTER || "com";
       const accountsDomain = getZohoAccountsDomain(dc);
       const redirectUri =
@@ -113,6 +131,7 @@ export async function POST(request: Request) {
 
       const statePayload = {
         userId: user.id,
+        userEmail,
         dc,
         app: "zoho_projects",
         timestamp: Date.now(),

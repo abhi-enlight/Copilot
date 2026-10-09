@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminSupabase } from "@/lib/supabase-admin";
+import { createClient } from "@/lib/supabase-server";
+import { clearSessionCacheForUser } from "@/lib/composio/session";
 import {
   exchangeZohoCodeForTokens,
   fetchPortals,
@@ -31,46 +33,90 @@ export async function GET(request: Request) {
   }
 
   try {
-    let state: { userId?: string; dc?: string; returnTo?: string } = {};
+    let state: { userId?: string; userEmail?: string; dc?: string; returnTo?: string } = {};
     if (stateRaw) {
       try {
-        state = JSON.parse(decodeURIComponent(stateRaw));
+        state = JSON.parse(stateRaw);
       } catch {
-        // state might not be JSON
+        try {
+          state = JSON.parse(decodeURIComponent(stateRaw));
+        } catch {
+          // state might not be JSON
+        }
       }
     }
 
-    const userId = state.userId;
-    if (!userId) {
-      return failureRedirect("Missing user identity in OAuth state session.");
+    // Attempt to identify user from session cookie first
+    let sessionUser: { id: string; email?: string } | null = null;
+    try {
+      const sessionSupabase = await createClient();
+      const { data: authData } = await sessionSupabase.auth.getUser();
+      if (authData?.user) {
+        sessionUser = authData.user;
+      }
+    } catch {
+      // Ignore session cookie reading errors
     }
 
-    let userEmail: string | undefined;
-    const { data: userProfile } = await adminSupabase
-      .from("app_users")
-      .select("email, auth_user_id")
-      .eq("auth_user_id", userId)
-      .maybeSingle();
+    let userId = state.userId || sessionUser?.id;
+    let userEmail = (state.userEmail || sessionUser?.email)?.toLowerCase();
 
-    if (userProfile?.email) {
-      userEmail = userProfile.email;
-    } else {
-      const { data: authUserData } = await adminSupabase.auth.admin.getUserById(userId);
-      if (authUserData?.user?.email) {
-        userEmail = authUserData.user.email;
-        await adminSupabase.from("app_users").upsert(
-          {
-            auth_user_id: userId,
-            email: userEmail.toLowerCase(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "auth_user_id" }
-        );
+    // If email is still unresolved, query DB using userId
+    if (!userEmail && userId) {
+      try {
+        const { data: userProfile } = await adminSupabase
+          .from("app_users")
+          .select("email, auth_user_id")
+          .eq("auth_user_id", userId)
+          .maybeSingle();
+
+        if (userProfile?.email) {
+          userEmail = userProfile.email.toLowerCase();
+        } else {
+          const { data: authUserData } = await adminSupabase.auth.admin.getUserById(userId);
+          if (authUserData?.user?.email) {
+            userEmail = authUserData.user.email.toLowerCase();
+          }
+        }
+      } catch (lookupErr) {
+        console.warn("[zoho/callback] DB profile lookup fallback warning:", lookupErr);
+      }
+    }
+
+    // If userId is still unresolved, resolve auth_user_id from app_users via email
+    if (!userId && userEmail) {
+      try {
+        const { data: userProfile } = await adminSupabase
+          .from("app_users")
+          .select("auth_user_id")
+          .eq("email", userEmail)
+          .maybeSingle();
+
+        if (userProfile?.auth_user_id) {
+          userId = userProfile.auth_user_id;
+        }
+      } catch {
+        // Ignore
       }
     }
 
     if (!userEmail) {
       return failureRedirect("Unable to resolve matching user profile in Prism vault.");
+    }
+
+    // Idempotently ensure user exists in app_users to satisfy FK constraint on user_integrations
+    try {
+      await adminSupabase.from("app_users").upsert(
+        {
+          email: userEmail,
+          role: "member",
+          ...(userId ? { auth_user_id: userId } : {}),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "email" }
+      );
+    } catch (upsertErr) {
+      console.warn("[zoho/callback] app_users sync notice:", upsertErr);
     }
 
     const dc = state.dc || process.env.ZOHO_DATACENTER || "com";
@@ -103,7 +149,7 @@ export async function GET(request: Request) {
       .upsert(
         {
           user_email: userEmail,
-          auth_user_id: userId,
+          auth_user_id: userId || null,
           provider: "zoho",
           product: "projects",
           access_token_encrypted: accessTokenEncrypted,
@@ -130,6 +176,10 @@ export async function GET(request: Request) {
     if (upsertError) {
       console.error("[zoho/callback] Vault write failed:", upsertError);
       return failureRedirect("Failed to securely record credentials in vault.");
+    }
+
+    if (userId) {
+      clearSessionCacheForUser(userId);
     }
 
     return NextResponse.redirect(

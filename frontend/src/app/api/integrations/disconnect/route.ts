@@ -36,10 +36,14 @@ export async function POST(request: Request) {
     let targetSlug = app ? normalizeToolSlug(app) : undefined;
 
     if (targetSlug === "zoho_projects") {
+      const deleteFilter = user.email
+        ? `auth_user_id.eq.${user.id},user_email.eq.${user.email.toLowerCase()}`
+        : `auth_user_id.eq.${user.id}`;
+
       await adminSupabase
         .from("user_integrations")
         .delete()
-        .eq("auth_user_id", user.id)
+        .or(deleteFilter)
         .eq("provider", "zoho")
         .eq("product", "projects");
 
