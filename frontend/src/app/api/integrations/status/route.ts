@@ -123,11 +123,15 @@ export async function GET(request: Request) {
         (t: { slug: string }) => t.slug === toolkitSlug
       );
       const userAccountsList = (userAccounts.items as ComposioAccountLike[] | undefined) || [];
-      const matchedAcc = userAccountsList.find(
-        (a) => a.toolkit?.slug === toolkitSlug && a.status === "ACTIVE"
-      );
+      const matchedAcc =
+        userAccountsList.find(
+          (a) => (a.toolkit?.slug || "").toLowerCase() === toolkitSlug.toLowerCase() && a.status === "ACTIVE"
+        ) ||
+        userAccountsList.find(
+          (a) => (a.toolkit?.slug || "").toLowerCase() === toolkitSlug.toLowerCase()
+        );
       const displayName = resolveAccountName(matchedAcc);
-      const toolStatus = formatToolStatus(toolkitSlug, item, displayName);
+      const toolStatus = formatToolStatus(toolkitSlug, item, displayName, matchedAcc);
 
       if (toolStatus.isConnected && toolStatus.status === "ACTIVE") {
         void ensureUserTriggers(user.id, toolkitSlug);
@@ -150,15 +154,22 @@ export async function GET(request: Request) {
 
     const userAccountsList = (userAccounts.items as ComposioAccountLike[] | undefined) || [];
     const accountDisplayNames = new Map<string, string>();
+    const userAccountBySlug = new Map<string, ComposioAccountLike>();
+
     for (const acc of userAccountsList) {
+      const slugKey = (acc.toolkit?.slug || "").toLowerCase();
+      if (!slugKey) continue;
+
+      const existing = userAccountBySlug.get(slugKey);
+      if (!existing || (existing.status !== "ACTIVE" && acc.status === "ACTIVE")) {
+        userAccountBySlug.set(slugKey, acc);
+      }
+
       if (acc.status === "ACTIVE") {
         const name = resolveAccountName(acc);
         if (name) {
           if (acc.id) accountDisplayNames.set(acc.id, name);
-          if (acc.toolkit?.slug) {
-            accountDisplayNames.set(acc.toolkit.slug, name);
-            accountDisplayNames.set(acc.toolkit.slug.toLowerCase(), name);
-          }
+          accountDisplayNames.set(slugKey, name);
         }
       }
     }
@@ -172,10 +183,16 @@ export async function GET(request: Request) {
 
     const tools: ToolConnectionStatus[] = CORE_PRISM_TOOL_SLUGS.map(
       (slug: SupportedToolSlug) => {
-        const item = itemsMap.get(slug.toLowerCase()) || itemsMap.get(slug);
-        const accountId = item?.connection?.connectedAccount?.id;
-        const displayName = (accountId ? accountDisplayNames.get(accountId) : undefined) || accountDisplayNames.get(slug.toLowerCase()) || accountDisplayNames.get(slug);
-        return formatToolStatus(slug, item, displayName);
+        const slugKey = slug.toLowerCase();
+        const item = itemsMap.get(slugKey) || itemsMap.get(slug);
+        const directAcc = userAccountBySlug.get(slugKey) || userAccountBySlug.get(slug);
+        const accountId = item?.connection?.connectedAccount?.id || directAcc?.id;
+        const displayName =
+          (accountId ? accountDisplayNames.get(accountId) : undefined) ||
+          accountDisplayNames.get(slugKey) ||
+          accountDisplayNames.get(slug) ||
+          resolveAccountName(directAcc);
+        return formatToolStatus(slug, item, displayName, directAcc);
       }
     );
 

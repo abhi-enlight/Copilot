@@ -331,7 +331,9 @@ export function formatToolStatus(
   slug: SupportedToolSlug,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   item?: any,
-  accountDisplayName?: string
+  accountDisplayName?: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  directAccount?: any
 ): ToolConnectionStatus {
   const meta = PRISM_TOOL_REGISTRY[slug] || {
     slug,
@@ -340,8 +342,10 @@ export function formatToolStatus(
     description: "",
   };
 
-  const isConnected = Boolean(item?.connection?.isActive);
-  const rawStatus = (item?.connection?.connectedAccount?.status || "").toUpperCase();
+  const account = item?.connection?.connectedAccount || directAccount;
+  const rawStatus = (account?.status || "").toUpperCase();
+  const isDirectActive = directAccount && rawStatus === "ACTIVE";
+  const isConnected = Boolean(item?.connection?.isActive) || Boolean(isDirectActive);
 
   let status: ToolConnectionState = "INACTIVE";
   if (isConnected && rawStatus === "ACTIVE") {
@@ -352,16 +356,16 @@ export function formatToolStatus(
     status = "ERROR";
   }
 
-  const accountId = item?.connection?.connectedAccount?.id;
+  const accountId = account?.id;
   const resolvedName =
     accountDisplayName ||
-    item?.connection?.connectedAccount?.data?.displayName ||
-    item?.connection?.connectedAccount?.state?.val?.displayName ||
-    item?.connection?.connectedAccount?.data?.email ||
-    item?.connection?.connectedAccount?.state?.val?.email ||
-    item?.connection?.connectedAccount?.params?.user_email ||
-    item?.connection?.connectedAccount?.params?.email ||
-    item?.connection?.connectedAccount?.alias ||
+    account?.data?.displayName ||
+    account?.state?.val?.displayName ||
+    account?.data?.email ||
+    account?.state?.val?.email ||
+    account?.params?.user_email ||
+    account?.params?.email ||
+    account?.alias ||
     undefined;
 
   return {
